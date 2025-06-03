@@ -1,0 +1,21 @@
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from app.database import Base, SessionLocal, engine
+from app import models
+from app.models import Asistencia
+from app.routers import asistencias, auth, comisiones, registro, ventas
+from . import schemas
+from app import rutas
+from fastapi.middleware.cors import CORSMiddleware
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+# Incluir los routers
+app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
+app.include_router(registro.router, prefix="/registro", tags=["Usuarios"])
+app.include_router(asistencias.router, prefix="/asistencias", tags=["Asistencias"])
+app.include_router(ventas.router, prefix="/ventas", tags=["Ventas"])
+app.include_router(comisiones.router, prefix="/comisiones", tags=["Comisiones"])
+
