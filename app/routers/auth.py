@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app import models
+from app.config import crear_token
 from app.database import get_db
-from app.rutas import crear_token
 from passlib.context import CryptContext
 
 

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app import models, schemas
+from app.config import get_current_user
 from app.database import get_db
-from app.rutas import get_current_user
+from app.utilidades import verificar_rol_requerido
 
 
 
@@ -14,10 +14,8 @@ router = APIRouter()
 def crear_comision(
     comision: schemas.ComisionCreate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     existente = db.query(models.Comision).filter_by(producto=comision.producto).first()
     if existente:
@@ -36,10 +34,8 @@ def actualizar_comision(
     producto: str,
     comision: schemas.ComisionUpdate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     com_db = db.query(models.Comision).filter_by(producto=producto).first()
     if not com_db:
@@ -56,10 +52,8 @@ def actualizar_comision(
 def eliminar_comision(
     producto: str,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     com_db = db.query(models.Comision).filter_by(producto=producto).first()
     if not com_db:
@@ -73,8 +67,7 @@ def eliminar_comision(
 
 @router.get("/comisiones", response_model=list[schemas.ComisionCreate])
 def obtener_comisiones(db: Session = Depends(get_db), user: models.Usuario = Depends(get_current_user)):
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Solo el admin puede ver todas las comisiones")
+    
     return db.query(models.Comision).all()
 
 @router.get("/comisiones/{producto}", response_model=schemas.ComisionCreate)

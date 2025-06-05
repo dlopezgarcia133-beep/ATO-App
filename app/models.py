@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Date, Float, Integer, String, DateTime, Time, func
+import enum
+from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
 from datetime import datetime
@@ -6,12 +7,17 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
 
+class RolEnum(str, enum.Enum):
+    admin = "admin"
+    encargado = "encargado"
+    asesor = "asesor"
+
 class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, nullable=False)
-    ident = Column(String, unique=True, nullable=False, default="asesor, admin, encargado")  
+    rol = Column(Enum(RolEnum), nullable=False, default=RolEnum.asesor)  
     password = Column(String, nullable=False)
     modulo = Column(String, nullable=True)  
     is_admin = Column(Boolean, default=False)
@@ -55,3 +61,48 @@ class Comision(Base):
 
 
 
+
+class EstadoTraspasoEnum(str, enum.Enum):
+    pendiente = "pendiente"
+    aprobado = "aprobado"
+    rechazado = "rechazado"
+
+class Traspaso(Base):
+    __tablename__ = "traspasos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    producto = Column(String, nullable=False)
+    cantidad = Column(Integer, nullable=False)
+    modulo_origen = Column(String, nullable=False)
+    modulo_destino = Column(String, nullable=False)
+    estado = Column(Enum(EstadoTraspasoEnum), default=EstadoTraspasoEnum.pendiente)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    solicitado_por = Column(Integer, ForeignKey("usuarios.id"))
+    aprobado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    solicitante = relationship("Usuario", foreign_keys=[solicitado_por])
+    aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
+
+
+
+class InventarioGeneral(Base):
+    __tablename__ = "inventario_general"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cantidad = Column(Integer, nullable=False)
+    clave = Column(String, unique=True, nullable=False) 
+    producto = Column(String, unique=True, nullable=False)
+    precio = Column(Integer, nullable=True)
+    
+
+class InventarioModulo(Base):
+    __tablename__ = "inventario_modulo"
+
+    id = Column(Integer, primary_key=True, index=True)
+    modulo = Column(String, nullable=False)
+    cantidad = Column(Integer, nullable=False)
+    clave = Column(String, unique=True, nullable=False) 
+    producto = Column(String, unique=True, nullable=False)
+    precio = Column(Integer, nullable=True)
+
+    __table_args__ = (UniqueConstraint('modulo', 'producto', name='modulo_producto_uc'),)

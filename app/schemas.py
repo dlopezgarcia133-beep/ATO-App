@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel
-from datetime import date, time
+from datetime import date, datetime, time
+from app.models import EstadoTraspasoEnum
 
 
 class AsistenciaBase(BaseModel):
@@ -25,6 +26,7 @@ class VentaCreate(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
+    cliente_email: Optional[str] = None
      
 
 class VentaResponse(VentaCreate):
@@ -62,7 +64,7 @@ class ComisionResponse(ComisionCreate):
 
 class UsuarioCreate(BaseModel):
     username: str
-    ident: str
+    rol: str
     password: str
     modulo: str
     is_admin: Optional[bool] = False
@@ -70,7 +72,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioResponse(BaseModel):
     id: int
     username: str
-    ident: str
+    rol: str
     modulo: str
     is_admin: bool
 
@@ -80,3 +82,72 @@ class UsuarioResponse(BaseModel):
 
 class ModuloSelect(BaseModel):
     modulo: str
+
+
+
+class TraspasoBase(BaseModel):
+    producto: str
+    cantidad: int
+    modulo_destino: str
+
+class TraspasoCreate(TraspasoBase):
+    pass
+
+class TraspasoUpdate(BaseModel):
+    estado: Literal["aprobado", "rechazado"]
+
+class TraspasoResponse(TraspasoBase):
+    id: int
+    modulo_origen: str
+    estado: str
+    fecha: datetime
+    solicitado_por: int
+    aprobado_por: Optional[int] = None
+
+    class Config:
+        orm_mode = True
+
+
+
+
+class InventarioGeneralCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+
+
+class InventarioGeneralUpdate(BaseModel):
+    cantidad: int
+
+
+class InventarioGeneralResponse(BaseModel):
+    id: int
+    producto: str
+    cantidad: int
+
+    class Config:
+        orm_mode = True
+
+
+
+
+class InventarioModuloCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+
+
+class InventarioModuloUpdate(BaseModel):
+    cantidad: int
+
+
+class InventarioModuloResponse(BaseModel):
+    id: int
+    producto: str
+    cantidad: int
+    modulo: str
+
+    class Config:
+        orm_mode = True

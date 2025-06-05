@@ -3,8 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models, schemas
+from app.config import get_current_user
 from app.database import get_db
-from app.rutas import get_current_user
+
 
 
 router = APIRouter()
