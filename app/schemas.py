@@ -26,7 +26,7 @@ class VentaCreate(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
-    cliente_email: Optional[str] = None
+    correo_cliente: Optional[str] = None
      
 
 class VentaResponse(VentaCreate):

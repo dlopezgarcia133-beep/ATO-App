@@ -48,6 +48,7 @@ class Venta(Base):
     comision = Column(Float, nullable=True)  
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
+    correo_cliente = Column(String, nullable=True)
     
     empleado = relationship("Usuario", back_populates="ventas")
 
@@ -106,3 +107,13 @@ class InventarioModulo(Base):
     precio = Column(Integer, nullable=True)
 
     __table_args__ = (UniqueConstraint('modulo', 'producto', name='modulo_producto_uc'),)
+    
+    
+    
+    
+class CorreoPromocional(Base):
+    __tablename__ = "correos_promocionales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    correo = Column(String, unique=True, nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)

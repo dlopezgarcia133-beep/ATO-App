@@ -53,7 +53,8 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
         precio_unitario=venta.precio_unitario,
         comision=comision,
         fecha=datetime.now().date(),
-        hora=datetime.now().time()
+        hora=datetime.now().time(),
+        correo_cliente=venta.correo_cliente
     )
     # Si dejaste el campo total en el modelo, descomenta esta línea:
     # nueva_venta.total = total
@@ -64,7 +65,7 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
     
     
     try:
-        enviar_ticket(venta.cliente_email, {
+        enviar_ticket(venta.correo_cliente, {
             "producto": venta.producto,
             "cantidad": venta.cantidad,
             "total": nueva_venta.total
@@ -74,8 +75,10 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
 
 
     respuesta = schemas.VentaResponse.from_orm(nueva_venta)
-    respuesta.total = total
+    respuesta.total = total        
     return respuesta
+
+    
 
 
 @router.get("/ventas", response_model=list[schemas.VentaResponse])

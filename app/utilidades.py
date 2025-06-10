@@ -1,7 +1,9 @@
 
+from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from app.config import get_current_user
-from app.models import RolEnum, Usuario
+from app.database import SessionLocal
+from app.models import CorreoPromocional, RolEnum, Usuario
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -48,3 +50,6 @@ def enviar_ticket(destinatario: str, venta_data: dict):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
         servidor.login(EMAIL_USER, EMAIL_PASS)
         servidor.sendmail(EMAIL_USER, destinatario, mensaje.as_string())
+
+
+
