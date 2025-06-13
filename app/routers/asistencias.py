@@ -14,7 +14,7 @@ router = APIRouter()
 # ------------------- ASISTENCIAS -------------------
 @router.post("/asistencias", response_model=schemas.Asistencia)
 def registrar_asistencia(
-    turno: str = Query(..., description="turno: 'mañana' o 'tarde'"),
+    turno: str,  
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):

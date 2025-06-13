@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import Base, SessionLocal, engine
 from app import models
 from app.models import Asistencia
-from app.routers import asistencias, auth, comisiones, traspasos, usuarios, ventas
+from app.routers import asistencias, auth, comisiones, inventario, traspasos, usuarios, ventas
 from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,4 +18,14 @@ app.include_router(asistencias.router, prefix="/asistencias", tags=["Asistencias
 app.include_router(ventas.router, prefix="/ventas", tags=["Ventas"])
 app.include_router(comisiones.router, prefix="/comisiones", tags=["Comisiones"])
 app.include_router(traspasos.router, tags=["Traspasos"])
+app.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # O usa ["*"] para todos los orígenes
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

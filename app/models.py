@@ -30,7 +30,7 @@ class Asistencia(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
     modulo = Column(String, nullable=False)
-    turno = Column(String, nullable=True)
+    turno = Column(String, nullable=False)
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     hora_salida = Column(Time, nullable=True)

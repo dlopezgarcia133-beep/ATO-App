@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from app import models, schemas
 from app.config import get_current_user
@@ -41,6 +42,30 @@ def actualizar_producto_inventario_general(
     db.commit()
     db.refresh(producto_db)
     return producto_db
+
+@router.get("/inventario/general/{producto}", response_model=schemas.InventarioGeneralResponse)
+def produtos_inventario(
+    producto: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    producto_db = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
+    if not producto_db:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
+    
+    
+    db.commit()
+    db.refresh(producto_db)
+    return producto_db
+
+@router.get("/inventario/inventario/general/productos-nombres", response_model=List[str])
+def obtener_productos_nombres(
+    db: Session = Depends(get_db),
+    
+    ):
+    productos = db.query(models.InventarioGeneral.producto).distinct().all()
+    return [p[0] for p in productos]
+
 
 @router.get("/inventario/general", response_model=list[schemas.InventarioGeneralResponse])
 def obtener_inventario_general(

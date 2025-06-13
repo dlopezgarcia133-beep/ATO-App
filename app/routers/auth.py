@@ -1,7 +1,7 @@
 
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app import models
 from app.config import crear_token
@@ -10,6 +10,9 @@ from passlib.context import CryptContext
 
 
 router = APIRouter()
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -48,14 +51,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         
         nueva_asistencia = models.Asistencia(
             nombre=user.username,
-            modulo=user.modulo,  # Puedes cambiarlo por un valor predeterminado o campo de usuario
+            modulo=user.modulo,  
             turno= turno,
             fecha=hoy,
             hora=datetime.now().time()
         )
         db.add(nueva_asistencia)
         db.commit()
-
+        db.refresh(nueva_asistencia)
     token = crear_token({"sub": user.username})
     return {"access_token": token, "token_type": "bearer"}
 

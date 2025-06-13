@@ -15,10 +15,10 @@ from app.database import get_db
 
 SECRET_KEY = "mi_clave_secreta"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 def crear_token(data: dict, expires_delta: timedelta = timedelta(hours=12)):

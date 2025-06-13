@@ -39,7 +39,7 @@ def registrar_usuario(
 
         usuario_nuevo = models.Usuario(
             username=usuario.username,
-            ident=usuario.ident,
+            rol=usuario.rol,
             password=hashear_contraseña(usuario.password),
             modulo=usuario.modulo,
             is_admin=usuario.is_admin or False
