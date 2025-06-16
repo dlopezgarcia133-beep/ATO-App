@@ -24,7 +24,7 @@ app.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # O usa ["*"] para todos los orígenes
+    allow_origins=["http://localhost:3000"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

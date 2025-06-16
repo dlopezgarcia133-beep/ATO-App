@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
@@ -43,28 +44,32 @@ def actualizar_producto_inventario_general(
     db.refresh(producto_db)
     return producto_db
 
+
+
+@router.get("/inventario/general/productos-nombres", response_model=List[str])
+def obtener_productos_nombres(db: Session = Depends(get_db),
+                             current_user: models.Usuario = Depends(get_current_user)):
+    productos = db.query(models.InventarioGeneral.producto).distinct().all()
+    return [p[0] for p in productos]
+
+
+
 @router.get("/inventario/general/{producto}", response_model=schemas.InventarioGeneralResponse)
 def produtos_inventario(
     producto: str,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    producto_db = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
+    producto_normalizado = producto.strip().lower()
+    
+    producto_db = db.query(models.InventarioGeneral).filter(
+        func.lower(func.trim(models.InventarioGeneral.producto)) == producto_normalizado
+    ).first()
+
     if not producto_db:
         raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
-    
-    
-    db.commit()
-    db.refresh(producto_db)
-    return producto_db
 
-@router.get("/inventario/inventario/general/productos-nombres", response_model=List[str])
-def obtener_productos_nombres(
-    db: Session = Depends(get_db),
-    
-    ):
-    productos = db.query(models.InventarioGeneral.producto).distinct().all()
-    return [p[0] for p in productos]
+    return producto_db
 
 
 @router.get("/inventario/general", response_model=list[schemas.InventarioGeneralResponse])
@@ -81,13 +86,14 @@ def obtener_inventario_general(
 def crear_producto_modulo(
     datos: schemas.InventarioModuloCreate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.encargado, models.RolEnum.admin]))
+    current_user: models.Usuario = Depends(verificar_rol_requerido([ models.RolEnum.admin]))
 ):
-    existente = db.query(models.InventarioModulo).filter_by(producto=datos.producto, modulo=current_user.modulo).first()
+   
+    existente = db.query(models.InventarioModulo).filter_by(producto=datos.producto).first()
     if existente:
         raise HTTPException(status_code=400, detail="Producto ya existe en el inventario del módulo.")
 
-    nuevo = models.InventarioModulo(producto=datos.producto, cantidad=datos.cantidad, modulo=current_user.modulo)
+    nuevo = models.InventarioModulo(producto=datos.producto, clave=datos.clave, cantidad=datos.cantidad, precio=datos.precio, modulo=datos.modulo)
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)

@@ -125,6 +125,7 @@ class InventarioGeneralResponse(BaseModel):
     id: int
     producto: str
     cantidad: int
+    precio: int
 
     class Config:
         orm_mode = True
@@ -137,6 +138,7 @@ class InventarioModuloCreate(BaseModel):
     clave: str
     producto: str
     precio: int
+    modulo: str
 
 
 class InventarioModuloUpdate(BaseModel):
