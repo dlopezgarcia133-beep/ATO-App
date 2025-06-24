@@ -1,7 +1,7 @@
 from typing import Literal, Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time
-from app.models import EstadoTraspasoEnum
+from app.models import EstadoTraspasoEnum, RolEnum
 
 
 class AsistenciaBase(BaseModel):
@@ -24,8 +24,8 @@ class Asistencia(AsistenciaBase):
 
 class VentaCreate(BaseModel):
     producto: str
-    cantidad: int
     precio_unitario: float
+    cantidad: int
     correo_cliente: Optional[str] = None
      
 
@@ -44,6 +44,16 @@ class VentaResponse(VentaCreate):
     class Config:
         orm_mode = True
         from_attributes = True
+        
+
+class VentaCancelada(BaseModel):
+    id: int
+    cancelada: bool
+    fecha_cancelacion: datetime
+
+    class Config:
+        orm_mode = True
+
 
 
 
@@ -80,8 +90,25 @@ class UsuarioResponse(BaseModel):
         orm_mode = True
         
 
+class UsuarioUpdate(BaseModel):
+    username: Optional[str]
+    rol: Optional[RolEnum]
+    modulo: Optional[str]
+    password: Optional[str]
+    is_admin: Optional[bool]
+
+        
+
 class ModuloSelect(BaseModel):
     modulo: str
+    
+class ModuloResponse(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        orm_mode = True
+
 
 
 

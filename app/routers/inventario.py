@@ -89,9 +89,9 @@ def crear_producto_modulo(
     current_user: models.Usuario = Depends(verificar_rol_requerido([ models.RolEnum.admin]))
 ):
    
-    existente = db.query(models.InventarioModulo).filter_by(producto=datos.producto).first()
+    existente = db.query(models.InventarioModulo).filter_by(clave=datos.clave, modulo=datos.modulo).first()
     if existente:
-        raise HTTPException(status_code=400, detail="Producto ya existe en el inventario del módulo.")
+        raise HTTPException(status_code=400, detail="Producto ya existe en este módulo.")
 
     nuevo = models.InventarioModulo(producto=datos.producto, clave=datos.clave, cantidad=datos.cantidad, precio=datos.precio, modulo=datos.modulo)
     db.add(nuevo)
@@ -105,7 +105,7 @@ def actualizar_inventario_modulo(
     producto: str,
     datos: schemas.InventarioModuloUpdate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.encargado, models.RolEnum.admin]))
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
 ):
     item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo=current_user.modulo).first()
     if not item:
@@ -124,3 +124,18 @@ def obtener_inventario_modulo(
     current_user: models.Usuario = Depends(get_current_user)
 ):
     return db.query(models.InventarioModulo).filter_by(modulo=current_user.modulo).all()
+
+
+@router.delete("/inventario/general/{producto}")
+def eliminar_producto_inventario_general(
+    producto: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    producto_db = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
+    if not producto_db:
+        raise HTTPException(status_code=404, detail="Producto no encontrado.")
+    
+    db.delete(producto_db)
+    db.commit()
+    return {"mensaje": f"Producto '{producto}' eliminado exitosamente"}

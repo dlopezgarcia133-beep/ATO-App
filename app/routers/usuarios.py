@@ -69,6 +69,13 @@ def seleccionar_modulo(data: schemas.ModuloSelect,
 
     return {"message": f"Módulo '{data.modulo}' asignado correctamente"}
 
+@router.get("/modulos", response_model=list[schemas.ModuloResponse])
+def obtener_modulos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    return db.query(models.Modulo).all()
+
 
 
 def verificar_rol(usuario: models.Usuario, roles_permitidos: list[str]):
@@ -77,3 +84,57 @@ def verificar_rol(usuario: models.Usuario, roles_permitidos: list[str]):
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"No tienes permisos suficientes (se requiere uno de: {roles_permitidos})"
         )
+        
+
+@router.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
+def editar_usuario(
+    usuario_id: int,
+    datos: schemas.UsuarioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    usuario_db = db.query(models.Usuario).filter_by(id=usuario_id).first()
+
+    if not usuario_db:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if datos.username:
+        usuario_db.username = datos.username
+    if datos.rol:
+        usuario_db.rol = datos.rol
+    if datos.modulo is not None:
+        usuario_db.modulo = datos.modulo
+    if datos.is_admin is not None:
+        usuario_db.is_admin = datos.is_admin
+    if datos.password:
+        if len(datos.password) < 8 or not any(c.isdigit() for c in datos.password) or not any(c.isalpha() for c in datos.password):
+            raise HTTPException(status_code=400, detail="La contraseña no cumple con los requisitos")
+        usuario_db.password = hashear_contraseña(datos.password)
+
+    db.commit()
+    db.refresh(usuario_db)
+    return usuario_db
+
+
+
+@router.delete("/usuarios/{usuario_id}")
+def eliminar_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    usuario = db.query(models.Usuario).filter_by(id=usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    db.delete(usuario)
+    db.commit()
+    return {"mensaje": f"Usuario '{usuario.username}' eliminado correctamente"}
+
+
+@router.get("/usuarios", response_model=list[schemas.UsuarioResponse])
+def obtener_usuarios(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    return db.query(models.Usuario).all()

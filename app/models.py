@@ -46,6 +46,7 @@ class Venta(Base):
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Float, nullable=False)
     comision = Column(Float, nullable=True)  
+    cancelada = Column(Boolean, default=False)
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     correo_cliente = Column(String, nullable=True)
@@ -102,11 +103,12 @@ class InventarioModulo(Base):
     id = Column(Integer, primary_key=True, index=True)
     modulo = Column(String, nullable=False)
     cantidad = Column(Integer, nullable=False)
-    clave = Column(String, unique=True, nullable=False) 
-    producto = Column(String, unique=True, nullable=False)
-    precio = Column(Integer, nullable=True)
+    clave = Column(String, nullable=False) 
+    producto = Column(String, nullable=False)
+    precio = Column(Integer, nullable=False)
 
-    __table_args__ = (UniqueConstraint('modulo', 'producto', name='modulo_producto_uc'),)
+    __table_args__ = (
+        UniqueConstraint("clave", "modulo", name="inventario_modulo_clave_modulo_key"),)
     
     
     
@@ -117,3 +119,11 @@ class CorreoPromocional(Base):
     id = Column(Integer, primary_key=True, index=True)
     correo = Column(String, unique=True, nullable=False)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
+
+
+
+class Modulo(Base):
+    __tablename__ = "modulos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True, nullable=False)

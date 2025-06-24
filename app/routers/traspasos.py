@@ -56,10 +56,11 @@ def actualizar_estado_traspaso(
     
     
     if estado.estado == "aprobado":
-        origen = db.query(models.InventarioModulo).filter_by(
-        producto=traspaso.producto,
-        modulo=traspaso.modulo_origen
-    ).first()
+        origen = (
+            db.query(models.InventarioModulo)
+            .filter_by(producto=traspaso.producto, modulo=traspaso.modulo_origen)
+            .first()
+        )
     if not origen or origen.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
     

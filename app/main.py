@@ -17,7 +17,7 @@ app.include_router(usuarios.router, prefix="/registro", tags=["Usuarios"])
 app.include_router(asistencias.router, prefix="/asistencias", tags=["Asistencias"])
 app.include_router(ventas.router, prefix="/ventas", tags=["Ventas"])
 app.include_router(comisiones.router, prefix="/comisiones", tags=["Comisiones"])
-app.include_router(traspasos.router, tags=["Traspasos"])
+app.include_router(traspasos.router, prefix="/traspasos", tags=["Traspasos"])
 app.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 
 

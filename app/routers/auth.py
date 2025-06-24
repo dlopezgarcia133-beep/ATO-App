@@ -24,7 +24,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     
     
     if user.is_admin:
-        token = crear_token({"sub": user.username})
+        token = crear_token({"sub": user.username, "rol": user.rol})
         return {"access_token": token, "token_type": "bearer"}
 
     # Verifica si ya tiene asistencia registrada hoy
@@ -59,7 +59,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         db.add(nueva_asistencia)
         db.commit()
         db.refresh(nueva_asistencia)
-    token = crear_token({"sub": user.username})
+    token = crear_token({"sub": user.username, "rol": user.rol})
     return {"access_token": token, "token_type": "bearer"}
 
 
