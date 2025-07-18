@@ -1,4 +1,5 @@
-from typing import Literal, Optional
+from enum import Enum
+from typing import List, Literal, Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time
 from app.models import EstadoTraspasoEnum, RolEnum
@@ -19,7 +20,47 @@ class Asistencia(AsistenciaBase):
     hora_salida: time | None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+        
+
+class RolEnum(str, Enum):
+    admin = "admin"
+    encargado = "encargado"
+    asesor = "asesor"
+
+# 👉 Este es el que se usa para crear un usuario
+class UsuarioCreate(BaseModel):
+    username: str
+    rol: RolEnum
+    password: str
+    modulo_id: Optional[int] = None  # Cambiado de modulo:str a modulo_id:int
+    is_admin: Optional[bool] = False
+
+# 👉 Este es para actualizar un usuario
+class UsuarioUpdate(BaseModel):
+    username: Optional[str] = None
+    rol: Optional[str] = None
+    modulo_id: Optional[int] = None
+    is_admin: Optional[bool] = None
+    password: Optional[str] = None 
+
+# 👉 Este para devolver la respuesta
+class ModuloOut(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+       from_attributes = True
+
+class UsuarioResponse(BaseModel):
+    id: int
+    username: str
+    rol: RolEnum
+    is_admin: bool
+    modulo: Optional[ModuloOut] = None  
+
+    class Config:
+        from_attributes = True
 
 
 class VentaCreate(BaseModel):
@@ -31,8 +72,8 @@ class VentaCreate(BaseModel):
 
 class VentaResponse(VentaCreate):
     id: int
-    empleado_id: int
-    modulo: str
+    empleado: Optional[UsuarioResponse] = None
+    modulo: Optional[ModuloOut]
     producto: str
     cantidad: int
     precio_unitario: float
@@ -42,7 +83,7 @@ class VentaResponse(VentaCreate):
     hora: time
 
     class Config:
-        orm_mode = True
+        
         from_attributes = True
         
 
@@ -52,7 +93,39 @@ class VentaCancelada(BaseModel):
     fecha_cancelacion: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+        
+        
+
+class ProductoEnVenta(BaseModel):
+    producto: str
+    cantidad: int
+    precio_unitario: float
+
+class VentaMultipleCreate(BaseModel):
+    productos: List[ProductoEnVenta]
+    correo_cliente: Optional[str] = None
+
+
+class VentaChipCreate(BaseModel):
+    tipo_chip: str
+    numero_telefono: str
+    monto_recarga: float
+  
+
+class VentaChipResponse(VentaChipCreate):
+    id: int
+    empleado_id: Optional[int] = None
+    empleado: Optional[UsuarioResponse] = None
+    comision: Optional[float] = None
+    fecha: date
+    hora: time
+    cancelada: bool
+    validado: bool
+    descripcion_rechazo: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 
@@ -68,34 +141,10 @@ class ComisionResponse(ComisionCreate):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 
-class UsuarioCreate(BaseModel):
-    username: str
-    rol: str
-    password: str
-    modulo: str
-    is_admin: Optional[bool] = False
-
-class UsuarioResponse(BaseModel):
-    id: int
-    username: str
-    rol: str
-    modulo: str
-    is_admin: bool
-
-    class Config:
-        orm_mode = True
-        
-
-class UsuarioUpdate(BaseModel):
-    username: Optional[str]
-    rol: Optional[RolEnum]
-    modulo: Optional[str]
-    password: Optional[str]
-    is_admin: Optional[bool]
 
         
 
@@ -107,7 +156,7 @@ class ModuloResponse(BaseModel):
     nombre: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 
@@ -132,7 +181,7 @@ class TraspasoResponse(TraspasoBase):
     aprobado_por: Optional[int] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 
@@ -151,11 +200,12 @@ class InventarioGeneralUpdate(BaseModel):
 class InventarioGeneralResponse(BaseModel):
     id: int
     producto: str
+    clave: str
     cantidad: int
     precio: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 
@@ -170,13 +220,95 @@ class InventarioModuloCreate(BaseModel):
 
 class InventarioModuloUpdate(BaseModel):
     cantidad: int
-
+    precio: int
+    modulo_id: int  
 
 class InventarioModuloResponse(BaseModel):
     id: int
     producto: str
+    clave : str
     cantidad: int
-    modulo: str
+    precio: int
+    modulo: ModuloOut
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class MovimientoInventarioModulo(BaseModel):
+    producto_id: int
+    modulo: str
+    cantidad: int
+
+
+class VentaTelefonoCreate(BaseModel):
+    marca: str
+    modelo: str
+    tipo: str
+    precio_venta: float
+    metodo_pago: str
+
+class VentaTelefonoResponse(BaseModel):
+    id: int
+    empleado_id: int
+    fecha: date
+    tipo: str
+    hora: time
+    cancelada: bool
+    empleado: Optional[UsuarioResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class InventarioTelefonoGeneralCreate(BaseModel):
+    marca: str
+    modelo: str
+    cantidad: int
+    precio: float
+
+
+class InventarioTelefonoGeneralResponse(BaseModel):
+    id: int
+    marca: str
+    modelo: str
+    cantidad: int
+    precio: float
+    modulo_id: int
+
+    class Config:
+        from_attributes = True
+
+class MovimientoTelefonoRequest(BaseModel):
+    marca: str
+    modelo: str
+    cantidad: int
+    modulo_id: int
+
+
+class VentaAccesorioConComision(BaseModel):
+    producto: str
+    cantidad: int
+    comision: float
+    fecha: date
+    hora: time
+
+class VentaTelefonoConComision(BaseModel):
+    marca: str
+    modelo: str
+    tipo: str
+    comision: float
+    fecha: date
+    hora: time
+
+
+class ComisionesCicloResponse(BaseModel):
+    inicio_ciclo: date
+    fin_ciclo: date
+    fecha_pago: date
+    total_chips: float
+    total_accesorios: float
+    total_telefonos: float
+    total_general: float
+    ventas_accesorios: List[VentaAccesorioConComision]
+    ventas_telefonos: List[VentaTelefonoConComision]

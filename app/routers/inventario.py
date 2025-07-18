@@ -89,16 +89,17 @@ def crear_producto_modulo(
     current_user: models.Usuario = Depends(verificar_rol_requerido([ models.RolEnum.admin]))
 ):
    
-    existente = db.query(models.InventarioModulo).filter_by(clave=datos.clave, modulo=datos.modulo).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Producto ya existe en este módulo.")
+    modulo_obj = db.query(models.Modulo).filter_by(nombre=datos.modulo).first()
+    if not modulo_obj:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
 
-    nuevo = models.InventarioModulo(producto=datos.producto, clave=datos.clave, cantidad=datos.cantidad, precio=datos.precio, modulo=datos.modulo)
+    existente = db.query(models.InventarioModulo).filter_by(clave=datos.clave, modulo_id=modulo_obj.id).first()
+
+    nuevo = models.InventarioModulo(producto=datos.producto, clave=datos.clave, cantidad=datos.cantidad, precio=datos.precio,  modulo_id=modulo_obj.id)
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
     return nuevo
-
 
 @router.put("/inventario/modulo/{producto}", response_model=schemas.InventarioModuloResponse)
 def actualizar_inventario_modulo(
@@ -107,10 +108,26 @@ def actualizar_inventario_modulo(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
 ):
-    item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo=current_user.modulo).first()
+    # Buscar producto en inventario del módulo
+    item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo=datos.modulo).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Producto no encontrado en tu módulo.")
-    
+        raise HTTPException(status_code=404, detail="Producto no encontrado en el módulo.")
+
+    # Calcular la diferencia de cantidad
+    diferencia = datos.cantidad - item.cantidad
+
+    # Si la diferencia es positiva, se está agregando producto => validar en inventario general
+    if diferencia > 0:
+        producto_general = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
+        if not producto_general:
+            raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
+        
+        if producto_general.cantidad < diferencia:
+            raise HTTPException(status_code=400, detail="No hay suficiente producto en el inventario general.")
+        
+        producto_general.cantidad -= diferencia  # Descontar del general
+
+    # Actualizar cantidad en el módulo
     item.cantidad = datos.cantidad
     db.commit()
     db.refresh(item)
@@ -120,22 +137,100 @@ def actualizar_inventario_modulo(
 
 @router.get("/inventario/modulo", response_model=list[schemas.InventarioModuloResponse])
 def obtener_inventario_modulo(
+    modulo: str,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    return db.query(models.InventarioModulo).filter_by(modulo=current_user.modulo).all()
+    # Buscar el módulo por su nombre
+    modulo_obj = db.query(models.Modulo).filter_by(nombre=modulo).first()
+    if not modulo_obj:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+
+    # Usar el ID del módulo para obtener su inventario
+    return db.query(models.InventarioModulo).filter(models.InventarioModulo.modulo_id == modulo_obj.id).all()
 
 
-@router.delete("/inventario/general/{producto}")
-def eliminar_producto_inventario_general(
-    producto: str,
+@router.delete("/inventario/modulo/{id}")
+def eliminar_producto_modulo(
+    id: int,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
 ):
-    producto_db = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
-    if not producto_db:
-        raise HTTPException(status_code=404, detail="Producto no encontrado.")
-    
-    db.delete(producto_db)
+    # Buscar el producto en el inventario del módulo
+    item_modulo = db.query(models.InventarioModulo).filter_by(id=id).first()
+    if not item_modulo:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en ese módulo.")
+
+    # Buscar el producto en el inventario general por la clave o nombre del producto
+    producto_general = db.query(models.InventarioGeneral).filter_by(clave=item_modulo.clave).first()
+    if not producto_general:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en el inventario general.")
+
+    # Sumar la cantidad del módulo al inventario general
+    producto_general.cantidad += item_modulo.cantidad
+
+    # Eliminar el producto del módulo
+    db.delete(item_modulo)
     db.commit()
-    return {"mensaje": f"Producto '{producto}' eliminado exitosamente"}
+
+    return {
+        "mensaje": f"Producto '{item_modulo.producto}' eliminado del módulo y cantidad regresada al inventario general."
+    }
+
+
+@router.delete("/inventario/modulo/{producto}")
+def eliminar_producto_modulo(
+    producto: str,
+    modulo: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+):
+    item = db.query(models.InventarioModulo)\
+        .join(models.InventarioModulo.modulo)\
+        .filter(models.InventarioModulo.producto == producto)\
+        .filter(models.Modulo.nombre == modulo)\
+        .first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en ese módulo.")
+    db.delete(item)
+    db.commit()
+    return {"message": f"Producto '{producto}' eliminado del módulo '{modulo}'."}
+
+
+
+@router.post("/mover_a_modulo")
+def mover_producto_a_modulo(
+    producto_id: int,
+    modulo: str,
+    cantidad: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(["admin"]))
+):
+    # Buscar producto en inventario general
+    producto_general = db.query(models.InventarioGeneral).filter_by(id=producto_id).first()
+    if not producto_general:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general")
+
+    if producto_general.cantidad < cantidad:
+        raise HTTPException(status_code=400, detail="Cantidad insuficiente en inventario general")
+
+    # Descontar del inventario general
+    producto_general.cantidad -= cantidad
+
+    # Buscar o crear producto en inventario del módulo
+    inventario_modulo = db.query(models.InventarioModulo).filter_by(
+        producto_id=producto_id, modulo=modulo
+    ).first()
+
+    if inventario_modulo:
+        inventario_modulo.cantidad += cantidad
+    else:
+        nuevo = models.InventarioModulo(
+            producto_id=producto_id,
+            modulo=modulo,
+            cantidad=cantidad
+        )
+        db.add(nuevo)
+
+    db.commit()
+    return {"mensaje": f"{cantidad} unidades movidas al módulo {modulo} correctamente"}

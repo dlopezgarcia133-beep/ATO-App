@@ -2,7 +2,7 @@ import enum
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
-from datetime import datetime
+from datetime import date, datetime
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -19,10 +19,13 @@ class Usuario(Base):
     username = Column(String, unique=True, nullable=False)
     rol = Column(Enum(RolEnum), nullable=False, default=RolEnum.asesor)  
     password = Column(String, nullable=False)
-    modulo = Column(String, nullable=True)  
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
     is_admin = Column(Boolean, default=False)
 
     ventas = relationship("Venta", back_populates="empleado")
+    ventas_telefono = relationship("VentaTelefono", back_populates="empleado")
+    ventas_chip = relationship("VentaChip", back_populates="empleado")
+    modulo = relationship("Modulo", backref="usuarios")
 
 class Asistencia(Base):
     __tablename__ = "asistencias"
@@ -41,17 +44,38 @@ class Venta(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     empleado_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    modulo = Column(String, nullable=False)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
     producto = Column(String, nullable=False)
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Float, nullable=False)
-    comision = Column(Float, nullable=True)  
+    comision_id = Column(Integer, ForeignKey("comisions.id"), nullable=True)
+    metodo_pago = Column(String)
     cancelada = Column(Boolean, default=False)
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     correo_cliente = Column(String, nullable=True)
     
     empleado = relationship("Usuario", back_populates="ventas")
+    comision_obj = relationship("Comision")
+    modulo = relationship("Modulo", back_populates="ventas")
+
+class VentaChip(Base):
+    __tablename__ = "venta_chips"
+
+    id = Column(Integer, primary_key=True, index=True)
+    empleado_id = Column(Integer, ForeignKey("usuarios.id"))
+    tipo_chip = Column(String, nullable=False)
+    numero_telefono = Column(String, nullable=False)
+    monto_recarga = Column(Float, nullable=False)
+    comision = Column(Float, nullable=True)
+    fecha = Column(Date, nullable=False)
+    hora = Column(Time, nullable=False)
+    cancelada = Column(Boolean, default=False)
+    validado = Column(Boolean, default=False)
+    descripcion_rechazo = Column(String, nullable=True)
+
+
+    empleado = relationship("Usuario")
 
 
 class Comision(Base):
@@ -93,7 +117,7 @@ class InventarioGeneral(Base):
     id = Column(Integer, primary_key=True, index=True)
     cantidad = Column(Integer, nullable=False)
     clave = Column(String, unique=True, nullable=False) 
-    producto = Column(String, unique=True, nullable=False)
+    producto = Column(String, nullable=False)
     precio = Column(Integer, nullable=True)
     
 
@@ -101,14 +125,13 @@ class InventarioModulo(Base):
     __tablename__ = "inventario_modulo"
 
     id = Column(Integer, primary_key=True, index=True)
-    modulo = Column(String, nullable=False)
     cantidad = Column(Integer, nullable=False)
     clave = Column(String, nullable=False) 
     producto = Column(String, nullable=False)
     precio = Column(Integer, nullable=False)
-
-    __table_args__ = (
-        UniqueConstraint("clave", "modulo", name="inventario_modulo_clave_modulo_key"),)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"))
+    
+    modulo = relationship("Modulo")
     
     
     
@@ -127,3 +150,47 @@ class Modulo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, nullable=False)
+
+    ventas = relationship("Venta", back_populates="modulo")
+
+
+class VentaTelefono(Base):
+    __tablename__ = "venta_telefonos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    empleado_id = Column(Integer, ForeignKey("usuarios.id"))
+    marca = Column(String, nullable=False)
+    modelo = Column(String, nullable=False)
+    tipo = Column(String, nullable=False)
+    precio_venta = Column(Float, nullable=False)
+    metodo_pago = Column(String)
+    fecha = Column(Date, default=date.today)
+    hora = Column(Time, default=datetime.now().time)
+    cancelada = Column(Boolean, default=False)
+
+
+    empleado = relationship("Usuario")
+
+
+class InventarioTelefono(Base):
+    __tablename__ = "inventario_telefonos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    marca = Column(String)
+    modelo = Column(String)
+    cantidad = Column(Integer)
+    precio = Column(Float)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"))
+
+    modulo = relationship("Modulo")
+    
+
+class InventarioTelefonoGeneral(Base):
+    __tablename__ = "inventario_telefonos_general"
+
+    id = Column(Integer, primary_key=True, index=True)
+    marca = Column(String)
+    modelo = Column(String)
+    cantidad = Column(Integer)
+    precio = Column(Float)
+    clave = Column(String, unique=True, nullable=False) 

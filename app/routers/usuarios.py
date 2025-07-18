@@ -36,12 +36,18 @@ def registrar_usuario(
             raise HTTPException(status_code=403, detail="No tienes permisos para crear usuarios administradores")
         if usuario_existente:
             raise HTTPException(status_code=400, detail="El usuario ya existe")
+        
+        modulo_obj = None
+        if usuario.modulo_id is not None:
+            modulo_obj = db.query(models.Modulo).filter_by(id=usuario.modulo_id).first()
+        if not modulo_obj:
+            raise HTTPException(status_code=404, detail="El módulo no existe")
 
         usuario_nuevo = models.Usuario(
             username=usuario.username,
             rol=usuario.rol,
             password=hashear_contraseña(usuario.password),
-            modulo=usuario.modulo,
+            modulo=modulo_obj,
             is_admin=usuario.is_admin or False
         )
         db.add(usuario_nuevo)
@@ -102,8 +108,11 @@ def editar_usuario(
         usuario_db.username = datos.username
     if datos.rol:
         usuario_db.rol = datos.rol
-    if datos.modulo is not None:
-        usuario_db.modulo = datos.modulo
+    if datos.modulo_id is not None:
+        modulo_obj = db.query(models.Modulo).filter_by(id=datos.modulo_id).first()
+        if not modulo_obj:
+            raise HTTPException(status_code=404, detail="Módulo no encontrado")
+        usuario_db.modulo = modulo_obj
     if datos.is_admin is not None:
         usuario_db.is_admin = datos.is_admin
     if datos.password:
@@ -126,6 +135,11 @@ def eliminar_usuario(
     usuario = db.query(models.Usuario).filter_by(id=usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    usuario_reemplazo_id = 1  
+    traspasos = db.query(models.Traspaso).filter_by(solicitado_por=usuario.id).all()
+    for t in traspasos:
+        t.solicitado_por = usuario_reemplazo_id
 
     db.delete(usuario)
     db.commit()

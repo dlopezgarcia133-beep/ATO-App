@@ -18,9 +18,9 @@ def registrar_asistencia(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # 1. Reconstruimos el nombre y módulo desde el usuario
+    
     nombre = current_user.username
-    modulo = current_user.modulo
+    modulo = current_user.modulo.nombre if current_user.modulo else None
 
     # 2. Verificamos que no exista ya una asistencia hoy
     hoy = datetime.now().date()

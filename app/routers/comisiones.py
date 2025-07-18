@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -76,3 +77,6 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
     if not comision:
         raise HTTPException(status_code=404, detail="No se encontró comisión para ese producto")
     return comision
+
+
+

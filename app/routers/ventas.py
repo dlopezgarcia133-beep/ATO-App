@@ -1,6 +1,7 @@
 
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime, timedelta
+from typing import List, Optional
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -104,45 +105,439 @@ def resumen_ventas(db: Session = Depends(get_db)):
     
     
     
-@router.post("/ventas/{venta_id}/cancelar")
+@router.put("/ventas/{venta_id}/cancelar")
 def cancelar_venta(
     venta_id: int,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
+    # 1. Buscar en Venta (accesorios)
     venta = db.query(models.Venta).filter_by(id=venta_id).first()
+    if venta:
+        if venta.cancelada:
+            raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
+
+        if current_user.rol != models.RolEnum.admin:
+            if current_user.rol != models.RolEnum.encargado or venta.modulo != current_user.modulo:
+                raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
+
+        # Reintegrar inventario
+        inventario = (
+    db.query(models.InventarioModulo)
+    .filter(
+        models.InventarioModulo.producto == venta.producto,
+        models.InventarioModulo.modulo_id == venta.modulo_id
+    )
+    .first()
+)
+        if not inventario:
+            inventario = models.InventarioModulo(
+                producto=venta.producto, cantidad=venta.cantidad, modulo=venta.modulo
+            )
+            db.add(inventario)
+        else:
+            inventario.cantidad += venta.cantidad
+
+        venta.cancelada = True
+        db.commit()
+        return {"mensaje": f"Venta ID {venta_id} cancelada correctamente y producto reintegrado al inventario."}
+
+    # 2. Buscar en VentaTelefono
+    venta_tel = db.query(models.VentaTelefono).filter_by(id=venta_id).first()
+    if venta_tel:
+        if venta_tel.cancelada:
+            raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
+
+        if current_user.rol != models.RolEnum.admin:
+            if current_user.rol != models.RolEnum.encargado or venta_tel.modulo != current_user.modulo:
+                raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
+
+        # Reintegrar teléfono al inventario
+        inventario_tel = db.query(models.InventarioTelefono).filter_by(
+            modulo=venta_tel.modulo_id,
+            marca=venta_tel.marca,
+            modelo=venta_tel.modelo
+        ).first()
+
+        if not inventario_tel:
+            inventario_tel = models.InventarioTelefono(
+                marca=venta_tel.marca,
+                modelo=venta_tel.modelo,
+                cantidad=1,
+                modulo=venta_tel.modulo
+            )
+            db.add(inventario_tel)
+        else:
+            inventario_tel.cantidad += 1
+
+        venta_tel.cancelada = True
+        db.commit()
+        return {"mensaje": f"Venta de teléfono ID {venta_id} cancelada correctamente y equipo reintegrado al inventario."}
+    
+
+@router.post("/ventas/multiples", response_model=List[schemas.VentaResponse])
+def crear_ventas_multiples(
+    venta: schemas.VentaMultipleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    ventas_realizadas = []
+
+    for item in venta.productos:
+        com = (
+            db.query(models.Comision)
+            .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
+            .first()
+        )
+        comision_id = com.id if com else None
+        modulo_id = current_user.modulo.id
+
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == modulo_id,
+                models.InventarioModulo.producto == item.producto
+            )
+            .first()
+        )
+
+        if not inventario:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay inventario para el producto: {item.producto}"
+            )
+
+        if inventario.cantidad < item.cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Inventario insuficiente para el producto: {item.producto}"
+            )
+
+        inventario.cantidad -= item.cantidad
+
+        nueva = models.Venta(
+            empleado_id=current_user.id,
+            modulo=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            comision_id=comision_id,
+            fecha=datetime.now().date(),
+            hora=datetime.now().time(),
+            correo_cliente=venta.correo_cliente,
+        )
+
+        db.add(nueva)
+        ventas_realizadas.append(nueva)
+
+    db.commit()
+    for v in ventas_realizadas:
+        db.refresh(v)
+
+    # Conversión manual segura
+    return [
+        schemas.VentaResponse(
+            id=v.id,
+            empleado=schemas.UsuarioResponse.from_orm(v.empleado) if v.empleado else None,
+            modulo=v.modulo,
+            producto=v.producto,
+            cantidad=v.cantidad,
+            precio_unitario=v.precio_unitario,
+            total=v.precio_unitario * v.cantidad,
+            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            fecha=v.fecha,
+            hora=v.hora,
+        )
+        for v in ventas_realizadas
+    ]
+
+
+
+@router.post("/venta_chips", response_model=schemas.VentaChipResponse)
+def crear_venta_chip(
+    venta: schemas.VentaChipCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    nueva_venta = models.VentaChip(
+        empleado_id=current_user.id,
+        tipo_chip=venta.tipo_chip,
+        numero_telefono=venta.numero_telefono,
+        monto_recarga=venta.monto_recarga,
+        fecha=datetime.now().date(),
+        hora=datetime.now().time(),
+    )
+
+    db.add(nueva_venta)
+    db.commit()
+    db.refresh(nueva_venta)
+    return nueva_venta
+
+
+@router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
+def obtener_ventas_chips(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    if current_user.rol == "admin":
+        return db.query(models.VentaChip).all()
+    else:
+        return db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
+
+@router.put("/venta_chips/{id}/validar", response_model=schemas.VentaChipResponse)
+def validar_chip(id: int, db: Session = Depends(get_db)):
+    chip = db.query(models.VentaChip).filter(models.VentaChip.id == id).first()
+    if not chip:
+        raise HTTPException(status_code=404, detail="Venta de chip no encontrada")
+
+    if chip.validado:
+        raise HTTPException(status_code=400, detail="Ya ha sido validado")
+
+    # Buscar comisión por tipo_chip (usa .lower() si el texto no es exacto)
+    comision = db.query(models.Comision).filter(models.Comision.producto == chip.tipo_chip).first()
+    if not comision:
+        raise HTTPException(status_code=404, detail="No se encontró comisión para este producto")
+
+    # Asignar comisión y validar
+    chip.validado = True
+    chip.comision = comision.cantidad
+
+    db.commit()
+    db.refresh(chip)
+
+    return chip
+
+
+
+@router.put("/venta_chips/{venta_id}/motivo_rechazo")
+def motivo_rechazo_chip(
+    venta_id: int,
+    descripcion: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+):
+    venta = db.query(models.VentaChip).filter_by(id=venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    
+    venta.descripcion_rechazo = descripcion
+    db.commit()
+    return {"mensaje": "Motivo de rechazo registrado"}
+
+
+
+@router.post("/venta_telefonos")
+def vender_telefono(
+    venta: schemas.VentaTelefonoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    # 1. Obtener el módulo al que pertenece el usuario
+    if not current_user.modulo_id:
+        raise HTTPException(status_code=400, detail="El usuario no tiene un módulo asignado")
+
+    # 2. Buscar el teléfono en el inventario de su módulo
+    telefono = db.query(models.InventarioTelefono).filter_by(
+        marca=venta.marca.strip().upper(),
+        modelo=venta.modelo.strip().upper(),
+        modulo_id=current_user.modulo_id
+    ).first()
+
+    if not telefono:
+        raise HTTPException(status_code=404, detail="Teléfono no encontrado en inventario del módulo")
+
+    if telefono.cantidad < 1:
+        raise HTTPException(status_code=400, detail="No hay stock disponible para este teléfono")
+
+    # 3. Registrar la venta
+    nueva_venta = models.VentaTelefono(
+        empleado_id=current_user.id,
+        marca=venta.marca.strip().upper(),
+        modelo=venta.modelo.strip().upper(),
+        tipo=venta.tipo,
+        precio_venta=venta.precio_venta,
+        metodo_pago=venta.metodo_pago,
+        fecha=date.today(),
+        hora=datetime.now().time()
+    )
+
+  
+    telefono.cantidad -= 1
+
+    db.add(nueva_venta)
+    db.commit()
+
+    return {"mensaje": "Venta registrada y stock actualizado"}
+
+
+
+@router.put("/venta_telefonos/{venta_id}/cancelar")
+def cancelar_venta_telefono(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    venta = db.query(models.VentaTelefono).filter_by(id=venta_id).first()
 
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
     if venta.cancelada:
-        raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
+        raise HTTPException(status_code=400, detail="La venta ya está cancelada")
 
-    # Permitir solo al admin o encargado del módulo
-    if current_user.rol != models.RolEnum.admin:
-        if current_user.rol != models.RolEnum.encargado or venta.modulo != current_user.modulo:
-            raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
+    # Buscar el inventario del módulo del vendedor
+    empleado = db.query(models.Usuario).filter_by(id=venta.empleado_id).first()
+    if not empleado or not empleado.modulo_id:
+        raise HTTPException(status_code=400, detail="El vendedor no tiene módulo asignado")
 
-    # Reintegrar al inventario del módulo
-    inventario = (
-        db.query(models.InventarioModulo)
-        .filter_by(modulo=venta.modulo, producto=venta.producto)
-        .first()
-    )
+    inventario = db.query(models.InventarioTelefono).filter_by(
+        marca=venta.marca,
+        modelo=venta.modelo,
+        modulo_id=empleado.modulo_id
+    ).first()
 
     if not inventario:
-        # Si no existía el producto en inventario (muy raro pero posible)
-        inventario = models.InventarioModulo(
-            producto=venta.producto, cantidad=venta.cantidad, modulo=venta.modulo
-        )
-        db.add(inventario)
-    else:
-        inventario.cantidad += venta.cantidad
+        raise HTTPException(status_code=404, detail="Inventario de teléfono no encontrado")
 
-    # Marcar como cancelada
+    # Revertir cancelación
+    inventario.cantidad += 1
     venta.cancelada = True
 
     db.commit()
 
-    return {"mensaje": f"Venta ID {venta_id} cancelada correctamente y producto reintegrado al inventario."}
+    return {"mensaje": "Venta cancelada y stock restaurado"}
 
+
+
+@router.get("/venta_telefonos", response_model=list[schemas.VentaTelefonoResponse])
+def listar_ventas_telefonos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
+    return db.query(models.VentaTelefono).all()
+
+
+
+@router.get("/corte-general")
+def corte_general(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    hoy = date.today()
+
+    # Ventas normales
+    ventas = db.query(models.Venta).filter(
+        models.Venta.fecha == hoy,
+        models.Venta.cancelada == False
+    ).all()
+
+    total_productos = sum(v.total for v in ventas)
+    efectivo = sum(v.total for v in ventas if v.metodo_pago == "efectivo")
+    tarjeta = sum(v.total for v in ventas if v.metodo_pago == "tarjeta")
+
+
+    # Teléfonos
+    telefonos = db.query(models.VentaTelefono).filter(
+        models.VentaTelefono.fecha == hoy,
+        models.VentaTelefono.cancelada == False
+    ).all()
+
+    total_telefonos = sum(t.precio for t in telefonos)
+    efectivo_tel = sum(t.precio for t in telefonos if t.metodo_pago == "efectivo")
+    tarjeta_tel = sum(t.precio for t in telefonos if t.metodo_pago == "tarjeta")
+    transferencia_tel = sum(t.precio for t in telefonos if t.metodo_pago == "transferencia")
+
+    return {
+        "total_general": round(total_productos + total_telefonos, 2),
+
+        "ventas_productos": {
+            "total": round(total_productos, 2),
+            "efectivo": round(efectivo, 2),
+            "tarjeta": round(tarjeta, 2),
+        },
+
+
+        "ventas_telefonos": {
+            "total": round(total_telefonos, 2),
+            "efectivo": round(efectivo_tel, 2),
+            "tarjeta": round(tarjeta_tel, 2),
+        }
+    }
+    
+    
+@router.get("/comisiones/ciclo", response_model=schemas.ComisionesCicloResponse)
+def obtener_comisiones_ciclo(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(get_current_user)
+):
+    hoy = date.today()
+    dias_desde_lunes = hoy.weekday()
+    inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
+    fin_ciclo = inicio_ciclo + timedelta(days=6)
+    fecha_pago = fin_ciclo + timedelta(days=3)
+
+    ventas_chips = db.query(models.VentaChip).filter(
+        models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.validado == True,
+        models.VentaChip.fecha >= inicio_ciclo,
+        models.VentaChip.fecha <= fin_ciclo,
+    ).all()
+
+    ventas_accesorios = db.query(models.Venta).filter(
+        models.Venta.empleado_id == usuario.id,
+        models.Venta.fecha >= inicio_ciclo,
+        models.Venta.fecha <= fin_ciclo,
+    ).all()
+
+    ventas_telefonos = db.query(models.VentaTelefono).filter(
+        models.VentaTelefono.empleado_id == usuario.id,
+        models.VentaTelefono.fecha >= inicio_ciclo,
+        models.VentaTelefono.fecha <= fin_ciclo,
+    ).all()
+
+    # === Filtrar y clasificar ===
+    accesorios = [
+        {
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    telefonos = [
+        {
+            "marca": v.marca,
+            "modelo": v.modelo,
+            "tipo": v.tipo,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    chips = [
+        {
+            "tipo_chip": v.tipo_chip,
+            "comision": v.comision or 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_chips if (v.comision or 0) > 0
+    ]
+
+    total_accesorios = sum(v["comision"] for v in accesorios)
+    total_telefonos = sum(v["comision"] for v in telefonos)
+    total_chips = sum(v["comision"] for v in chips)
+
+    return {
+        "inicio_ciclo": inicio_ciclo,
+        "fin_ciclo": fin_ciclo,
+        "fecha_pago": fecha_pago,
+        "total_chips": total_chips,
+        "total_accesorios": total_accesorios,
+        "total_telefonos": total_telefonos,
+        "total_general": total_chips + total_accesorios + total_telefonos,
+        "ventas_accesorios": accesorios,
+        "ventas_telefonos": telefonos,
+
+    }

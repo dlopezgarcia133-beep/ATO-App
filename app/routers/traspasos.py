@@ -22,8 +22,9 @@ def crear_traspaso(
         raise HTTPException(status_code=403, detail="Solo encargados pueden solicitar traspasos")
 
     inventario = db.query(models.InventarioModulo).filter_by(
-        producto=traspaso.producto, modulo=current_user.modulo
-    ).first()
+    producto=traspaso.producto, 
+    modulo=current_user.modulo.nombre if current_user.modulo else None
+).first()
 
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
@@ -31,7 +32,7 @@ def crear_traspaso(
     nuevo = models.Traspaso(
         producto=traspaso.producto,
         cantidad=traspaso.cantidad,
-        modulo_origen=current_user.modulo,
+        modulo_origen=current_user.modulo.nombre if current_user.modulo else None,
         modulo_destino=traspaso.modulo_destino,
         solicitado_por=current_user.id
     )
@@ -55,45 +56,39 @@ def actualizar_estado_traspaso(
     traspaso.estado = estado.estado
     
     
-    if estado.estado == "aprobado":
-        origen = (
-            db.query(models.InventarioModulo)
-            .filter_by(producto=traspaso.producto, modulo=traspaso.modulo_origen)
-            .first()
-        )
-    if not origen or origen.cantidad < traspaso.cantidad:
-        raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
-    
-    origen.cantidad -= traspaso.cantidad
 
-    # Agregar al destino
-    destino = db.query(models.InventarioModulo).filter_by(
-        producto=traspaso.producto,
-        modulo=traspaso.modulo_destino
-    ).first()
-    if destino:
-        destino.cantidad += traspaso.cantidad
-    else:
-        nuevo = models.InventarioModulo(
+    if estado.estado == "aprobado":
+        origen = db.query(models.InventarioModulo).filter_by(
+            producto=traspaso.producto, 
+            modulo=traspaso.modulo_origen
+        ).first()
+        if not origen or origen.cantidad < traspaso.cantidad:
+            raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
+        
+        origen.cantidad -= traspaso.cantidad
+
+        # Agregar al destino
+        destino = db.query(models.InventarioModulo).filter_by(
             producto=traspaso.producto,
-            cantidad=traspaso.cantidad,
             modulo=traspaso.modulo_destino
-        )
-        db.add(nuevo)
-        
-        
-    traspaso.aprobado_por = current_user.id
+        ).first()
+        if destino:
+            destino.cantidad += traspaso.cantidad
+        else:
+            nuevo = models.InventarioModulo(
+                producto=traspaso.producto,
+                cantidad=traspaso.cantidad,
+                modulo=traspaso.modulo_destino
+            )
+            db.add(nuevo)
+
+        traspaso.aprobado_por = current_user.id
+
     db.commit()
     db.refresh(traspaso)
     return traspaso
 
 # Ver traspasos del módulo actual (asesor o encargado)
 @router.get("/traspasos", response_model=list[schemas.TraspasoResponse])
-def listar_traspasos(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    return db.query(models.Traspaso).filter(
-        (models.Traspaso.modulo_origen == current_user.modulo) |
-        (models.Traspaso.modulo_destino == current_user.modulo)
-    ).all()
+def obtener_traspasos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
+    return db.query(models.Traspaso).all()

@@ -51,7 +51,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         
         nueva_asistencia = models.Asistencia(
             nombre=user.username,
-            modulo=user.modulo,  
+            modulo=user.modulo.nombre if user.modulo else None,  
             turno= turno,
             fecha=hoy,
             hora=datetime.now().time()
