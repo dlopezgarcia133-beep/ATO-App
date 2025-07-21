@@ -217,7 +217,7 @@ def crear_ventas_multiples(
 
         nueva = models.Venta(
             empleado_id=current_user.id,
-            modulo=modulo_id,
+            modulo_id=modulo_id,
             producto=item.producto,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
