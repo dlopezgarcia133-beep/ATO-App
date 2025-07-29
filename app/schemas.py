@@ -105,7 +105,7 @@ class ProductoEnVenta(BaseModel):
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]
     correo_cliente: Optional[str] = None
-
+    metodo_pago: str
 
 class VentaChipCreate(BaseModel):
     tipo_chip: str
@@ -312,3 +312,14 @@ class ComisionesCicloResponse(BaseModel):
     total_general: float
     ventas_accesorios: List[VentaAccesorioConComision]
     ventas_telefonos: List[VentaTelefonoConComision]
+
+
+class CorteDiaCreate(BaseModel):
+    fecha: date
+    total_efectivo: float
+    total_tarjeta: float
+    adicional_recargas: float
+    adicional_transporte: float
+    adicional_otros: float
+    total_sistema: float
+    total_general: float

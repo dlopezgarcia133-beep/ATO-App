@@ -152,7 +152,7 @@ class Modulo(Base):
     nombre = Column(String, unique=True, nullable=False)
 
     ventas = relationship("Venta", back_populates="modulo")
-
+    cortes = relationship("CorteDia", back_populates="modulo")
 
 class VentaTelefono(Base):
     __tablename__ = "venta_telefonos"
@@ -194,3 +194,21 @@ class InventarioTelefonoGeneral(Base):
     cantidad = Column(Integer)
     precio = Column(Float)
     clave = Column(String, unique=True, nullable=False) 
+
+
+
+class CorteDia(Base):
+    __tablename__ = "cortes_dia"
+    id = Column(Integer, primary_key=True)
+    fecha = Column(Date, default=func.current_date())
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
+    total_efectivo = Column(Float)
+    total_tarjeta = Column(Float)
+    adicional_recargas = Column(Float)
+    adicional_transporte = Column(Float)
+    adicional_otros = Column(Float)
+    total_sistema = Column(Float)
+    total_general = Column(Float)
+
+
+modulo = relationship("Modulo", back_populates="cortes")

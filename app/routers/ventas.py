@@ -82,16 +82,31 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
     
 
 
+from datetime import date
+
 @router.get("/ventas", response_model=list[schemas.VentaResponse])
-def obtener_ventas(db: Session = Depends(get_db)):
-    ventas = db.query(models.Venta).all()
-    # Calcular total en cada uno si borraste la columna
+def obtener_ventas(
+    modulo_id: int = None,
+    db: Session = Depends(get_db)
+):
+    hoy = date.today()
+
+    query = db.query(models.Venta).filter(models.Venta.fecha == hoy)
+
+    if modulo_id is not None:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+
+    ventas = query.all()
+
     resultados = []
     for v in ventas:
         item = schemas.VentaResponse.from_orm(v)
         item.total = v.precio_unitario * v.cantidad
         resultados.append(item)
+
     return resultados
+
+
 
 
 @router.get("/ventas/resumen")
@@ -221,6 +236,7 @@ def crear_ventas_multiples(
             producto=item.producto,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
+            metodo_pago=venta.metodo_pago,
             comision_id=comision_id,
             fecha=datetime.now().date(),
             hora=datetime.now().time(),
@@ -459,6 +475,38 @@ def corte_general(
             "tarjeta": round(tarjeta_tel, 2),
         }
     }
+    
+@router.post("/cortes")
+def crear_corte(
+    corte_data: schemas.CorteDiaCreate,  # schema con los totales del frontend
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if user.rol != "encargado":
+        raise HTTPException(status_code=403, detail="Solo los encargados pueden hacer cortes")
+    
+    if not user.modulo_id:
+        raise HTTPException(status_code=400, detail="El encargado no tiene un módulo asignado")
+
+    nuevo_corte = models.CorteDia(
+        fecha=datetime.date.today(),
+        total_efectivo=corte_data.total_efectivo,
+        total_tarjeta=corte_data.total_tarjeta,
+        adicional_recargas=corte_data.adicional_recargas,
+        adicional_transporte=corte_data.adicional_transporte,
+        adicional_otros=corte_data.adicional_otros,
+        total_sistema=corte_data.total_sistema,
+        total_general=corte_data.total_general,
+        modulo_id=user.modulo_id  
+    )
+
+    db.add(nuevo_corte)
+    db.commit()
+    db.refresh(nuevo_corte)
+    return nuevo_corte
+
+
+
     
     
 @router.get("/comisiones/ciclo", response_model=schemas.ComisionesCicloResponse)
