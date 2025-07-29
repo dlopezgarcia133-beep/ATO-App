@@ -209,6 +209,5 @@ class CorteDia(Base):
     adicional_otros = Column(Float)
     total_sistema = Column(Float)
     total_general = Column(Float)
-
-
-modulo = relationship("Modulo", back_populates="cortes")
+        
+    modulo = relationship("Modulo", back_populates="cortes")
