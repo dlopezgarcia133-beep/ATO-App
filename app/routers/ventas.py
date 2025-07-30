@@ -424,9 +424,19 @@ def cancelar_venta_telefono(
 
 
 
-@router.get("/venta_telefonos", response_model=list[schemas.VentaTelefonoResponse])
-def listar_ventas_telefonos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    return db.query(models.VentaTelefono).all()
+@router.get("/ventas_telefonos", response_model=List[schemas.VentaTelefonoResponse])
+def obtener_ventas_telefonos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    # Solo mostrar ventas del módulo del usuario (si aplica)
+    ventas = (
+        db.query(models.VentaTelefono)
+        .filter(models.VentaTelefono.empleado.has(modulo_id=current_user.modulo_id))
+        .order_by(models.VentaTelefono.fecha.desc(), models.VentaTelefono.hora.desc())
+        .all()
+    )
+    return ventas
 
 
 

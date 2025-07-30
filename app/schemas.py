@@ -219,9 +219,9 @@ class InventarioModuloCreate(BaseModel):
 
 
 class InventarioModuloUpdate(BaseModel):
-    cantidad: int
-    precio: int
-    modulo_id: int  
+    cantidad: Optional[int] = None 
+    precio: Optional[int] = None
+    modulo_id: Optional[int] = None
 
 class InventarioModuloResponse(BaseModel):
     id: int
