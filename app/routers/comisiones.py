@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.config import get_current_user
@@ -77,6 +77,83 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
     if not comision:
         raise HTTPException(status_code=404, detail="No se encontró comisión para ese producto")
     return comision
+
+
+
+@router.get("/comisiones/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
+def obtener_comisiones_por_fechas(
+    inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
+    fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(get_current_user)
+):
+    fecha_pago = fin + timedelta(days=3)
+
+    ventas_chips = db.query(models.VentaChip).filter(
+        models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.validado == True,
+        models.VentaChip.fecha >= inicio,
+        models.VentaChip.fecha <= fin,
+    ).all()
+
+    ventas_accesorios = db.query(models.Venta).filter(
+        models.Venta.empleado_id == usuario.id,
+        models.Venta.fecha >= inicio,
+        models.Venta.fecha <= fin,
+    ).all()
+
+    ventas_telefonos = db.query(models.VentaTelefono).filter(
+        models.VentaTelefono.empleado_id == usuario.id,
+        models.VentaTelefono.fecha >= inicio,
+        models.VentaTelefono.fecha <= fin,
+    ).all()
+
+    accesorios = [
+        {
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha.strftime("%Y-%m-%d"),
+            "hora": v.hora.strftime("%H:%M:%S")
+        }
+        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    telefonos = [
+        {
+            "marca": v.marca,
+            "modelo": v.modelo,
+            "tipo": v.tipo,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha.strftime("%Y-%m-%d"),
+            "hora": v.hora.strftime("%H:%M:%S")
+        }
+        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    chips = [
+        {
+            "tipo_chip": v.tipo_chip,
+            "comision": v.comision or 0,
+            "fecha": v.fecha.strftime("%Y-%m-%d"),
+            "hora": v.hora.strftime("%H:%M:%S")
+        }
+        for v in ventas_chips if (v.comision or 0) > 0
+    ]
+
+    return {
+        "inicio_ciclo": inicio,
+        "fin_ciclo": fin,
+        "fecha_pago": fecha_pago,
+        "total_chips": sum(c["comision"] for c in chips),
+        "total_accesorios": sum(a["comision"] for a in accesorios),
+        "total_telefonos": sum(t["comision"] for t in telefonos),
+        "total_general": sum(c["comision"] for c in chips) +
+                         sum(a["comision"] for a in accesorios) +
+                         sum(t["comision"] for t in telefonos),
+        "ventas_accesorios": accesorios,
+        "ventas_telefonos": telefonos,
+    }
 
 
 

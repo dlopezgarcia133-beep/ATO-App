@@ -109,7 +109,7 @@ def actualizar_inventario_modulo(
     current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
 ):
     # Buscar producto en inventario del módulo
-    item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo=datos.modulo).first()
+    item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo=datos.modulo_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Producto no encontrado en el módulo.")
 
