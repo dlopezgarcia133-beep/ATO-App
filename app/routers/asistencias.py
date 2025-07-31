@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -44,7 +45,9 @@ def registrar_asistencia(
 
 @router.post("/logout")
 def logout(current_user: models.Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    hoy = datetime.now().date()
+    zona_horaria = ZoneInfo("America/Mexico_City")
+    ahora = datetime.now(zona_horaria)
+    hoy = ahora.date()
 
     asistencia = db.query(models.Asistencia).filter(
         models.Asistencia.nombre == current_user.username,
@@ -57,7 +60,7 @@ def logout(current_user: models.Usuario = Depends(get_current_user), db: Session
     if asistencia.hora_salida:
         raise HTTPException(status_code=400, detail="La salida ya fue registrada")
 
-    asistencia.hora_salida = datetime.now().time()
+    asistencia.hora_salida = ahora.time()
     db.commit()
     db.refresh(asistencia)
 
