@@ -312,7 +312,7 @@ class ComisionesCicloResponse(BaseModel):
     total_general: float
     ventas_accesorios: List[VentaAccesorioConComision]
     ventas_telefonos: List[VentaTelefonoConComision]
-
+    ventas_chips: List[VentaChipConComision]
 
 class CorteDiaCreate(BaseModel):
     fecha: date

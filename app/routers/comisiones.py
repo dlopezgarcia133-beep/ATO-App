@@ -153,6 +153,7 @@ def obtener_comisiones_por_fechas(
                          sum(t["comision"] for t in telefonos),
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
+        "ventas_chips": chips 
     }
 
 
