@@ -597,5 +597,6 @@ def obtener_comisiones_ciclo(
         "total_general": total_chips + total_accesorios + total_telefonos,
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
+        "ventas_chips": chips
 
     }
