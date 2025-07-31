@@ -300,6 +300,13 @@ class VentaTelefonoConComision(BaseModel):
     comision: float
     fecha: date
     hora: time
+    
+
+class VentaChipConComision(BaseModel):
+    tipo_chip: str
+    comision: float
+    fecha: str
+    hora: str
 
 
 class ComisionesCicloResponse(BaseModel):
