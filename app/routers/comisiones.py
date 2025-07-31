@@ -108,6 +108,9 @@ def obtener_comisiones_por_fechas(
         models.VentaTelefono.fecha <= fin,
     ).all()
 
+    if not ventas_accesorios and not ventas_telefonos:
+        raise HTTPException(status_code=404, detail="No hay comisiones en este rango de fechas")
+
     accesorios = [
         {
             "producto": v.producto,
