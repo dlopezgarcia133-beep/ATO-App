@@ -85,33 +85,35 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
 def obtener_comisiones_por_fechas(
     inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
     fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
-    empleado_id: Optional[int] = Query(None, description="ID del empleado para filtrar comisiones"),
+    empleado_id: int | None = Query(None, description="ID del empleado (solo admin)"),
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user)
+    usuario_actual: models.Usuario = Depends(get_current_user),
 ):
-    
-    if usuario.rol == models.RolEnum.admin and empleado_id:
-        id_empleado = empleado_id
+    # Si es admin y se proporcionó un empleado_id, obtener ese usuario
+    if usuario_actual.rol == models.RolEnum.admin and empleado_id is not None:
+        usuario = db.query(models.Usuario).filter(models.Usuario.id == empleado_id).first()
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Empleado no encontrado")
     else:
-        id_empleado = usuario.id
+        usuario = usuario_actual  # Si no es admin o no se envió empleado_id
 
     fecha_pago = fin + timedelta(days=3)
 
     ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == id_empleado,
+        models.VentaChip.empleado_id == usuario.id,
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio,
         models.VentaChip.fecha <= fin,
     ).all()
 
     ventas_accesorios = db.query(models.Venta).filter(
-        models.Venta.empleado_id == id_empleado,
+        models.Venta.empleado_id == usuario.id,
         models.Venta.fecha >= inicio,
         models.Venta.fecha <= fin,
     ).all()
 
     ventas_telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.empleado_id == id_empleado,
+        models.VentaTelefono.empleado_id == usuario.id,
         models.VentaTelefono.fecha >= inicio,
         models.VentaTelefono.fecha <= fin,
     ).all()
@@ -164,7 +166,7 @@ def obtener_comisiones_por_fechas(
                          sum(t["comision"] for t in telefonos),
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
-        "ventas_chips": chips 
+        "ventas_chips": chips
     }
 
 
