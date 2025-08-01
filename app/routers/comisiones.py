@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -84,31 +85,38 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
 def obtener_comisiones_por_fechas(
     inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
     fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
+    empleado_id: Optional[int] = Query(None, description="ID del empleado para filtrar comisiones"),
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(get_current_user)
 ):
+    
+    if usuario.rol == models.RolEnum.admin and empleado_id:
+        id_empleado = empleado_id
+    else:
+        id_empleado = usuario.id
+
     fecha_pago = fin + timedelta(days=3)
 
     ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.empleado_id == id_empleado,
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio,
         models.VentaChip.fecha <= fin,
     ).all()
 
     ventas_accesorios = db.query(models.Venta).filter(
-        models.Venta.empleado_id == usuario.id,
+        models.Venta.empleado_id == id_empleado,
         models.Venta.fecha >= inicio,
         models.Venta.fecha <= fin,
     ).all()
 
     ventas_telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.empleado_id == usuario.id,
+        models.VentaTelefono.empleado_id == id_empleado,
         models.VentaTelefono.fecha >= inicio,
         models.VentaTelefono.fecha <= fin,
     ).all()
 
-    if not ventas_accesorios and not ventas_telefonos:
+    if not ventas_accesorios and not ventas_telefonos and not ventas_chips:
         raise HTTPException(status_code=404, detail="No hay comisiones en este rango de fechas")
 
     accesorios = [
@@ -158,6 +166,5 @@ def obtener_comisiones_por_fechas(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips 
     }
-
 
 

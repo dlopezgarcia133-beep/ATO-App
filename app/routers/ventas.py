@@ -1,7 +1,7 @@
 
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -521,6 +521,7 @@ def crear_corte(
     
 @router.get("/comisiones/ciclo", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_ciclo(
+    empleado_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(get_current_user)
 ):
@@ -530,26 +531,31 @@ def obtener_comisiones_ciclo(
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
+    # Validar si puede consultar a otros
+    if empleado_id is None:
+        empleado_id = usuario.id
+    elif usuario.rol != "admin" and usuario.rol != "encargado":
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver comisiones de otros usuarios")
+
     ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio_ciclo,
         models.VentaChip.fecha <= fin_ciclo,
     ).all()
 
     ventas_accesorios = db.query(models.Venta).filter(
-        models.Venta.empleado_id == usuario.id,
+        models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha <= fin_ciclo,
     ).all()
 
     ventas_telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.empleado_id == usuario.id,
+        models.VentaTelefono.empleado_id == empleado_id,
         models.VentaTelefono.fecha >= inicio_ciclo,
         models.VentaTelefono.fecha <= fin_ciclo,
     ).all()
 
-    # === Filtrar y clasificar ===
     accesorios = [
         {
             "producto": v.producto,
@@ -598,5 +604,86 @@ def obtener_comisiones_ciclo(
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
+    }
 
+
+@router.get("/comisiones/ciclo/{empleado_id}", response_model=schemas.ComisionesCicloResponse)
+def obtener_comisiones_ciclo_admin(
+    empleado_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    hoy = date.today()
+    dias_desde_lunes = hoy.weekday()
+    inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
+    fin_ciclo = inicio_ciclo + timedelta(days=6)
+    fecha_pago = fin_ciclo + timedelta(days=3)
+
+    ventas_chips = db.query(models.VentaChip).filter(
+        models.VentaChip.empleado_id == empleado_id,
+        models.VentaChip.validado == True,
+        models.VentaChip.fecha >= inicio_ciclo,
+        models.VentaChip.fecha <= fin_ciclo,
+    ).all()
+
+    ventas_accesorios = db.query(models.Venta).filter(
+        models.Venta.empleado_id == empleado_id,
+        models.Venta.fecha >= inicio_ciclo,
+        models.Venta.fecha <= fin_ciclo,
+    ).all()
+
+    ventas_telefonos = db.query(models.VentaTelefono).filter(
+        models.VentaTelefono.empleado_id == empleado_id,
+        models.VentaTelefono.fecha >= inicio_ciclo,
+        models.VentaTelefono.fecha <= fin_ciclo,
+    ).all()
+
+    accesorios = [
+        {
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    telefonos = [
+        {
+            "marca": v.marca,
+            "modelo": v.modelo,
+            "tipo": v.tipo,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
+
+    chips = [
+        {
+            "tipo_chip": v.tipo_chip,
+            "comision": v.comision or 0,
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_chips if (v.comision or 0) > 0
+    ]
+
+    total_accesorios = sum(v["comision"] for v in accesorios)
+    total_telefonos = sum(v["comision"] for v in telefonos)
+    total_chips = sum(v["comision"] for v in chips)
+
+    return {
+        "inicio_ciclo": inicio_ciclo,
+        "fin_ciclo": fin_ciclo,
+        "fecha_pago": fecha_pago,
+        "total_chips": total_chips,
+        "total_accesorios": total_accesorios,
+        "total_telefonos": total_telefonos,
+        "total_general": total_chips + total_accesorios + total_telefonos,
+        "ventas_accesorios": accesorios,
+        "ventas_telefonos": telefonos,
+        "ventas_chips": chips
     }
