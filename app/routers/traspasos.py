@@ -21,10 +21,10 @@ def crear_traspaso(
     if current_user.rol != models.RolEnum.encargado:
         raise HTTPException(status_code=403, detail="Solo encargados pueden solicitar traspasos")
 
-    inventario = db.query(models.InventarioModulo).filter_by(
-    producto=traspaso.producto, 
-    modulo=current_user.modulo.nombre if current_user.modulo else None
-).first()
+    inventario = db.query(models.InventarioModulo).filter(
+        models.InventarioModulo.producto == traspaso.producto,
+        models.InventarioModulo.modulo.has(nombre=current_user.modulo.nombre)
+    ).first()
 
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
@@ -40,6 +40,7 @@ def crear_traspaso(
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
 
 # Aprobar o rechazar traspaso (admin)
 @router.put("/traspasos/{traspaso_id}", response_model=schemas.TraspasoResponse)
