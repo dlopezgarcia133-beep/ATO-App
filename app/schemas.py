@@ -330,3 +330,7 @@ class CorteDiaCreate(BaseModel):
     adicional_otros: float
     total_sistema: float
     total_general: float
+    
+
+class ComisionInput(BaseModel):
+    comision_manual: Optional[float] = None

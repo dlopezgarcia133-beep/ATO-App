@@ -301,7 +301,11 @@ def obtener_ventas_chips(
         return db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
 
 @router.put("/venta_chips/{id}/validar", response_model=schemas.VentaChipResponse)
-def validar_chip(id: int, db: Session = Depends(get_db)):
+def validar_chip(
+    id: int,
+    data: schemas.ComisionInput = Body(...),
+    db: Session = Depends(get_db)
+):
     chip = db.query(models.VentaChip).filter(models.VentaChip.id == id).first()
     if not chip:
         raise HTTPException(status_code=404, detail="Venta de chip no encontrada")
@@ -309,19 +313,37 @@ def validar_chip(id: int, db: Session = Depends(get_db)):
     if chip.validado:
         raise HTTPException(status_code=400, detail="Ya ha sido validado")
 
-    # Buscar comisión por tipo_chip (usa .lower() si el texto no es exacto)
-    comision = db.query(models.Comision).filter(models.Comision.producto == chip.tipo_chip).first()
-    if not comision:
-        raise HTTPException(status_code=404, detail="No se encontró comisión para este producto")
+    tipo = chip.tipo_chip
+    monto = int(chip.monto_recarga)
 
-    # Asignar comisión y validar
+    if tipo == "Activacion":
+        if data.comision_manual is None:
+            raise HTTPException(status_code=400, detail="Debe proporcionar una comisión para chip Activacion")
+        chip.comision = data.comision_manual
+    else:
+        # Diccionario de comisiones según tipo_chip y monto_recarga
+        comisiones_por_chip = {
+            "Chip Azul": {50: 5, 100: 10, 150: 15},
+            "Chip ATO": {50: 5, 100: 10, 150: 15},
+            "Portabilidad": {50: 50, 100: 50, 150: 50},
+            "Chip Cero": {50: 50, 100: 50, 150: 50},
+            "Chip Preactivado": {50: 25, 100: 35, 150: 40},
+            "Activacion": {50: 50, 100: 50, 150: 50},  # No se usará si admin ingresa manual
+        }
+
+        if tipo not in comisiones_por_chip or monto not in comisiones_por_chip[tipo]:
+            raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip y monto")
+        
+        chip.comision = comisiones_por_chip[tipo][monto]
+
     chip.validado = True
-    chip.comision = comision.cantidad
 
     db.commit()
     db.refresh(chip)
 
     return chip
+
+
 
 
 
