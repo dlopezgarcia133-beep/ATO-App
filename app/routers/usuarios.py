@@ -38,10 +38,12 @@ def registrar_usuario(
             raise HTTPException(status_code=400, detail="El usuario ya existe")
         
         modulo_obj = None
-        if usuario.modulo_id is not None:
+        if not usuario.is_admin:
+            if usuario.modulo_id is None:
+                raise HTTPException(status_code=400, detail="El módulo es obligatorio para este rol")
             modulo_obj = db.query(models.Modulo).filter_by(id=usuario.modulo_id).first()
-        if not modulo_obj:
-            raise HTTPException(status_code=404, detail="El módulo no existe")
+            if not modulo_obj:
+                raise HTTPException(status_code=404, detail="El módulo no existe")
 
         usuario_nuevo = models.Usuario(
             username=usuario.username,
