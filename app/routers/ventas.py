@@ -377,7 +377,7 @@ def motivo_rechazo_chip(
     db.commit()
     return {"mensaje": "Motivo de rechazo registrado"}
 
-@router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChip])
+@router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChipResponse])
 def obtener_chips_rechazados(db: Session = Depends(get_db)):
     return db.query(models.VentaChip).filter(models.VentaChip.descripcion_rechazo.isnot(None)).all()
 
