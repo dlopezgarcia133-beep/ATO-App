@@ -54,32 +54,41 @@ def actualizar_estado_traspaso(
     if not traspaso:
         raise HTTPException(status_code=404, detail="Traspaso no encontrado")
 
+    if traspaso.estado != "pendiente":
+        raise HTTPException(status_code=400, detail="Este traspaso ya fue procesado")
+
     traspaso.estado = estado.estado
-    
-    
 
     if estado.estado == "aprobado":
+        # Buscar módulo origen y destino por nombre
+        modulo_origen = db.query(models.Modulo).filter_by(nombre=traspaso.modulo_origen).first()
+        modulo_destino = db.query(models.Modulo).filter_by(nombre=traspaso.modulo_destino).first()
+
+        if not modulo_origen or not modulo_destino:
+            raise HTTPException(status_code=404, detail="Módulo origen o destino no encontrado")
+
         origen = db.query(models.InventarioModulo).filter_by(
             producto=traspaso.producto, 
-            modulo=traspaso.modulo_origen
+            modulo=modulo_origen.id
         ).first()
+
         if not origen or origen.cantidad < traspaso.cantidad:
             raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
-        
+
         origen.cantidad -= traspaso.cantidad
 
-        # Agregar al destino
         destino = db.query(models.InventarioModulo).filter_by(
             producto=traspaso.producto,
-            modulo=traspaso.modulo_destino
+            modulo=modulo_destino.id
         ).first()
+
         if destino:
             destino.cantidad += traspaso.cantidad
         else:
             nuevo = models.InventarioModulo(
                 producto=traspaso.producto,
                 cantidad=traspaso.cantidad,
-                modulo=traspaso.modulo_destino
+                modulo=modulo_destino.id
             )
             db.add(nuevo)
 
@@ -88,6 +97,7 @@ def actualizar_estado_traspaso(
     db.commit()
     db.refresh(traspaso)
     return traspaso
+
 
 # Ver traspasos del módulo actual (asesor o encargado)
 @router.get("/traspasos", response_model=list[schemas.TraspasoResponse])
