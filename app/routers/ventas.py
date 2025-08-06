@@ -1,6 +1,7 @@
 
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,6 +13,8 @@ from app.utilidades import enviar_ticket, verificar_rol_requerido
 
 router = APIRouter()
 
+
+zona_horaria = ZoneInfo("America/Mexico_City")
 
 # ------------------- VENTAS -------------------
 @router.post("/ventas", response_model=schemas.VentaResponse)
@@ -42,7 +45,7 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
     if inventario.cantidad < venta.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente para esta venta")
 
-
+    fecha_actual = datetime.now(zona_horaria)
     inventario.cantidad -= venta.cantidad
     
     # 3. Crear la venta
@@ -53,8 +56,8 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
         cantidad=venta.cantidad,
         precio_unitario=venta.precio_unitario,
         comision=comision,
-        fecha=datetime.now().date(),
-        hora=datetime.now().time(),
+        fecha=fecha_actual.date(),
+        hora=fecha_actual.time(),
         correo_cliente=venta.correo_cliente
     )
     # Si dejaste el campo total en el modelo, descomenta esta línea:
@@ -227,7 +230,7 @@ def crear_ventas_multiples(
                 status_code=400,
                 detail=f"Inventario insuficiente para el producto: {item.producto}"
             )
-
+        fecha_actual = datetime.now(zona_horaria)
         inventario.cantidad -= item.cantidad
 
         nueva = models.Venta(
@@ -238,8 +241,8 @@ def crear_ventas_multiples(
             precio_unitario=item.precio_unitario,
             metodo_pago=venta.metodo_pago,
             comision_id=comision_id,
-            fecha=datetime.now().date(),
-            hora=datetime.now().time(),
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
             correo_cliente=venta.correo_cliente,
         )
 
@@ -275,13 +278,14 @@ def crear_venta_chip(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
+    fecha_actual = datetime.now(zona_horaria)
     nueva_venta = models.VentaChip(
         empleado_id=current_user.id,
         tipo_chip=venta.tipo_chip,
         numero_telefono=venta.numero_telefono,
         monto_recarga=venta.monto_recarga,
-        fecha=datetime.now().date(),
-        hora=datetime.now().time(),
+        fecha=fecha_actual.date(),
+        hora=fecha_actual.time(),
     )
 
     db.add(nueva_venta)
@@ -323,12 +327,24 @@ def validar_chip(
     else:
         # Diccionario de comisiones según tipo_chip y monto_recarga
         comisiones_por_chip = {
-            "Chip Azul": {50: 5, 100: 10, 150: 15},
-            "Chip ATO": {50: 5, 100: 10, 150: 15},
-            "Portabilidad": {50: 50, 100: 50, 150: 50},
-            "Chip Cero": {50: 50, 100: 50, 150: 50},
-            "Chip Preactivado": {50: 25, 100: 35, 150: 40},
-            "Activacion": {50: 50, 100: 50, 150: 50},  # No se usará si admin ingresa manual
+            "Chip Azul": {50: 5, 
+                          100: 10, 
+                          150: 15},
+            "Chip ATO": {50: 5, 
+                         100: 10, 
+                         150: 15},
+            "Portabilidad": {50: 50, 
+                             100: 50, 
+                             150: 50},
+            "Chip Cero": {50: 50, 
+                          100: 50, 
+                          150: 50},
+            "Chip Preactivado": {50: 25, 
+                                 100: 35, 
+                                 150: 40},
+            "Activacion": {50: 50, 
+                           100: 50, 
+                           150: 50},  
         }
 
         if tipo not in comisiones_por_chip or monto not in comisiones_por_chip[tipo]:
@@ -361,6 +377,9 @@ def motivo_rechazo_chip(
     db.commit()
     return {"mensaje": "Motivo de rechazo registrado"}
 
+@router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChip])
+def obtener_chips_rechazados(db: Session = Depends(get_db)):
+    return db.query(models.VentaChip).filter(models.VentaChip.descripcion_rechazo.isnot(None)).all()
 
 
 @router.post("/venta_telefonos")
@@ -386,7 +405,7 @@ def vender_telefono(
     if telefono.cantidad < 1:
         raise HTTPException(status_code=400, detail="No hay stock disponible para este teléfono")
 
-    # 3. Registrar la venta
+    fecha_actual = datetime.now(zona_horaria)
     nueva_venta = models.VentaTelefono(
         empleado_id=current_user.id,
         marca=venta.marca.strip().upper(),
@@ -394,8 +413,8 @@ def vender_telefono(
         tipo=venta.tipo,
         precio_venta=venta.precio_venta,
         metodo_pago=venta.metodo_pago,
-        fecha=date.today(),
-        hora=datetime.now().time()
+        fecha=fecha_actual.today(),
+        hora=fecha_actual.time()
     )
 
   
