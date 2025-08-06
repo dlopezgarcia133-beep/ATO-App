@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from app import models, schemas
@@ -137,17 +137,27 @@ def actualizar_inventario_modulo(
 
 @router.get("/inventario/modulo", response_model=list[schemas.InventarioModuloResponse])
 def obtener_inventario_modulo(
-    modulo: str,
+    modulo: Optional[str] = None,
+    modulo_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # Buscar el módulo por su nombre
-    modulo_obj = db.query(models.Modulo).filter_by(nombre=modulo).first()
+    # Validar que al menos uno se haya proporcionado
+    if not modulo and not modulo_id:
+        raise HTTPException(status_code=400, detail="Debes proporcionar el nombre o el ID del módulo")
+
+    # Obtener el objeto del módulo según el parámetro disponible
+    if modulo:
+        modulo_obj = db.query(models.Modulo).filter_by(nombre=modulo).first()
+    else:
+        modulo_obj = db.query(models.Modulo).filter_by(id=modulo_id).first()
+
     if not modulo_obj:
         raise HTTPException(status_code=404, detail="Módulo no encontrado")
 
-    # Usar el ID del módulo para obtener su inventario
+    # Consultar inventario usando el ID del módulo
     return db.query(models.InventarioModulo).filter(models.InventarioModulo.modulo_id == modulo_obj.id).all()
+
 
 
 @router.delete("/inventario/modulo/{id}")
