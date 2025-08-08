@@ -294,15 +294,21 @@ def crear_venta_chip(
     return nueva_venta
 
 
+
 @router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
 def obtener_ventas_chips(
+    empleado_id: Optional[int] = None,  # <- nuevo parámetro
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     if current_user.rol == "admin":
-        return db.query(models.VentaChip).all()
+        query = db.query(models.VentaChip)
+        if empleado_id is not None:
+            query = query.filter(models.VentaChip.empleado_id == empleado_id)
+        return query.all()
     else:
         return db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
+
 
 @router.put("/venta_chips/{id}/validar", response_model=schemas.VentaChipResponse)
 def validar_chip(
