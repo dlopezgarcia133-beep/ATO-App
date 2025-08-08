@@ -118,6 +118,7 @@ class VentaChipResponse(VentaChipCreate):
     empleado_id: Optional[int] = None
     empleado: Optional[UsuarioResponse] = None
     comision: Optional[float] = None
+    numero_telefono: str
     fecha: date
     hora: time
     cancelada: bool
