@@ -385,7 +385,10 @@ def motivo_rechazo_chip(
 
 @router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChipResponse])
 def obtener_chips_rechazados(db: Session = Depends(get_db)):
-    return db.query(models.VentaChip).filter(models.VentaChip.descripcion_rechazo.isnot(None)).all()
+    return db.query(models.VentaChip).filter(
+        models.VentaChip.descripcion_rechazo.isnot(None),
+        models.VentaChip.validado == False
+    ).all()
 
 
 @router.post("/venta_telefonos")
