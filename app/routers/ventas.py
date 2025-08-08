@@ -629,6 +629,7 @@ def obtener_comisiones_ciclo(
     chips = [
         {
             "tipo_chip": v.tipo_chip,
+            "numero_telefono": v.numero_telefono,
             "comision": v.comision or 0,
             "fecha": v.fecha,
             "hora": v.hora
@@ -711,6 +712,7 @@ def obtener_comisiones_ciclo_admin(
     chips = [
         {
             "tipo_chip": v.tipo_chip,
+            "numero_telefono": v.numero_telefono,
             "comision": v.comision or 0,
             "fecha": v.fecha,
             "hora": v.hora
