@@ -384,11 +384,18 @@ def motivo_rechazo_chip(
     return {"mensaje": "Motivo de rechazo registrado"}
 
 @router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChipResponse])
-def obtener_chips_rechazados(db: Session = Depends(get_db)):
-    return db.query(models.VentaChip).filter(
+def obtener_chips_rechazados(
+    empleado_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.VentaChip).filter(
         models.VentaChip.descripcion_rechazo.isnot(None),
         models.VentaChip.validado == False
-    ).all()
+    )
+    if empleado_id is not None:
+        query = query.filter(models.VentaChip.empleado_id == empleado_id)
+
+    return query.all()
 
 
 @router.post("/venta_telefonos")
