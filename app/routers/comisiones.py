@@ -119,7 +119,18 @@ def obtener_comisiones_por_fechas(
     ).all()
 
     if not ventas_accesorios and not ventas_telefonos and not ventas_chips:
-        raise HTTPException(status_code=404, detail="No hay comisiones en este rango de fechas")
+        return {
+            "inicio_ciclo": inicio,
+            "fin_ciclo": fin,
+            "fecha_pago": None,
+            "total_chips": 0,
+            "total_accesorios": 0,
+            "total_telefonos": 0,
+            "total_general": 0,
+            "ventas_accesorios": [],
+            "ventas_telefonos": [],
+            "ventas_chips": []
+        }
 
     accesorios = [
         {
@@ -147,6 +158,7 @@ def obtener_comisiones_por_fechas(
     chips = [
         {
             "tipo_chip": v.tipo_chip,
+            "numero": v.numero_telefono,
             "comision": v.comision or 0,
             "fecha": v.fecha.strftime("%Y-%m-%d"),
             "hora": v.hora.strftime("%H:%M:%S")
