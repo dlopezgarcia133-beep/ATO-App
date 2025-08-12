@@ -81,7 +81,7 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
 
 
 
-@router.get("/comisiones/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
+@router.get("/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_por_fechas(
     inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
     fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
@@ -101,7 +101,7 @@ def obtener_comisiones_por_fechas(
 
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == usuario.id,
-        # models.VentaChip.validado == True,
+        models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio,
         models.VentaChip.fecha <= fin,
     ).all()
