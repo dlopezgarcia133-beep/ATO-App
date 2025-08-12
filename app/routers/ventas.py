@@ -399,6 +399,17 @@ def obtener_chips_rechazados(
 
     return query.all()
 
+@router.put("/ventas/revertir_rechazo/{chip_id}", response_model=schemas.VentaChipResponse)
+def revertir_rechazo(chip_id: int, db: Session = Depends(get_db)):
+    chip = db.query(models.VentaChip).filter(models.VentaChip.id == chip_id).first()
+    if not chip:
+        raise HTTPException(status_code=404, detail="Chip no encontrado")
+
+    chip.descripcion_rechazo = None
+    db.commit()
+    db.refresh(chip)
+    return chip
+
 
 @router.post("/venta_telefonos")
 def vender_telefono(
