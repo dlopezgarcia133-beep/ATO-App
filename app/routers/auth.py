@@ -27,7 +27,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     if user.is_admin:
         token = crear_token({"sub": user.username, "rol": user.rol})
-        return {"access_token": token, "token_type": "bearer"}
+        return {
+        "access_token": token,
+        "token_type": "bearer",
+        "usuario": user.username,
+        "modulo": user.modulo.nombre if user.modulo else None,
+        "rol": user.rol
+    }
 
     ahora_local = datetime.now(tz=zona_horaria_local)
     hoy = ahora_local.date()
