@@ -331,34 +331,45 @@ def validar_chip(
             raise HTTPException(status_code=400, detail="Debe proporcionar una comisión para chip Activacion")
         chip.comision = data.comision_manual
     else:
-        # Diccionario de comisiones según tipo_chip y monto_recarga
+        # Comisiones usando rangos (min, max)
         comisiones_por_chip = {
-            "Chip Azul": {50: 5, 
-                          100: 10, 
-                          150: 15},
-            "Chip ATO": {50: 5, 
-                         100: 10, 
-                         150: 15},
-            "Portabilidad": {50: 50, 
-                             100: 50, 
-                             150: 50,
-                             200: 50,
-                             250: 50,},
-            "Chip Cero/Libre": {50: 25, 
-                          100: 25, 
-                          150: 25,
-                          200: 25,
-                          250: 25,
-                          300: 25},
-            "Chip Preactivado": {50: 25, 
-                                 100: 35, 
-                                 150: 40},  
+            "Chip Azul": [
+                ((0, 49), 5),
+                ((50, 99), 10),
+                ((100, 1000), 15)
+            ],
+            "Chip ATO": [
+                ((0, 50), 5),
+                ((51, 100), 10),
+                ((101, 150), 15)
+            ],
+            "Portabilidad": [
+                ((0, 500), 50),
+                
+            ],
+            "Chip Cero/Libre": [
+                ((0, 500), 25),
+                
+            ],
+            "Chip Preactivado": [
+                ((0, 500), 35),
+                
+            ]
         }
 
-        if tipo not in comisiones_por_chip or monto not in comisiones_por_chip[tipo]:
-            raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip y monto")
-        
-        chip.comision = comisiones_por_chip[tipo][monto]
+        if tipo not in comisiones_por_chip:
+            raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip")
+
+        comision_asignada = None
+        for (min_monto, max_monto), comision in comisiones_por_chip[tipo]:
+            if min_monto <= monto <= max_monto:
+                comision_asignada = comision
+                break
+
+        if comision_asignada is None:
+            raise HTTPException(status_code=404, detail="Monto de recarga fuera de rango para este tipo de chip")
+
+        chip.comision = comision_asignada
 
     chip.validado = True
 
@@ -366,6 +377,7 @@ def validar_chip(
     db.refresh(chip)
 
     return chip
+
 
 
 
