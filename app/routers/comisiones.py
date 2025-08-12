@@ -101,6 +101,7 @@ def obtener_comisiones_por_fechas(
 
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio,
         models.VentaChip.fecha <= fin,
@@ -158,7 +159,7 @@ def obtener_comisiones_por_fechas(
     chips = [
         {
             "tipo_chip": v.tipo_chip,
-            "numero": v.numero_telefono,
+            "numero_telefono": v.numero_telefono,
             "comision": v.comision or 0,
             "fecha": v.fecha.strftime("%Y-%m-%d"),
             "hora": v.hora.strftime("%H:%M:%S")
