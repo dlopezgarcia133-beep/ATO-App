@@ -399,7 +399,7 @@ def obtener_chips_rechazados(
 
     return query.all()
 
-@router.put("/ventas/revertir_rechazo/{chip_id}", response_model=schemas.VentaChipResponse)
+@router.put("/revertir_rechazo/{chip_id}", response_model=schemas.VentaChipResponse)
 def revertir_rechazo(chip_id: int, db: Session = Depends(get_db)):
     chip = db.query(models.VentaChip).filter(models.VentaChip.id == chip_id).first()
     if not chip:
