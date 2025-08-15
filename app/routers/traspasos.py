@@ -77,10 +77,10 @@ def actualizar_estado_traspaso(
 
         origen.cantidad -= traspaso.cantidad
 
-        destino = db.query(models.InventarioModulo).filter_by(
-            producto=traspaso.producto,
-            modulo=modulo_destino.id
-        ).first()
+        destino = db.query(models.InventarioModulo).filter(
+    models.InventarioModulo.producto == traspaso.producto,
+    models.InventarioModulo.modulo_id == modulo_destino.id
+).first()
 
         if destino:
             destino.cantidad += traspaso.cantidad
