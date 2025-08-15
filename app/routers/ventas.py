@@ -540,9 +540,9 @@ def corte_general(
         models.Venta.modulo_id == current_user.modulo_id  # 🔹 Filtra por módulo
     ).all()
 
-    total_productos = sum(v.cantidad * v.precio_unitariov.total for v in ventas)
-    efectivo = sum(v.cantidad * v.precio_unitario for v in ventas if v.metodo_pago == "efectivo")
-    tarjeta = sum(v.cantidad * v.precio_unitario for v in ventas if v.metodo_pago == "tarjeta")
+    total_productos = sum(v.total for v in ventas)
+    efectivo = sum(v.total for v in ventas if v.metodo_pago == "efectivo")
+    tarjeta = sum(v.total for v in ventas if v.metodo_pago == "tarjeta")
 
     # Teléfonos
     telefonos = db.query(models.VentaTelefono).filter(
