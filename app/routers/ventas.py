@@ -9,6 +9,7 @@ from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
 from app.utilidades import enviar_ticket, verificar_rol_requerido
+from datetime import date
 
 
 router = APIRouter()
@@ -586,7 +587,7 @@ def crear_corte(
         raise HTTPException(status_code=400, detail="El encargado no tiene un módulo asignado")
 
     nuevo_corte = models.CorteDia(
-        fecha=datetime.date.today(),
+        fecha = date.today(),
         total_efectivo=corte_data.total_efectivo,
         total_tarjeta=corte_data.total_tarjeta,
         adicional_recargas=corte_data.adicional_recargas,
