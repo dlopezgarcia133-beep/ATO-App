@@ -1,4 +1,5 @@
 
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -10,7 +11,7 @@ from app.utilidades import verificar_rol_requerido
 
 router = APIRouter()
 
-
+zona_horaria = ZoneInfo("America/Mexico_City")
 # Crear traspaso (encargado)
 @router.post("/traspasos", response_model=schemas.TraspasoResponse)
 def crear_traspaso(
@@ -29,12 +30,14 @@ def crear_traspaso(
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
     
+    fecha_actual = datetime.now(zona_horaria)
     nuevo = models.Traspaso(
         producto=traspaso.producto,
         cantidad=traspaso.cantidad,
         modulo_origen=current_user.modulo.nombre if current_user.modulo else None,
         modulo_destino=traspaso.modulo_destino,
-        solicitado_por=current_user.id
+        solicitado_por=current_user.id,
+        fecha=fecha_actual.date()
     )
     db.add(nuevo)
     db.commit()
@@ -73,22 +76,33 @@ def actualizar_estado_traspaso(
             models.InventarioModulo.modulo_id == modulo_origen.id
         ).first()
 
+        if not inv_origen:
+            raise HTTPException(status_code=404, detail="Producto no encontrado en módulo origen")
+        if inv_origen.cantidad < traspaso.cantidad:
+            raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
+
         # Inventario en módulo destino
         inv_destino = db.query(models.InventarioModulo).filter(
             models.InventarioModulo.producto == traspaso.producto,
             models.InventarioModulo.modulo_id == modulo_destino.id
         ).first()
 
-        if not inv_origen:
-            raise HTTPException(status_code=404, detail="Producto no encontrado en módulo origen")
-        if inv_origen.cantidad < traspaso.cantidad:
-            raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
-        if not inv_destino:
-            raise HTTPException(status_code=404, detail="Producto no encontrado en módulo destino")
-
-        # Actualizar cantidades
+        # Restar en origen
         inv_origen.cantidad -= traspaso.cantidad
-        inv_destino.cantidad += traspaso.cantidad
+
+        if inv_destino:
+            # Sumar en destino
+            inv_destino.cantidad += traspaso.cantidad
+        else:
+            # Crear el producto en destino copiando info del origen
+            nuevo = models.InventarioModulo(
+                cantidad=traspaso.cantidad,
+                clave=inv_origen.clave,
+                producto=inv_origen.producto,
+                precio=inv_origen.precio,
+                modulo_id=modulo_destino.id
+            )
+            db.add(nuevo)
 
         traspaso.aprobado_por = current_user.id
 
