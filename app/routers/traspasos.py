@@ -88,7 +88,7 @@ def actualizar_estado_traspaso(
             nuevo = models.InventarioModulo(
                 producto=traspaso.producto,
                 cantidad=traspaso.cantidad,
-                modulo=modulo_destino.id
+                modulo_id=modulo_destino.id
             )
             db.add(nuevo)
 
