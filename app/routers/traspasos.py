@@ -67,30 +67,28 @@ def actualizar_estado_traspaso(
         if not modulo_origen or not modulo_destino:
             raise HTTPException(status_code=404, detail="Módulo origen o destino no encontrado")
 
-        origen = db.query(models.InventarioModulo).filter(
-    models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.modulo_id == modulo_origen.id
-).first()
+        # Inventario en módulo origen
+        inv_origen = db.query(models.InventarioModulo).filter(
+            models.InventarioModulo.producto == traspaso.producto,
+            models.InventarioModulo.modulo_id == modulo_origen.id
+        ).first()
 
-        if not origen or origen.cantidad < traspaso.cantidad:
+        # Inventario en módulo destino
+        inv_destino = db.query(models.InventarioModulo).filter(
+            models.InventarioModulo.producto == traspaso.producto,
+            models.InventarioModulo.modulo_id == modulo_destino.id
+        ).first()
+
+        if not inv_origen:
+            raise HTTPException(status_code=404, detail="Producto no encontrado en módulo origen")
+        if inv_origen.cantidad < traspaso.cantidad:
             raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
+        if not inv_destino:
+            raise HTTPException(status_code=404, detail="Producto no encontrado en módulo destino")
 
-        origen.cantidad -= traspaso.cantidad
-
-        destino = db.query(models.InventarioModulo).filter(
-    models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.modulo_id == modulo_destino.id
-).first()
-
-        if destino:
-            destino.cantidad += traspaso.cantidad
-        else:
-            nuevo = models.InventarioModulo(
-                producto=traspaso.producto,
-                cantidad=traspaso.cantidad,
-                modulo_id=modulo_destino.id
-            )
-            db.add(nuevo)
+        # Actualizar cantidades
+        inv_origen.cantidad -= traspaso.cantidad
+        inv_destino.cantidad += traspaso.cantidad
 
         traspaso.aprobado_por = current_user.id
 
