@@ -533,21 +533,22 @@ def corte_general(
 ):
     hoy = date.today()
 
-    # Ventas normales
+    # Filtro por fecha sin hora y por módulo
     ventas = db.query(models.Venta).filter(
-        models.Venta.fecha == hoy,
-        models.Venta.cancelada == False
+        func.date(models.Venta.fecha) == hoy,  # 🔹 Evita problema de hora
+        models.Venta.cancelada == False,
+        models.Venta.modulo_id == current_user.modulo_id  # 🔹 Filtra por módulo
     ).all()
 
     total_productos = sum(v.total for v in ventas)
     efectivo = sum(v.total for v in ventas if v.metodo_pago == "efectivo")
     tarjeta = sum(v.total for v in ventas if v.metodo_pago == "tarjeta")
 
-
     # Teléfonos
     telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.fecha == hoy,
-        models.VentaTelefono.cancelada == False
+        func.date(models.VentaTelefono.fecha) == hoy,
+        models.VentaTelefono.cancelada == False,
+        models.VentaTelefono.modulo_id == current_user.modulo_id  # 🔹 Filtra por módulo
     ).all()
 
     total_telefonos = sum(t.precio for t in telefonos)
@@ -564,13 +565,13 @@ def corte_general(
             "tarjeta": round(tarjeta, 2),
         },
 
-
         "ventas_telefonos": {
             "total": round(total_telefonos, 2),
             "efectivo": round(efectivo_tel, 2),
             "tarjeta": round(tarjeta_tel, 2),
         }
     }
+
     
 @router.post("/cortes")
 def crear_corte(
