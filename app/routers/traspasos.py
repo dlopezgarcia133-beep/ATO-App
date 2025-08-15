@@ -67,10 +67,10 @@ def actualizar_estado_traspaso(
         if not modulo_origen or not modulo_destino:
             raise HTTPException(status_code=404, detail="Módulo origen o destino no encontrado")
 
-        origen = db.query(models.InventarioModulo).filter_by(
-            producto=traspaso.producto, 
-            modulo=modulo_origen.id
-        ).first()
+        origen = db.query(models.InventarioModulo).filter(
+    models.InventarioModulo.producto == traspaso.producto,
+    models.InventarioModulo.modulo_id == modulo_origen.id
+).first()
 
         if not origen or origen.cantidad < traspaso.cantidad:
             raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
