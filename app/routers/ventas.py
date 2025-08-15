@@ -4,7 +4,7 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
@@ -27,7 +27,7 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
     )
     comision = com.cantidad if com else None
 
-    # 2. Calcular total
+    
     total = venta.precio_unitario * venta.cantidad
 
     modulo = current_user.modulo
@@ -94,7 +94,11 @@ def obtener_ventas(
 ):
     hoy = date.today()
 
-    query = db.query(models.Venta).filter(models.Venta.fecha == hoy)
+    query = (
+        db.query(models.Venta)
+        .options(joinedload(models.Venta.empleado))  
+        .filter(models.Venta.fecha == hoy)
+    )
 
     if modulo_id is not None:
         query = query.filter(models.Venta.modulo_id == modulo_id)
@@ -297,7 +301,7 @@ def crear_venta_chip(
 
 @router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
 def obtener_ventas_chips(
-    empleado_id: Optional[int] = None,  # <- nuevo parámetro
+    empleado_id: Optional[int] = None, 
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
