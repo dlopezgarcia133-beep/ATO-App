@@ -212,3 +212,26 @@ class CorteDia(Base):
     total_general = Column(Float)
         
     modulo = relationship("Modulo", back_populates="cortes")
+    
+    
+
+
+class InventarioFisico(Base):
+    __tablename__ = "inventario_fisico"
+
+    id = Column(Integer, primary_key=True, index=True)
+    producto = Column(String, index=True)
+    clave = Column(String, index=True)
+    cantidad = Column(Integer, nullable=False)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    
+
+class InventarioTelefonoFisico(Base):
+    __tablename__ = "inventario_telefonos_fisico"
+
+    id = Column(Integer, primary_key=True, index=True)
+    marca = Column(String)
+    modelo = Column(String)
+    clave = Column(String)
+    cantidad = Column(Integer)
+    fecha = Column(DateTime, default=datetime.utcnow)

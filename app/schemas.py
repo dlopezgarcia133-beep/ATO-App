@@ -336,3 +336,21 @@ class CorteDiaCreate(BaseModel):
 
 class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None
+    
+    
+
+
+class InventarioFisicoBase(BaseModel):
+    producto: str
+    clave: str
+    cantidad: int
+
+class InventarioFisicoCreate(InventarioFisicoBase):
+    pass
+
+class InventarioFisicoResponse(InventarioFisicoBase):
+    id: int
+    fecha: datetime
+
+    class Config:
+        orm_mode = True

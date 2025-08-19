@@ -107,3 +107,29 @@ def eliminar_telefono_general(
     db.delete(telefono)
     db.commit()
     return {"mensaje": "Teléfono eliminado del inventario general."}
+
+
+@router.get("/reportes/diferencias_telefonos")
+def reporte_diferencias_telefonos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+):
+    inventario_sistema = db.query(models.InventarioTelefonoGeneral).all()
+    inventario_fisico = db.query(models.InventarioTelefonoFisico).all()
+
+    fisico_dict = {(t.marca, t.modelo, t.clave): t.cantidad for t in inventario_fisico}
+
+    reporte = []
+    for tel in inventario_sistema:
+        cantidad_fisica = fisico_dict.get((tel.marca, tel.modelo, tel.clave), 0)
+        diferencia = cantidad_fisica - tel.cantidad
+        reporte.append({
+            "marca": tel.marca,
+            "modelo": tel.modelo,
+            "clave": tel.clave,
+            "sistema": tel.cantidad,
+            "fisico": cantidad_fisica,
+            "diferencia": diferencia
+        })
+
+    return reporte

@@ -244,3 +244,44 @@ def mover_producto_a_modulo(
 
     db.commit()
     return {"mensaje": f"{cantidad} unidades movidas al módulo {modulo} correctamente"}
+
+
+
+
+@router.post("/inventario/fisico", response_model=schemas.InventarioFisicoResponse)
+def registrar_inventario_fisico(
+    datos: schemas.InventarioFisicoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+):
+    nuevo = models.InventarioFisico(**datos.dict())
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+
+@router.get("/reportes/diferencias")
+def reporte_diferencias(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+):
+    inventario_general = db.query(models.InventarioGeneral).all()
+    inventario_fisico = db.query(models.InventarioFisico).all()
+
+    # Diccionario con el físico (clave única: producto+clave)
+    fisico_dict = {(p.producto, p.clave): p.cantidad for p in inventario_fisico}
+
+    reporte = []
+    for prod in inventario_general:
+        cantidad_fisica = fisico_dict.get((prod.producto, prod.clave), 0)
+        diferencia = cantidad_fisica - prod.cantidad
+        reporte.append({
+            "producto": prod.producto,
+            "clave": prod.clave,
+            "sistema": prod.cantidad,
+            "fisico": cantidad_fisica,
+            "diferencia": diferencia
+        })
+
+    return reporte
