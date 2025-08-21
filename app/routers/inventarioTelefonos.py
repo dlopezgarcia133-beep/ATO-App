@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from turtle import pd
+from fastapi import APIRouter, HTTPException, Depends, UploadFile
+from fastapi.params import File
 from sqlalchemy.orm import Session
 from datetime import date
 from app import models, schemas
@@ -133,3 +135,47 @@ def reporte_diferencias_telefonos(
         })
 
     return reporte
+
+
+@router.post("/inventario/telefonos/fisico/upload")
+def subir_inventario_telefonos_fisico(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
+):
+    # Validar tipo de archivo
+    if not archivo.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser de Excel (.xlsx o .xls)")
+
+    try:
+        # Leer Excel con pandas
+        df = pd.read_excel(archivo.file)
+
+        # Verificar que tenga las columnas necesarias
+        columnas_necesarias = {"marca", "modelo", "clave", "cantidad"}
+        if not columnas_necesarias.issubset(df.columns):
+            raise HTTPException(
+                status_code=400,
+                detail=f"El archivo debe contener las columnas: {', '.join(columnas_necesarias)}"
+            )
+
+        # Borrar inventario físico anterior (opcional: porque se sube 1 vez al mes)
+        db.query(models.InventarioTelefonoFisico).delete()
+
+        # Insertar nuevo inventario físico
+        for _, row in df.iterrows():
+            item = models.InventarioTelefonoFisico(
+                marca=row["marca"],
+                modelo=row["modelo"],
+                clave=row["clave"],
+                cantidad=row["cantidad"]
+            )
+            db.add(item)
+
+        db.commit()
+        return {"mensaje": "Inventario físico de teléfonos actualizado correctamente"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")

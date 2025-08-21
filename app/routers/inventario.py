@@ -1,5 +1,8 @@
+import datetime
+from turtle import pd
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.params import File
 from sqlalchemy import func
 from app import models, schemas
 from app.config import get_current_user
@@ -285,3 +288,37 @@ def reporte_diferencias(
         })
 
     return reporte
+
+
+@router.post("/upload/")
+async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    # Validar que sea un Excel
+    if not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser Excel (.xlsx o .xls)")
+
+    # Leer el archivo Excel
+    try:
+        df = pd.read_excel(file.file)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al leer el archivo: {e}")
+
+    # Validar que tenga las columnas necesarias
+    columnas_validas = {"producto", "clave", "cantidad"}
+    if not columnas_validas.issubset(df.columns):
+        raise HTTPException(status_code=400, detail=f"El archivo debe contener las columnas: {columnas_validas}")
+
+    # Guardar en la base de datos
+    registros = []
+    for _, row in df.iterrows():
+        inventario = models.InventarioFisico(
+            producto=row["producto"],
+            clave=row["clave"],
+            cantidad=int(row["cantidad"]),
+            fecha=datetime.utcnow()
+        )
+        registros.append(inventario)
+
+    db.bulk_save_objects(registros)
+    db.commit()
+
+    return {"status": "success", "insertados": len(registros)}
