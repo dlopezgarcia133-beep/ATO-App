@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app import models
-from app.config import crear_token
+from app.config import crear_token, get_current_user
 from app.database import get_db
 from passlib.context import CryptContext
 
@@ -74,7 +74,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     "rol": user.rol
 }
 
-
+@router.get("/usuarios/me")
+def get_me(current_user: models.Usuario = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "rol": current_user.rol,
+        "is_admin": current_user.is_admin
+    }
 
 # ------------------- UTILIDAD PARA CONTRASEÑAS -------------------
 def hashear_contraseña(password: str):
