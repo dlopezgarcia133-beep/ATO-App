@@ -88,25 +88,31 @@ def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curre
 
 from datetime import date
 
+from datetime import datetime, date
+
 @router.get("/ventas", response_model=list[schemas.VentaResponse])
 def obtener_ventas(
-    fecha: str | None = None,
-    modulo_id: int | None = None,
-    db: Session = Depends(get_db)
+    fecha: date = None,
+    modulo_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)  # quien hizo login
 ):
-    query = db.query(models.Venta).options(joinedload(models.Venta.empleado))
+    hoy = date.today()
+    fecha_consulta = fecha or hoy
 
-    if fecha:
-        try:
-            fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
-            inicio = datetime.combine(fecha_dt, datetime.min.time())
-            fin = datetime.combine(fecha_dt, datetime.max.time())
-            query = query.filter(models.Venta.fecha >= inicio, models.Venta.fecha <= fin)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD")
+    query = (
+        db.query(models.Venta)
+        .options(joinedload(models.Venta.empleado))
+        .filter(models.Venta.fecha == fecha_consulta)
+    )
 
-    if modulo_id is not None:
-        query = query.filter(models.Venta.modulo_id == modulo_id)
+    # 🔒 Si no es admin, solo puede ver su propio módulo
+    if not current_user.is_admin:
+        query = query.filter(models.Venta.modulo_id == current_user.modulo_id)
+    else:
+        # si es admin y mandó modulo_id → filtrar
+        if modulo_id is not None:
+            query = query.filter(models.Venta.modulo_id == modulo_id)
 
     ventas = query.all()
 
@@ -117,6 +123,7 @@ def obtener_ventas(
         resultados.append(item)
 
     return resultados
+
 
 
 
