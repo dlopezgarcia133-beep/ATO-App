@@ -120,7 +120,7 @@ class InventarioGeneral(Base):
     clave = Column(String, unique=True, nullable=False) 
     producto = Column(String, nullable=False)
     precio = Column(Integer, nullable=True)
-    
+    tipo = Column(String, nullable=False)  
 
 class InventarioModulo(Base):
     __tablename__ = "inventario_modulo"

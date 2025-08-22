@@ -77,10 +77,15 @@ def produtos_inventario(
 
 @router.get("/inventario/general", response_model=list[schemas.InventarioGeneralResponse])
 def obtener_inventario_general(
+    tipo: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    return db.query(models.InventarioGeneral).all()
+    query = db.query(models.InventarioGeneral)
+    if tipo:
+        query = query.filter(models.InventarioGeneral.tipo == tipo)
+    return query.all()
+
 
 
 
@@ -322,3 +327,98 @@ async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(
     db.commit()
 
     return {"status": "success", "insertados": len(registros)}
+
+
+
+# Crear teléfono en inventario_general
+@router.post("/inventario/telefonos", response_model=schemas.InventarioGeneralResponse)
+def crear_telefono(
+    datos: schemas.InventarioTelefonoGeneralCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    # Generar clave automática o esperar que venga de otro proceso
+    clave_generada = f"{datos.marca[:3].upper()}-{datos.modelo[:3].upper()}"
+
+    existente = db.query(models.InventarioGeneral).filter_by(clave=clave_generada).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="El teléfono ya está registrado en inventario.")
+
+    nuevo = models.InventarioGeneral(
+        clave=clave_generada,
+        producto=f"{datos.marca.upper()} {datos.modelo.upper()}",
+        cantidad=datos.cantidad,
+        precio=int(datos.precio),
+        tipo="telefono"
+    )
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+
+# Obtener todos los teléfonos
+@router.get("/inventario/telefonos", response_model=list[schemas.InventarioGeneralResponse])
+def obtener_telefonos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    return db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
+
+
+# Subir inventario físico desde Excel
+@router.post("/inventario/telefonos/fisico/upload")
+def subir_inventario_telefonos_fisico(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+):
+    if not archivo.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser de Excel (.xlsx o .xls)")
+
+    try:
+        df = pd.read_excel(archivo.file)
+
+        # Validar columnas esperadas
+        columnas_necesarias = {"clave", "cantidad"}
+        if not columnas_necesarias.issubset(df.columns):
+            raise HTTPException(
+                status_code=400,
+                detail=f"El archivo debe contener las columnas: {', '.join(columnas_necesarias)}"
+            )
+
+        inventario_sistema = db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
+        fisico_dict = {row["clave"]: row["cantidad"] for _, row in df.iterrows()}
+
+        reporte = []
+        for tel in inventario_sistema:
+            cantidad_fisica = fisico_dict.get(tel.clave, 0)
+            diferencia = cantidad_fisica - tel.cantidad
+            reporte.append({
+                "clave": tel.clave,
+                "producto": tel.producto,
+                "sistema": tel.cantidad,
+                "fisico": cantidad_fisica,
+                "diferencia": diferencia
+            })
+
+        return reporte
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")
+
+
+# Eliminar teléfono
+@router.delete("/inventario/telefonos/{telefono_id}")
+def eliminar_telefono(
+    telefono_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    telefono = db.query(models.InventarioGeneral).filter_by(id=telefono_id, tipo="telefono").first()
+    if not telefono:
+        raise HTTPException(status_code=404, detail="Teléfono no encontrado.")
+
+    db.delete(telefono)
+    db.commit()
+    return {"mensaje": "Teléfono eliminado del inventario."}

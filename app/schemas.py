@@ -192,6 +192,7 @@ class InventarioGeneralCreate(BaseModel):
     clave: str
     producto: str
     precio: int
+    tipo: str
 
 
 class InventarioGeneralUpdate(BaseModel):
@@ -204,6 +205,7 @@ class InventarioGeneralResponse(BaseModel):
     clave: str
     cantidad: int
     precio: int
+    tipo: str
 
     class Config:
         from_attributes = True

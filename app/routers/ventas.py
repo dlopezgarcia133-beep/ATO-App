@@ -90,16 +90,20 @@ from datetime import date
 
 @router.get("/ventas", response_model=list[schemas.VentaResponse])
 def obtener_ventas(
-    modulo_id: int = None,
+    fecha: str | None = None,
+    modulo_id: int | None = None,
     db: Session = Depends(get_db)
 ):
-    hoy = date.today()
+    query = db.query(models.Venta).options(joinedload(models.Venta.empleado))
 
-    query = (
-        db.query(models.Venta)
-        .options(joinedload(models.Venta.empleado))  
-        .filter(models.Venta.fecha == hoy)
-    )
+    if fecha:
+        try:
+            fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+            inicio = datetime.combine(fecha_dt, datetime.min.time())
+            fin = datetime.combine(fecha_dt, datetime.max.time())
+            query = query.filter(models.Venta.fecha >= inicio, models.Venta.fecha <= fin)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD")
 
     if modulo_id is not None:
         query = query.filter(models.Venta.modulo_id == modulo_id)
@@ -113,7 +117,6 @@ def obtener_ventas(
         resultados.append(item)
 
     return resultados
-
 
 
 
