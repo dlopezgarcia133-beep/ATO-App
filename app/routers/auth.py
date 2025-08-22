@@ -78,7 +78,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def get_me(current_user: models.Usuario = Depends(get_current_user)):
     return {
         "id": current_user.id,
-        "email": current_user.email,
         "rol": current_user.rol,
         "is_admin": current_user.is_admin
     }
