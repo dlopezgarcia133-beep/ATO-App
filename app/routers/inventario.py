@@ -365,10 +365,8 @@ def obtener_telefonos(
 ):
     return db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
 
-
-# Subir inventario físico desde Excel
-@router.post("/inventario/telefonos/fisico/upload")
-def subir_inventario_telefonos_fisico(
+@router.post("/inventario/fisico/upload")
+def subir_inventario_fisico(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
@@ -387,17 +385,36 @@ def subir_inventario_telefonos_fisico(
                 detail=f"El archivo debe contener las columnas: {', '.join(columnas_necesarias)}"
             )
 
-        inventario_sistema = db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
+        # Borrar registros previos del inventario físico (opcional, si solo hay un corte por mes)
+        db.query(models.InventarioFisico).delete()
+
+        # Insertar nuevos registros
+        registros = []
+        for _, row in df.iterrows():
+            inventario = models.InventarioFisico(
+                clave=row["clave"],
+                producto=row.get("producto", ""),  # opcional si el excel trae nombre
+                cantidad=int(row["cantidad"]),
+                fecha=datetime.utcnow()
+            )
+            registros.append(inventario)
+
+        db.bulk_save_objects(registros)
+        db.commit()
+
+        # Comparar contra inventario general
+        inventario_sistema = db.query(models.InventarioGeneral).all()
         fisico_dict = {row["clave"]: row["cantidad"] for _, row in df.iterrows()}
 
         reporte = []
-        for tel in inventario_sistema:
-            cantidad_fisica = fisico_dict.get(tel.clave, 0)
-            diferencia = cantidad_fisica - tel.cantidad
+        for prod in inventario_sistema:
+            cantidad_fisica = fisico_dict.get(prod.clave, 0)
+            diferencia = cantidad_fisica - prod.cantidad
             reporte.append({
-                "clave": tel.clave,
-                "producto": tel.producto,
-                "sistema": tel.cantidad,
+                "producto": prod.producto,
+                "clave": prod.clave,
+                "tipo": prod.tipo,  
+                "sistema": prod.cantidad,
                 "fisico": cantidad_fisica,
                 "diferencia": diferencia
             })
