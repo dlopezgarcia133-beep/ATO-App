@@ -48,6 +48,7 @@ class Venta(Base):
     producto = Column(String, nullable=False)
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Float, nullable=False)
+    tipo_venta = Column(String, nullable=False)  
     total = Column(Float, nullable=True) 
     comision_id = Column(Integer, ForeignKey("comisions.id"), nullable=True)
     metodo_pago = Column(String)
@@ -55,6 +56,7 @@ class Venta(Base):
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     correo_cliente = Column(String, nullable=True)
+    tipo_producto = Column(String, nullable=False)
     
     empleado = relationship("Usuario", back_populates="ventas")
     comision_obj = relationship("Comision")

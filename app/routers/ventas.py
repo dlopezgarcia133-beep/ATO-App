@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
@@ -437,49 +437,103 @@ def revertir_rechazo(chip_id: int, db: Session = Depends(get_db)):
     db.refresh(chip)
     return chip
 
+@router.delete("/eliminar_chip/{chip_id}", status_code=status.HTTP_200_OK)
+def eliminar_chip(chip_id: int, db: Session = Depends(get_db)):
+    chip = db.query(models.VentaChip).filter(models.VentaChip.id == chip_id).first()
+    if not chip:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chip no encontrado"
+        )
+    
+    db.delete(chip)
+    db.commit()
+    return {"message": f"Chip con id {chip_id} eliminado correctamente"}
 
-@router.post("/venta_telefonos")
-def vender_telefono(
-    venta: schemas.VentaTelefonoCreate,
+
+@router.post("/ventas", response_model=List[schemas.VentaResponse])
+def crear_ventas(
+    venta: schemas.VentaMultipleCreate,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # 1. Obtener el módulo al que pertenece el usuario
-    if not current_user.modulo_id:
-        raise HTTPException(status_code=400, detail="El usuario no tiene un módulo asignado")
+    ventas_realizadas = []
 
-    # 2. Buscar el teléfono en el inventario de su módulo
-    telefono = db.query(models.InventarioTelefono).filter_by(
-        marca=venta.marca.strip().upper(),
-        modelo=venta.modelo.strip().upper(),
-        modulo_id=current_user.modulo_id
-    ).first()
+    for item in venta.productos:
+        # Buscar comisión por producto (si aplica)
+        com = (
+            db.query(models.Comision)
+            .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
+            .first()
+        )
+        comision_id = com.id if com else None
+        modulo_id = current_user.modulo_id
 
-    if not telefono:
-        raise HTTPException(status_code=404, detail="Teléfono no encontrado en inventario del módulo")
+        # 🔎 Buscar en inventario unificado
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == modulo_id,
+                models.InventarioModulo.producto == item.producto,
+                models.InventarioModulo.tipo_producto == item.tipo_producto
+            )
+            .first()
+        )
 
-    if telefono.cantidad < 1:
-        raise HTTPException(status_code=400, detail="No hay stock disponible para este teléfono")
+        if not inventario:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay inventario para el producto: {item.producto}"
+            )
 
-    fecha_actual = datetime.now(zona_horaria)
-    nueva_venta = models.VentaTelefono(
-        empleado_id=current_user.id,
-        marca=venta.marca.strip().upper(),
-        modelo=venta.modelo.strip().upper(),
-        tipo=venta.tipo,
-        precio_venta=venta.precio_venta,
-        metodo_pago=venta.metodo_pago,
-        fecha=fecha_actual.today(),
-        hora=fecha_actual.time()
-    )
+        if inventario.cantidad < item.cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Inventario insuficiente para el producto: {item.producto}"
+            )
 
-  
-    telefono.cantidad -= 1
+        # Actualizar inventario
+        inventario.cantidad -= item.cantidad
 
-    db.add(nueva_venta)
+        fecha_actual = datetime.now(zona_horaria)
+        nueva = models.Venta(
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            tipo_producto=item.tipo_producto,
+            tipo_venta=item.tipo_venta,
+            metodo_pago=venta.metodo_pago,
+            comision_id=comision_id,
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
+            correo_cliente=venta.correo_cliente,
+        )
+
+        db.add(nueva)
+        ventas_realizadas.append(nueva)
+
     db.commit()
+    for v in ventas_realizadas:
+        db.refresh(v)
 
-    return {"mensaje": "Venta registrada y stock actualizado"}
+    return [
+        schemas.VentaResponse(
+            id=v.id,
+            empleado=schemas.UsuarioResponse.from_orm(v.empleado) if v.empleado else None,
+            modulo=v.modulo,
+            producto=v.producto,
+            cantidad=v.cantidad,
+            precio_unitario=v.precio_unitario,
+            total=v.precio_unitario * v.cantidad,
+            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            fecha=v.fecha,
+            hora=v.hora,
+        )
+        for v in ventas_realizadas
+    ]
+
 
 
 

@@ -67,6 +67,9 @@ class VentaCreate(BaseModel):
     producto: str
     precio_unitario: float
     cantidad: int
+    tipo_producto: str 
+    tipo_venta: str
+    metodo_pago: str
     correo_cliente: Optional[str] = None
      
 
@@ -79,6 +82,9 @@ class VentaResponse(VentaCreate):
     precio_unitario: float
     total: Optional[float] = None
     comision: Optional[float] = None
+    tipo_producto: str
+    tipo_venta: str
+    metodo_pago: str
     fecha: date
     hora: time
 
@@ -101,6 +107,7 @@ class ProductoEnVenta(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
+    tipo_producto: str
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]

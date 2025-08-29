@@ -1,7 +1,7 @@
 import datetime
 from turtle import pd
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.params import File
 from sqlalchemy import func
 from app import models, schemas
@@ -54,6 +54,27 @@ def obtener_productos_nombres(db: Session = Depends(get_db),
                              current_user: models.Usuario = Depends(get_current_user)):
     productos = db.query(models.InventarioGeneral.producto).distinct().all()
     return [p[0] for p in productos]
+
+
+@router.get("/buscar", response_model=List[str])
+def autocomplete_telefonos(
+    query: str = Query(..., min_length=1, description="Texto a buscar"),
+    db: Session = Depends(get_db)
+):
+    """
+    Autocomplete para teléfonos.
+    Busca en inventario_general solo productos de tipo 'telefono'
+    """
+    productos = (
+        db.query(models.InventarioGeneral)
+        .filter(
+            models.InventarioGeneral.tipo_producto == "telefono",
+            models.InventarioGeneral.producto.ilike(f"%{query}%")
+        )
+        .limit(10)  # limitar resultados
+        .all()
+    )
+    return productos
 
 
 
