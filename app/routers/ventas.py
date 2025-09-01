@@ -636,6 +636,36 @@ def corte_general(
             "tarjeta": round(tarjeta_tel, 2),
         }
     }
+    
+
+@router.get("/ventas/cortes")
+def obtener_cortes(
+    fecha: date = Query(None),
+    modulo_id: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    query = db.query(models.Corte)
+
+    if fecha:
+        query = query.filter(models.Corte.fecha == fecha)
+    if modulo_id:
+        query = query.filter(models.Corte.modulo_id == modulo_id)
+
+    cortes = query.order_by(models.Corte.fecha.desc()).all()
+
+    return [{
+        "fecha": c.fecha,
+        "total_efectivo": c.total_efectivo,
+        "total_tarjeta": c.total_tarjeta,
+        "adicional_recargas": c.adicional_recargas,
+        "adicional_transporte": c.adicional_transporte,
+        "adicional_otros": c.adicional_otros,
+        "total_sistema": c.total_sistema,
+        "total_general": c.total_general,
+        "modulo_id": c.modulo_id,
+    } for c in cortes]
+
 
     
 @router.post("/cortes")

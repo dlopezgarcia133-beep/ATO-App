@@ -323,7 +323,7 @@ class VentaChipConComision(BaseModel):
 class ComisionesCicloResponse(BaseModel):
     inicio_ciclo: date
     fin_ciclo: date
-    fecha_pago: date
+    fecha_pago: Optional[date] = None
     total_chips: float
     total_accesorios: float
     total_telefonos: float
