@@ -82,8 +82,8 @@ class VentaResponse(VentaCreate):
     precio_unitario: float
     total: Optional[float] = None
     comision: Optional[float] = None
-    tipo_producto: str
-    tipo_venta: str
+    tipo_producto: Optional[str] = None
+    tipo_venta: Optional[str] = None
     metodo_pago: str
     fecha: date
     hora: time
