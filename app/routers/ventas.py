@@ -648,11 +648,11 @@ def obtener_cortes(
     query = db.query(models.Corte)
 
     if fecha:
-        query = query.filter(models.Corte.fecha == fecha)
+        query = query.filter(models.CorteDia.fecha == fecha)
     if modulo_id:
-        query = query.filter(models.Corte.modulo_id == modulo_id)
+        query = query.filter(models.CorteDia.modulo_id == modulo_id)
 
-    cortes = query.order_by(models.Corte.fecha.desc()).all()
+    cortes = query.order_by(models.CorteDia.fecha.desc()).all()
 
     return [{
         "fecha": c.fecha,
