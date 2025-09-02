@@ -645,7 +645,7 @@ def obtener_cortes(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(models.Corte)
+    query = db.query(models.CorteDia)
 
     if fecha:
         query = query.filter(models.CorteDia.fecha == fecha)
