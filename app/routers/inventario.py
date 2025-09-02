@@ -55,7 +55,6 @@ def obtener_productos_nombres(db: Session = Depends(get_db),
     productos = db.query(models.InventarioGeneral.producto).distinct().all()
     return [p[0] for p in productos]
 
-
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
     query: str = Query(..., min_length=1, description="Texto a buscar"),
@@ -66,15 +65,18 @@ def autocomplete_telefonos(
     Busca en inventario_general solo productos de tipo 'telefono'
     """
     productos = (
-        db.query(models.InventarioGeneral)
+        db.query(models.InventarioGeneral.producto)
         .filter(
             models.InventarioGeneral.tipo == "telefono",
             models.InventarioGeneral.producto.ilike(f"%{query}%")
         )
-        .limit(10)  # limitar resultados
+        .limit(10)
         .all()
     )
-    return productos
+
+    # `productos` regresa una lista de tuplas [(nombre,), (nombre,), ...]
+    # entonces extraemos solo el string
+    return [p[0] for p in productos]
 
 
 
