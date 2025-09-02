@@ -65,17 +65,15 @@ def autocomplete_telefonos(
     Busca en inventario_general solo productos de tipo 'telefono'
     """
     productos = (
-        db.query(models.InventarioGeneral.producto)
-        .filter(
-            models.InventarioGeneral.tipo == "telefono",
-            models.InventarioGeneral.producto.ilike(f"%{query}%")
-        )
-        .limit(10)
-        .all()
+    db.query(models.InventarioGeneral.producto)
+    .filter(
+        models.InventarioGeneral.tipo == "telefono",
+        models.func.upper(models.InventarioGeneral.producto).ilike(f"%{query.upper()}%")
     )
+    .limit(10)
+    .all()
+)
 
-    # `productos` regresa una lista de tuplas [(nombre,), (nombre,), ...]
-    # entonces extraemos solo el string
     return [p[0] for p in productos]
 
 
