@@ -107,7 +107,7 @@ class ProductoEnVenta(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
-    tipo_producto: str
+    tipo: str
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]
