@@ -17,7 +17,72 @@ router = APIRouter()
 
 zona_horaria = ZoneInfo("America/Mexico_City")
 
+# ------------------- VENTAS -------------------
+@router.post("/ventas", response_model=schemas.VentaResponse)
+def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
+    
+    com = (
+        db.query(models.Comision)
+          .filter(func.lower(models.Comision.producto) == venta.producto.strip().lower())
+          .first()
+    )
+    comision = com.cantidad if com else None
 
+    
+    total = venta.precio_unitario * venta.cantidad
+
+    modulo = current_user.modulo
+    
+    
+    inventario = (
+        db.query(models.InventarioModulo)
+        .filter_by(modulo=modulo, producto=venta.producto)
+        .first()
+    )
+
+    if not inventario:
+        raise HTTPException(status_code=404, detail="Producto no registrado en el inventario del módulo")
+
+    if inventario.cantidad < venta.cantidad:
+        raise HTTPException(status_code=400, detail="Inventario insuficiente para esta venta")
+
+    fecha_actual = datetime.now(zona_horaria)
+    inventario.cantidad -= venta.cantidad
+    
+    # 3. Crear la venta
+    nueva_venta = models.Venta(
+        empleado_id=current_user.id,
+        modulo=modulo,
+        producto=venta.producto,
+        cantidad=venta.cantidad,
+        precio_unitario=venta.precio_unitario,
+        total = venta.precio_unitario * venta.cantidad,
+        comision=comision,
+        fecha=fecha_actual.date(),
+        hora=fecha_actual.time(),
+        correo_cliente=venta.correo_cliente
+    )
+    # Si dejaste el campo total en el modelo, descomenta esta línea:
+    # nueva_venta.total = total
+
+    db.add(nueva_venta)
+    db.commit()
+    db.refresh(nueva_venta)
+    
+    
+    try:
+        enviar_ticket(venta.correo_cliente, {
+            "producto": venta.producto,
+            "cantidad": venta.cantidad,
+            "total": nueva_venta.total
+        })
+    except Exception as e:
+        print("Error al enviar correo:", e)
+
+
+    respuesta = schemas.VentaResponse.from_orm(nueva_venta)
+    respuesta.total = total        
+    return respuesta
 
     
 
@@ -190,6 +255,7 @@ def crear_ventas_multiples(
             producto=item.producto,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
+            total=item.cantidad * item.precio_unitario,
             metodo_pago=venta.metodo_pago,
             comision_id=comision_id,
             fecha=fecha_actual.date(),

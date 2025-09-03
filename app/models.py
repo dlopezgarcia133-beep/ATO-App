@@ -122,7 +122,7 @@ class InventarioGeneral(Base):
     clave = Column(String, unique=True, nullable=False) 
     producto = Column(String, nullable=False)
     precio = Column(Integer, nullable=True)
-    tipo = Column(String, nullable=False)  
+    tipo_producto = Column(String, nullable=False)  
 
 class InventarioModulo(Base):
     __tablename__ = "inventario_modulo"
@@ -133,6 +133,7 @@ class InventarioModulo(Base):
     producto = Column(String, nullable=False)
     precio = Column(Integer, nullable=False)
     modulo_id = Column(Integer, ForeignKey("modulos.id"))
+    tipo_producto = Column(String, nullable=False)
     
     modulo = relationship("Modulo")
     
