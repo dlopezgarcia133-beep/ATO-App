@@ -67,7 +67,7 @@ def autocomplete_telefonos(
     productos = (
     db.query(models.InventarioGeneral.producto)
     .filter(
-        models.InventarioGeneral.tipo == "telefono",
+        models.InventarioGeneral.tipo_producto == "telefono",
         models.func.upper(models.InventarioGeneral.producto).ilike(f"%{query.upper()}%")
     )
     .limit(10)
