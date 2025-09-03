@@ -202,17 +202,32 @@ class InventarioTelefonoGeneral(Base):
 
 class CorteDia(Base):
     __tablename__ = "cortes_dia"
-    id = Column(Integer, primary_key=True)
+
+    id = Column(Integer, primary_key=True, index=True)
     fecha = Column(Date, default=func.current_date())
     modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
-    total_efectivo = Column(Float)
-    total_tarjeta = Column(Float)
-    adicional_recargas = Column(Float)
-    adicional_transporte = Column(Float)
-    adicional_otros = Column(Float)
-    total_sistema = Column(Float)
-    total_general = Column(Float)
-        
+
+    # 🔹 Subtotales productos
+    accesorios_efectivo = Column(Float, default=0)
+    accesorios_tarjeta = Column(Float, default=0)
+    accesorios_total = Column(Float, default=0)
+
+    # 🔹 Subtotales teléfonos
+    telefonos_efectivo = Column(Float, default=0)
+    telefonos_tarjeta = Column(Float, default=0)
+    telefonos_total = Column(Float, default=0)
+
+    # 🔹 Totales globales
+    total_efectivo = Column(Float, default=0)
+    total_tarjeta = Column(Float, default=0)
+    total_sistema = Column(Float, default=0)
+    total_general = Column(Float, default=0)
+
+    # 🔹 Adicionales
+    adicional_recargas = Column(Float, default=0)
+    adicional_transporte = Column(Float, default=0)
+    adicional_otros = Column(Float, default=0)
+
     modulo = relationship("Modulo", back_populates="cortes")
     
     

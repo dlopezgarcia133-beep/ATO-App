@@ -334,13 +334,23 @@ class ComisionesCicloResponse(BaseModel):
 
 class CorteDiaCreate(BaseModel):
     fecha: date
+    # accesorios
+    accesorios_efectivo: float
+    accesorios_tarjeta: float
+    accesorios_total: float
+    # teléfonos
+    telefonos_efectivo: float
+    telefonos_tarjeta: float
+    telefonos_total: float
+    # totales generales
     total_efectivo: float
     total_tarjeta: float
+    total_sistema: float
+    total_general: float
+    # adicionales
     adicional_recargas: float
     adicional_transporte: float
     adicional_otros: float
-    total_sistema: float
-    total_general: float
     
 
 class ComisionInput(BaseModel):

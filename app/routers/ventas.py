@@ -17,71 +17,7 @@ router = APIRouter()
 
 zona_horaria = ZoneInfo("America/Mexico_City")
 
-# ------------------- VENTAS -------------------
-@router.post("/ventas", response_model=schemas.VentaResponse)
-def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    
-    com = (
-        db.query(models.Comision)
-          .filter(func.lower(models.Comision.producto) == venta.producto.strip().lower())
-          .first()
-    )
-    comision = com.cantidad if com else None
 
-    
-    total = venta.precio_unitario * venta.cantidad
-
-    modulo = current_user.modulo
-    
-    
-    inventario = (
-        db.query(models.InventarioModulo)
-        .filter_by(modulo=modulo, producto=venta.producto)
-        .first()
-    )
-
-    if not inventario:
-        raise HTTPException(status_code=404, detail="Producto no registrado en el inventario del módulo")
-
-    if inventario.cantidad < venta.cantidad:
-        raise HTTPException(status_code=400, detail="Inventario insuficiente para esta venta")
-
-    fecha_actual = datetime.now(zona_horaria)
-    inventario.cantidad -= venta.cantidad
-    
-    # 3. Crear la venta
-    nueva_venta = models.Venta(
-        empleado_id=current_user.id,
-        modulo=modulo,
-        producto=venta.producto,
-        cantidad=venta.cantidad,
-        precio_unitario=venta.precio_unitario,
-        comision=comision,
-        fecha=fecha_actual.date(),
-        hora=fecha_actual.time(),
-        correo_cliente=venta.correo_cliente
-    )
-    # Si dejaste el campo total en el modelo, descomenta esta línea:
-    # nueva_venta.total = total
-
-    db.add(nueva_venta)
-    db.commit()
-    db.refresh(nueva_venta)
-    
-    
-    try:
-        enviar_ticket(venta.correo_cliente, {
-            "producto": venta.producto,
-            "cantidad": venta.cantidad,
-            "total": nueva_venta.total
-        })
-    except Exception as e:
-        print("Error al enviar correo:", e)
-
-
-    respuesta = schemas.VentaResponse.from_orm(nueva_venta)
-    respuesta.total = total        
-    return respuesta
 
     
 
@@ -598,36 +534,34 @@ def corte_general(
 ):
     hoy = date.today()
 
-    # Filtro por fecha sin hora y por módulo
+    # 🔹 Obtiene todas las ventas del día del módulo actual
     ventas = db.query(models.Venta).filter(
-        func.date(models.Venta.fecha) == hoy,  # 🔹 Evita problema de hora
+        func.date(models.Venta.fecha) == hoy,
         models.Venta.cancelada == False,
-        models.Venta.modulo_id == current_user.modulo_id  # 🔹 Filtra por módulo
+        models.Venta.modulo_id == current_user.modulo_id
     ).all()
 
-    total_productos = sum(v.total for v in ventas)
-    efectivo = sum(v.total for v in ventas if v.metodo_pago == "efectivo")
-    tarjeta = sum(v.total for v in ventas if v.metodo_pago == "tarjeta")
+    # 🔹 Separa accesorios y teléfonos usando tipo_producto
+    ventas_productos = [v for v in ventas if v.tipo_producto == "accesorio"]
+    ventas_telefonos = [v for v in ventas if v.tipo_producto == "telefono"]
 
-    # Teléfonos
-    telefonos = db.query(models.VentaTelefono).filter(
-        func.date(models.VentaTelefono.fecha) == hoy,
-        models.VentaTelefono.cancelada == False,
-        models.VentaTelefono.modulo_id == current_user.modulo_id  # 🔹 Filtra por módulo
-    ).all()
+    # Totales productos
+    total_productos = sum(v.total for v in ventas_productos)
+    efectivo_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "efectivo")
+    tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta")
 
-    total_telefonos = sum(t.precio for t in telefonos)
-    efectivo_tel = sum(t.precio for t in telefonos if t.metodo_pago == "efectivo")
-    tarjeta_tel = sum(t.precio for t in telefonos if t.metodo_pago == "tarjeta")
-    
+    # Totales teléfonos
+    total_telefonos = sum(v.total for v in ventas_telefonos)
+    efectivo_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "efectivo")
+    tarjeta_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "tarjeta")
 
     return {
         "total_general": round(total_productos + total_telefonos, 2),
 
         "ventas_productos": {
             "total": round(total_productos, 2),
-            "efectivo": round(efectivo, 2),
-            "tarjeta": round(tarjeta, 2),
+            "efectivo": round(efectivo_productos, 2),
+            "tarjeta": round(tarjeta_productos, 2),
         },
 
         "ventas_telefonos": {
@@ -636,7 +570,7 @@ def corte_general(
             "tarjeta": round(tarjeta_tel, 2),
         }
     }
-    
+
 
 @router.get("/ventas/cortes")
 def obtener_cortes(
@@ -670,7 +604,7 @@ def obtener_cortes(
     
 @router.post("/cortes")
 def crear_corte(
-    corte_data: schemas.CorteDiaCreate,  # schema con los totales del frontend
+    corte_data: schemas.CorteDiaCreate,
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -681,15 +615,25 @@ def crear_corte(
         raise HTTPException(status_code=400, detail="El encargado no tiene un módulo asignado")
 
     nuevo_corte = models.CorteDia(
-        fecha = date.today(),
+        fecha=date.today(),
+        modulo_id=user.modulo_id,
+        # Accesorios
+        accesorios_efectivo=corte_data.accesorios_efectivo,
+        accesorios_tarjeta=corte_data.accesorios_tarjeta,
+        accesorios_total=corte_data.accesorios_total,
+        # Teléfonos
+        telefonos_efectivo=corte_data.telefonos_efectivo,
+        telefonos_tarjeta=corte_data.telefonos_tarjeta,
+        telefonos_total=corte_data.telefonos_total,
+        # Totales
         total_efectivo=corte_data.total_efectivo,
         total_tarjeta=corte_data.total_tarjeta,
+        total_sistema=corte_data.total_sistema,
+        total_general=corte_data.total_general,
+        # Adicionales
         adicional_recargas=corte_data.adicional_recargas,
         adicional_transporte=corte_data.adicional_transporte,
         adicional_otros=corte_data.adicional_otros,
-        total_sistema=corte_data.total_sistema,
-        total_general=corte_data.total_general,
-        modulo_id=user.modulo_id  
     )
 
     db.add(nuevo_corte)
