@@ -17,6 +17,92 @@ router = APIRouter()
 
 zona_horaria = ZoneInfo("America/Mexico_City")
 
+
+@router.post("/ventas", response_model=List[schemas.VentaResponse])
+def crear_ventas(
+    venta: schemas.VentaMultipleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    ventas_realizadas = []
+
+    for item in venta.productos:
+        # Buscar comisión por producto (si aplica)
+        com = (
+            db.query(models.Comision)
+            .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
+            .first()
+        )
+        comision_id = com.id if com else None
+        modulo_id = current_user.modulo_id
+
+        # 🔎 Buscar en inventario unificado
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == modulo_id,
+                models.InventarioModulo.producto == item.producto,
+                models.InventarioModulo.tipo_producto == item.tipo_producto
+            )
+            .first()
+        )
+
+        if not inventario:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay inventario para el producto: {item.producto}"
+            )
+
+        if inventario.cantidad < item.cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Inventario insuficiente para el producto: {item.producto}"
+            )
+
+        # Actualizar inventario
+        inventario.cantidad -= item.cantidad
+
+        fecha_actual = datetime.now(zona_horaria)
+        nueva = models.Venta(
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            tipo_producto=item.tipo_producto,
+            tipo_venta=item.tipo_venta,
+            metodo_pago=venta.metodo_pago,
+            comision_id=comision_id,
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
+            correo_cliente=venta.correo_cliente,
+        )
+
+        db.add(nueva)
+        ventas_realizadas.append(nueva)
+
+    db.commit()
+    for v in ventas_realizadas:
+        db.refresh(v)
+
+    return [
+        schemas.VentaResponse(
+            id=v.id,
+            empleado=schemas.UsuarioResponse.from_orm(v.empleado) if v.empleado else None,
+            modulo=v.modulo,
+            producto=v.producto,
+            cantidad=v.cantidad,
+            precio_unitario=v.precio_unitario,
+            total=v.precio_unitario * v.cantidad,
+            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            fecha=v.fecha,
+            hora=v.hora,
+        )
+        for v in ventas_realizadas
+    ]
+
+
+
 # ------------------- VENTAS -------------------
 @router.post("/ventas", response_model=schemas.VentaResponse)
 def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
@@ -453,88 +539,6 @@ def eliminar_chip(chip_id: int, db: Session = Depends(get_db)):
     return {"message": f"Chip con id {chip_id} eliminado correctamente"}
 
 
-@router.post("/ventas", response_model=List[schemas.VentaResponse])
-def crear_ventas(
-    venta: schemas.VentaMultipleCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    ventas_realizadas = []
-
-    for item in venta.productos:
-        # Buscar comisión por producto (si aplica)
-        com = (
-            db.query(models.Comision)
-            .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
-            .first()
-        )
-        comision_id = com.id if com else None
-        modulo_id = current_user.modulo_id
-
-        # 🔎 Buscar en inventario unificado
-        inventario = (
-            db.query(models.InventarioModulo)
-            .filter(
-                models.InventarioModulo.modulo_id == modulo_id,
-                models.InventarioModulo.producto == item.producto,
-                models.InventarioModulo.tipo_producto == item.tipo_producto
-            )
-            .first()
-        )
-
-        if not inventario:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No hay inventario para el producto: {item.producto}"
-            )
-
-        if inventario.cantidad < item.cantidad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Inventario insuficiente para el producto: {item.producto}"
-            )
-
-        # Actualizar inventario
-        inventario.cantidad -= item.cantidad
-
-        fecha_actual = datetime.now(zona_horaria)
-        nueva = models.Venta(
-            empleado_id=current_user.id,
-            modulo_id=modulo_id,
-            producto=item.producto,
-            cantidad=item.cantidad,
-            precio_unitario=item.precio_unitario,
-            tipo_producto=item.tipo_producto,
-            tipo_venta=item.tipo_venta,
-            metodo_pago=venta.metodo_pago,
-            comision_id=comision_id,
-            fecha=fecha_actual.date(),
-            hora=fecha_actual.time(),
-            correo_cliente=venta.correo_cliente,
-        )
-
-        db.add(nueva)
-        ventas_realizadas.append(nueva)
-
-    db.commit()
-    for v in ventas_realizadas:
-        db.refresh(v)
-
-    return [
-        schemas.VentaResponse(
-            id=v.id,
-            empleado=schemas.UsuarioResponse.from_orm(v.empleado) if v.empleado else None,
-            modulo=v.modulo,
-            producto=v.producto,
-            cantidad=v.cantidad,
-            precio_unitario=v.precio_unitario,
-            total=v.precio_unitario * v.cantidad,
-            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
-            fecha=v.fecha,
-            hora=v.hora,
-        )
-        for v in ventas_realizadas
-    ]
 
 
 
