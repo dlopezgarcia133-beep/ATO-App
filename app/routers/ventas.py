@@ -93,6 +93,7 @@ def crear_ventas(
             producto=v.producto,
             cantidad=v.cantidad,
             precio_unitario=v.precio_unitario,
+            metodo_pago=v.metodo_pago, 
             total=v.precio_unitario * v.cantidad,
             comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
             fecha=v.fecha,
