@@ -178,12 +178,12 @@ from datetime import date
 
 from datetime import datetime, date
 
-@router.get("/ventas")
+@router.get("/ventas", response_model=list[schemas.VentaResponse])
 def obtener_ventas(
     fecha: date = None,
     modulo_id: int = None,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+    current_user: models.Usuario = Depends(get_current_user)  # quien hizo login
 ):
     hoy = date.today()
     fecha_consulta = fecha or hoy
@@ -198,27 +198,19 @@ def obtener_ventas(
     if not current_user.is_admin:
         query = query.filter(models.Venta.modulo_id == current_user.modulo_id)
     else:
+        # si es admin y mandó modulo_id → filtrar
         if modulo_id is not None:
             query = query.filter(models.Venta.modulo_id == modulo_id)
 
     ventas = query.all()
 
     resultados = []
-    total_general = 0
-
     for v in ventas:
         item = schemas.VentaResponse.from_orm(v)
         item.total = v.precio_unitario * v.cantidad
-
-        # 👇 Solo sumamos si no está cancelada
-        if not v.cancelada:
-            total_general += item.total
-
         resultados.append(item)
 
-    return {"ventas": resultados, "total": total_general}
-
-
+    return resultados
 
 
 
