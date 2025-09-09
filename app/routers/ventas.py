@@ -711,7 +711,6 @@ def obtener_cortes(
                     "cantidad": v.cantidad,
                     "total": v.total,
                     "fecha": v.fecha,
-                    "estado": v.estado,
                     "empleado": {
                         "id": v.usuario.id,
                         "username": v.usuario.username
