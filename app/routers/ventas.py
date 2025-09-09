@@ -210,7 +210,12 @@ def obtener_ventas(
         item.estado = "Cancelada" if v.cancelada else "Activa"  # 👈 nuevo campo
         resultados.append(item)
 
-    return resultados
+    total_activo = sum(v.precio_unitario * v.cantidad for v in ventas if not v.cancelada)
+    return {
+    "ventas": resultados,
+    "total": total_activo
+}
+
 
 
 
