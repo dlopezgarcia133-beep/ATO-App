@@ -98,6 +98,7 @@ def crear_ventas(
             comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
             fecha=v.fecha,
             hora=v.hora,
+            cancelada=v.cancelada
         )
         for v in ventas_realizadas
     ]
@@ -105,71 +106,71 @@ def crear_ventas(
 
 
 # ------------------- VENTAS -------------------
-@router.post("/ventas", response_model=schemas.VentaResponse)
-def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
+# @router.post("/ventas", response_model=schemas.VentaResponse)
+# def crear_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
     
-    com = (
-        db.query(models.Comision)
-          .filter(func.lower(models.Comision.producto) == venta.producto.strip().lower())
-          .first()
-    )
-    comision = com.cantidad if com else None
+#     com = (
+#         db.query(models.Comision)
+#           .filter(func.lower(models.Comision.producto) == venta.producto.strip().lower())
+#           .first()
+#     )
+#     comision = com.cantidad if com else None
 
     
-    total = venta.precio_unitario * venta.cantidad
+#     total = venta.precio_unitario * venta.cantidad
 
-    modulo = current_user.modulo
-    
-    
-    inventario = (
-        db.query(models.InventarioModulo)
-        .filter_by(modulo=modulo, producto=venta.producto)
-        .first()
-    )
-
-    if not inventario:
-        raise HTTPException(status_code=404, detail="Producto no registrado en el inventario del módulo")
-
-    if inventario.cantidad < venta.cantidad:
-        raise HTTPException(status_code=400, detail="Inventario insuficiente para esta venta")
-
-    fecha_actual = datetime.now(zona_horaria)
-    inventario.cantidad -= venta.cantidad
-    
-    # 3. Crear la venta
-    nueva_venta = models.Venta(
-        empleado_id=current_user.id,
-        modulo=modulo,
-        producto=venta.producto,
-        cantidad=venta.cantidad,
-        precio_unitario=venta.precio_unitario,
-        total = venta.precio_unitario * venta.cantidad,
-        comision=comision,
-        fecha=fecha_actual.date(),
-        hora=fecha_actual.time(),
-        correo_cliente=venta.correo_cliente
-    )
-    # Si dejaste el campo total en el modelo, descomenta esta línea:
-    # nueva_venta.total = total
-
-    db.add(nueva_venta)
-    db.commit()
-    db.refresh(nueva_venta)
+#     modulo = current_user.modulo
     
     
-    try:
-        enviar_ticket(venta.correo_cliente, {
-            "producto": venta.producto,
-            "cantidad": venta.cantidad,
-            "total": nueva_venta.total
-        })
-    except Exception as e:
-        print("Error al enviar correo:", e)
+#     inventario = (
+#         db.query(models.InventarioModulo)
+#         .filter_by(modulo=modulo, producto=venta.producto)
+#         .first()
+#     )
+
+#     if not inventario:
+#         raise HTTPException(status_code=404, detail="Producto no registrado en el inventario del módulo")
+
+#     if inventario.cantidad < venta.cantidad:
+#         raise HTTPException(status_code=400, detail="Inventario insuficiente para esta venta")
+
+#     fecha_actual = datetime.now(zona_horaria)
+#     inventario.cantidad -= venta.cantidad
+    
+#     # 3. Crear la venta
+#     nueva_venta = models.Venta(
+#         empleado_id=current_user.id,
+#         modulo=modulo,
+#         producto=venta.producto,
+#         cantidad=venta.cantidad,
+#         precio_unitario=venta.precio_unitario,
+#         total = venta.precio_unitario * venta.cantidad,
+#         comision=comision,
+#         fecha=fecha_actual.date(),
+#         hora=fecha_actual.time(),
+#         correo_cliente=venta.correo_cliente
+#     )
+#     # Si dejaste el campo total en el modelo, descomenta esta línea:
+#     # nueva_venta.total = total
+
+#     db.add(nueva_venta)
+#     db.commit()
+#     db.refresh(nueva_venta)
+    
+    
+#     try:
+#         enviar_ticket(venta.correo_cliente, {
+#             "producto": venta.producto,
+#             "cantidad": venta.cantidad,
+#             "total": nueva_venta.total
+#         })
+#     except Exception as e:
+#         print("Error al enviar correo:", e)
 
 
-    respuesta = schemas.VentaResponse.from_orm(nueva_venta)
-    respuesta.total = total        
-    return respuesta
+#     respuesta = schemas.VentaResponse.from_orm(nueva_venta)
+#     respuesta.total = total        
+#     return respuesta
 
     
 
