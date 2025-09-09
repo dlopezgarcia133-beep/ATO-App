@@ -178,7 +178,7 @@ from datetime import date
 
 from datetime import datetime, date
 
-@router.get("/ventas", response_model=list[schemas.VentaResponse])
+@router.get("/ventas")
 def obtener_ventas(
     fecha: date = None,
     modulo_id: int = None,
@@ -204,13 +204,20 @@ def obtener_ventas(
     ventas = query.all()
 
     resultados = []
+    total_general = 0
+
     for v in ventas:
         item = schemas.VentaResponse.from_orm(v)
         item.total = v.precio_unitario * v.cantidad
-        item.estado = "Cancelada" if v.cancelada else "Activa"  # 👈 nuevo campo
+
+        # 👇 Solo sumamos si no está cancelada
+        if not v.cancelada:
+            total_general += item.total
+
         resultados.append(item)
 
-    return resultados
+    return {"ventas": resultados, "total": total_general}
+
 
 
 
