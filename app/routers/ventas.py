@@ -672,17 +672,57 @@ def obtener_cortes(
 
     cortes = query.order_by(models.CorteDia.fecha.desc()).all()
 
-    return [{
-        "fecha": c.fecha,
-        "total_efectivo": c.total_efectivo,
-        "total_tarjeta": c.total_tarjeta,
-        "adicional_recargas": c.adicional_recargas,
-        "adicional_transporte": c.adicional_transporte,
-        "adicional_otros": c.adicional_otros,
-        "total_sistema": c.total_sistema,
-        "total_general": c.total_general,
-        "modulo_id": c.modulo_id,
-    } for c in cortes]
+    cortes_completos = []
+
+    for corte in cortes:
+        # 🔍 Obtener ventas por fecha y módulo, y que no estén canceladas
+        ventas = db.query(models.Venta).filter(
+            func.date(models.Venta.fecha) == corte.fecha,
+            models.Venta.modulo_id == corte.modulo_id,
+            models.Venta.cancelada == False
+        ).all()
+
+        # 🔄 Convertir a dict y agregar las ventas
+        cortes_completos.append({
+            "fecha": corte.fecha,
+            "total_efectivo": corte.total_efectivo,
+            "total_tarjeta": corte.total_tarjeta,
+            "adicional_recargas": corte.adicional_recargas,
+            "adicional_transporte": corte.adicional_transporte,
+            "adicional_otros": corte.adicional_otros,
+            "total_sistema": corte.total_sistema,
+            "total_general": corte.total_general,
+            "modulo_id": corte.modulo_id,
+            "accesorios_efectivo": corte.accesorios_efectivo,
+            "accesorios_tarjeta": corte.accesorios_tarjeta,
+            "accesorios_total": corte.accesorios_total,
+            "telefonos_efectivo": corte.telefonos_efectivo,
+            "telefonos_tarjeta": corte.telefonos_tarjeta,
+            "telefonos_total": corte.telefonos_total,
+
+            # 👇 Aquí incluyes las ventas (ya sea accesorio o teléfono)
+            "ventas": [
+                {
+                    "id": v.id,
+                    "producto": v.producto,
+                    "tipo_producto": v.tipo_producto,
+                    "tipo_venta": v.tipo_venta,
+                    "precio_unitario": v.precio_unitario,
+                    "cantidad": v.cantidad,
+                    "total": v.total,
+                    "fecha": v.fecha,
+                    "estado": v.estado,
+                    "empleado": {
+                        "id": v.usuario.id,
+                        "username": v.usuario.username
+                    } if v.usuario else None
+                }
+                for v in ventas
+            ]
+        })
+
+    return cortes_completos
+
 
 
     
