@@ -711,10 +711,7 @@ def obtener_cortes(
                     "cantidad": v.cantidad,
                     "total": v.total,
                     "fecha": v.fecha,
-                    "empleado": {
-                        "id": v.usuario.id,
-                        "username": v.usuario.username
-                    } if v.usuario else None
+                   
                 }
                 for v in ventas
             ]
