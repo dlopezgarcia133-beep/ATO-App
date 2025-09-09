@@ -630,8 +630,8 @@ def corte_general(
     tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta")
 
     # Totales teléfonos
-    efectivo_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "efectivo")
-    tarjeta_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "tarjeta")
+    efectivo_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "efectivo")
+    tarjeta_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "tarjeta")
 
     # Totales generales
     total_efectivo = efectivo_productos + efectivo_tel
