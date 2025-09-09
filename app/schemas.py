@@ -200,7 +200,7 @@ class InventarioGeneralCreate(BaseModel):
     clave: str
     producto: str
     precio: int
-    tipo: str
+    tipo_producto: str
 
 
 class InventarioGeneralUpdate(BaseModel):

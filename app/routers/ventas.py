@@ -226,23 +226,25 @@ def resumen_ventas(db: Session = Depends(get_db)):
     
     
     
-@router.put("/ventas/{venta_id}/cancelar")
+
+@router.put("/ventas/{venta_id}/cancelar", response_model=schemas.VentaSchema)
 def cancelar_venta(
     venta_id: int,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
-    # 1. Buscar en Venta (accesorios)
     venta = db.query(models.Venta).filter_by(id=venta_id).first()
-    if venta:
-        if venta.cancelada:
-            raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-        if current_user.rol != models.RolEnum.admin:
-            if current_user.rol != models.RolEnum.encargado or venta.modulo != current_user.modulo:
-                raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
+    if venta.cancelada:
+        raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
 
-        # Reintegrar inventario
+    if current_user.rol != models.RolEnum.admin:
+        if current_user.rol != models.RolEnum.encargado or venta.modulo != current_user.modulo:
+            raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
+
+    # Reintegrar inventario
         inventario = (
     db.query(models.InventarioModulo)
     .filter(
@@ -292,9 +294,15 @@ def cancelar_venta(
             inventario_tel.cantidad += 1
 
         venta_tel.cancelada = True
-        db.commit()
-        return {"mensaje": f"Venta de teléfono ID {venta_id} cancelada correctamente y equipo reintegrado al inventario."}
+
+    venta.cancelada = True
+    db.commit()
+    db.refresh(venta)   # 🔥 refresca la instancia para devolver la versión actualizada
+    return venta
     
+
+
+
 
 @router.post("/ventas/multiples", response_model=List[schemas.VentaResponse])
 def crear_ventas_multiples(
