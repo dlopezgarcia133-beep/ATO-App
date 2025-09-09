@@ -227,7 +227,7 @@ def resumen_ventas(db: Session = Depends(get_db)):
     
     
 
-@router.put("/ventas/{venta_id}/cancelar", response_model=schemas.VentaSchema)
+@router.put("/ventas/{venta_id}/cancelar", response_model=schemas.VentaResponse)
 def cancelar_venta(
     venta_id: int,
     db: Session = Depends(get_db),
