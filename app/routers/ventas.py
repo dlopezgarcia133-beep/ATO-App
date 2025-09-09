@@ -183,7 +183,7 @@ def obtener_ventas(
     fecha: date = None,
     modulo_id: int = None,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)  # quien hizo login
+    current_user: models.Usuario = Depends(get_current_user)
 ):
     hoy = date.today()
     fecha_consulta = fecha or hoy
@@ -198,7 +198,6 @@ def obtener_ventas(
     if not current_user.is_admin:
         query = query.filter(models.Venta.modulo_id == current_user.modulo_id)
     else:
-        # si es admin y mandó modulo_id → filtrar
         if modulo_id is not None:
             query = query.filter(models.Venta.modulo_id == modulo_id)
 
@@ -208,9 +207,11 @@ def obtener_ventas(
     for v in ventas:
         item = schemas.VentaResponse.from_orm(v)
         item.total = v.precio_unitario * v.cantidad
+        item.estado = "Cancelada" if v.cancelada else "Activa"  # 👈 nuevo campo
         resultados.append(item)
 
     return resultados
+
 
 
 
@@ -617,30 +618,34 @@ def corte_general(
     ventas_telefonos = [v for v in ventas if v.tipo_producto == "telefono"]
 
     # Totales productos
-    total_productos = sum(v.total for v in ventas_productos)
     efectivo_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "efectivo")
     tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta")
 
     # Totales teléfonos
-    total_telefonos = sum(v.total for v in ventas_telefonos)
     efectivo_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "efectivo")
     tarjeta_tel = sum(v.total for v in ventas_telefonos if v.metodo_pago == "tarjeta")
 
+    # Totales generales
+    total_efectivo = efectivo_productos + efectivo_tel
+    total_tarjeta = tarjeta_productos + tarjeta_tel
+    total_general = total_efectivo + total_tarjeta
+
     return {
-        "total_general": round(total_productos + total_telefonos, 2),
-
-        "ventas_productos": {
-            "total": round(total_productos, 2),
-            "efectivo": round(efectivo_productos, 2),
-            "tarjeta": round(tarjeta_productos, 2),
-        },
-
         "ventas_telefonos": {
-            "total": round(total_telefonos, 2),
             "efectivo": round(efectivo_tel, 2),
-            "tarjeta": round(tarjeta_tel, 2),
+            "tarjeta": round(tarjeta_tel, 2)
+        },
+        "ventas_productos": {
+            "efectivo": round(efectivo_productos, 2),
+            "tarjeta": round(tarjeta_productos, 2)
+        },
+        "totales": {
+            "efectivo": round(total_efectivo, 2),
+            "tarjeta": round(total_tarjeta, 2),
+            "general": round(total_general, 2)
         }
     }
+
 
 
 @router.get("/ventas/cortes")
