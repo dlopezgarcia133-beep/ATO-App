@@ -85,7 +85,6 @@ class VentaResponse(VentaCreate):
     tipo_producto: Optional[str] = None
     tipo_venta: Optional[str] = None
     metodo_pago: str
-    estado : str
     fecha: date
     hora: time
 
