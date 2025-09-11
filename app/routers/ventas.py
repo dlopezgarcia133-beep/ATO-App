@@ -635,6 +635,7 @@ def corte_general(
     # Totales generales
     total_efectivo = efectivo_productos + efectivo_tel
     total_tarjeta = tarjeta_productos + tarjeta_tel
+    total_sistema = total_efectivo + total_tarjeta
     total_general = total_efectivo + total_tarjeta
 
     return {
@@ -646,6 +647,7 @@ def corte_general(
             "efectivo": round(efectivo_productos, 2),
             "tarjeta": round(tarjeta_productos, 2)
         },
+        "total_sistema": round(total_general, 2),
         "totales": {
             "efectivo": round(total_efectivo, 2),
             "tarjeta": round(total_tarjeta, 2),
