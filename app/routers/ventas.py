@@ -649,6 +649,7 @@ def corte_general(
         "totales": {
             "efectivo": round(total_efectivo, 2),
             "tarjeta": round(total_tarjeta, 2),
+            "sistema": round(total_general, 2),
             "general": round(total_general, 2)
         }
     }
