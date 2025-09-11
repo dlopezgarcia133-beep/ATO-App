@@ -617,7 +617,6 @@ def corte_general(
     # 🔹 Obtiene todas las ventas del día del módulo actual
     ventas = db.query(models.Venta).filter(
         func.date(models.Venta.fecha) == hoy,
-        models.Venta.cancelada == False,
         models.Venta.modulo_id == current_user.modulo_id
     ).all()
 
@@ -625,13 +624,13 @@ def corte_general(
     ventas_productos = [v for v in ventas if v.tipo_producto == "accesorio"]
     ventas_telefonos = [v for v in ventas if v.tipo_producto == "telefono"]
 
-    # Totales productos
-    efectivo_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "efectivo")
-    tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta")
+    # Totales productos (solo ventas activas)
+    efectivo_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "efectivo" and not v.cancelada)
+    tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta" and not v.cancelada)
 
-    # Totales teléfonos
-    efectivo_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "efectivo")
-    tarjeta_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "tarjeta")
+    # Totales teléfonos (solo ventas activas)
+    efectivo_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "efectivo" and not v.cancelada)
+    tarjeta_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "tarjeta" and not v.cancelada)
 
     # Totales generales
     total_efectivo = efectivo_productos + efectivo_tel

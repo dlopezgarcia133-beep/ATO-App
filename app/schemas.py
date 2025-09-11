@@ -214,7 +214,7 @@ class InventarioGeneralResponse(BaseModel):
     clave: str
     cantidad: int
     precio: int
-    tipo: str
+    tipo_producto: str
 
     class Config:
         from_attributes = True
