@@ -137,31 +137,26 @@ def actualizar_inventario_modulo(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
 ):
-    # Buscar producto en inventario del módulo
     item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo_id=datos.modulo_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Producto no encontrado en el módulo.")
 
-    # Calcular la diferencia de cantidad
-    diferencia = datos.cantidad - item.cantidad
+    # Incrementar en vez de reemplazar
+    item.cantidad += datos.cantidad  
 
-    # Si la diferencia es positiva, se está agregando producto => validar en inventario general
-    if diferencia > 0:
-        producto_general = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
-        if not producto_general:
-            raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
-        
-        if producto_general.cantidad < diferencia:
-            raise HTTPException(status_code=400, detail="No hay suficiente producto en el inventario general.")
-        
-        producto_general.cantidad -= diferencia  # Descontar del general
+    # También descontar del inventario general
+    producto_general = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
+    if not producto_general:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
+    
+    if producto_general.cantidad < datos.cantidad:
+        raise HTTPException(status_code=400, detail="No hay suficiente producto en el inventario general.")
 
-    # Actualizar cantidad en el módulo
-    item.cantidad = datos.cantidad
+    producto_general.cantidad -= datos.cantidad
+
     db.commit()
     db.refresh(item)
     return item
-
 
 
 @router.get("/inventario/modulo", response_model=list[schemas.InventarioModuloResponse])
