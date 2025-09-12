@@ -213,6 +213,7 @@ def obtener_ventas(
     for v in ventas:
         item = schemas.VentaResponse.from_orm(v)
         item.total = v.precio_unitario * v.cantidad
+        print("Debug venta:", item.dict())
         resultados.append(item)
 
     return resultados
