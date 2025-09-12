@@ -84,8 +84,9 @@ class VentaResponse(VentaCreate):
     comision: Optional[float] = None
     tipo_producto: Optional[str] = None
     tipo_venta: Optional[str] = None
-    metodo_pago: str
-    cancelada : bool
+    metodo_pago: Optional[str] = None
+    cancelada : Optional[bool] = None
+    correo_cliente: Optional[str] = None
     fecha: date
     hora: time
 
