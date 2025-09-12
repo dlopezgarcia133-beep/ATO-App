@@ -63,21 +63,23 @@ def crear_ventas(
         inventario.cantidad -= item.cantidad
 
         fecha_actual = datetime.now(zona_horaria)
+        tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO") else "accesorio"
+
         nueva = models.Venta(
-            empleado_id=current_user.id,
-            modulo_id=modulo_id,
-            producto=item.producto,
-            cantidad=item.cantidad,
-            precio_unitario=item.precio_unitario,
-            tipo_producto=item.tipo_producto,
-            tipo_venta=item.tipo_venta,
-            metodo_pago=venta.metodo_pago,
-            cancelada=False,
-            comision_id=comision_id,
-            fecha=fecha_actual.date(),
-            hora=fecha_actual.time(),
-            correo_cliente=venta.correo_cliente,
-        )
+    empleado_id=current_user.id,
+    modulo_id=modulo_id,
+    producto=item.producto,
+    cantidad=item.cantidad,
+    precio_unitario=item.precio_unitario,
+    tipo_producto=tipo_producto,  
+    tipo_venta=item.tipo_venta,
+    metodo_pago=venta.metodo_pago,
+    cancelada=False,
+    comision_id=comision_id,
+    fecha=fecha_actual.date(),
+    hora=fecha_actual.time(),
+    correo_cliente=venta.correo_cliente,
+)
 
         db.add(nueva)
         ventas_realizadas.append(nueva)
@@ -347,20 +349,21 @@ def crear_ventas_multiples(
         fecha_actual = datetime.now(zona_horaria)
         inventario.cantidad -= item.cantidad
 
+        tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO") else "accesorio"
+
         nueva = models.Venta(
-            empleado_id=current_user.id,
-            modulo_id=modulo_id,
-            producto=item.producto,
-            cantidad=item.cantidad,
-            precio_unitario=item.precio_unitario,
-            total=item.cantidad * item.precio_unitario,
-            metodo_pago=venta.metodo_pago,
-            comision_id=comision_id,
-            
-            fecha=fecha_actual.date(),
-            hora=fecha_actual.time(),
-            correo_cliente=venta.correo_cliente,
-        )
+    empleado_id=current_user.id,
+    modulo_id=modulo_id,
+    producto=item.producto,
+    cantidad=item.cantidad,
+    precio_unitario=item.precio_unitario,
+    total=item.cantidad * item.precio_unitario,
+    metodo_pago=venta.metodo_pago,
+    comision_id=comision_id,
+    tipo_producto=tipo_producto,   
+    hora=fecha_actual.time(),
+    correo_cliente=venta.correo_cliente,
+)
 
         db.add(nueva)
         ventas_realizadas.append(nueva)
