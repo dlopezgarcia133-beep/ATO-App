@@ -158,7 +158,7 @@ def actualizar_inventario_modulo(
     db.refresh(item)
     return item
 
-
+ 
 @router.get("/inventario/modulo", response_model=list[schemas.InventarioModuloResponse])
 def obtener_inventario_modulo(
     modulo: Optional[str] = None,
