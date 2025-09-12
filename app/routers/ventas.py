@@ -72,6 +72,7 @@ def crear_ventas(
             tipo_producto=item.tipo_producto,
             tipo_venta=item.tipo_venta,
             metodo_pago=venta.metodo_pago,
+            cancelada=False,
             comision_id=comision_id,
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
@@ -94,6 +95,7 @@ def crear_ventas(
             cantidad=v.cantidad,
             precio_unitario=v.precio_unitario,
             metodo_pago=v.metodo_pago, 
+            
             total=v.precio_unitario * v.cantidad,
             comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
             fecha=v.fecha,
@@ -354,6 +356,7 @@ def crear_ventas_multiples(
             total=item.cantidad * item.precio_unitario,
             metodo_pago=venta.metodo_pago,
             comision_id=comision_id,
+            
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
             correo_cliente=venta.correo_cliente,
@@ -375,10 +378,12 @@ def crear_ventas_multiples(
             producto=v.producto,
             cantidad=v.cantidad,
             precio_unitario=v.precio_unitario,
+            metodo_pago=v.metodo_pago,
             total=v.precio_unitario * v.cantidad,
             comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
             fecha=v.fecha,
             hora=v.hora,
+            cancelada=v.cancelada
         )
         for v in ventas_realizadas
     ]
