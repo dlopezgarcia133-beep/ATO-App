@@ -1,5 +1,5 @@
 import datetime
-from pandas import pd
+import pandas as pd
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.params import File
