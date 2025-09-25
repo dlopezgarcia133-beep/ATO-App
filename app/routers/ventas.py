@@ -502,6 +502,35 @@ def validar_chip(
 
 
 
+@router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaResponse)
+def agregar_comision_por_tipo_venta(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    venta = db.query(models.Venta).filter(models.Venta.id == id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    # Configuración de comisiones fijas por tipo de venta
+    comisiones_por_tipo = {
+        "Contado": 10,   
+        "Paguitos": 100,  
+        "Payoy": 110      
+    }
+
+    tipo_venta = venta.tipo_venta
+
+
+    if venta.comision_id is not None:
+        venta.comision_id += comisiones_por_tipo.get(tipo_venta, 0)
+
+
+    db.commit()
+    db.refresh(venta)
+
+    return venta
+
+
 
 
 
