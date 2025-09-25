@@ -1,5 +1,5 @@
 import datetime
-from turtle import pd
+from pandas import pd
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.params import File
