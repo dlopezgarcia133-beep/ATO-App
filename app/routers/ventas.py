@@ -513,9 +513,10 @@ def agregar_comision_por_tipo_venta(
 
     # Configuración de comisiones fijas por tipo de venta
     comisiones_por_tipo = {
-        "Contado": 10,   
-        "Paguitos": 100,  
-        "Payoy": 110      
+        "Contado": 10, 
+        "Pajoy": 100,  
+        "Paguitos": 110
+             
     }
 
     tipo_venta = venta.tipo_venta
