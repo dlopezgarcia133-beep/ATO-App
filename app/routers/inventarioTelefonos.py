@@ -1,4 +1,4 @@
-from turtle import pd
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Depends, UploadFile
 from fastapi.params import File
 from sqlalchemy.orm import Session
