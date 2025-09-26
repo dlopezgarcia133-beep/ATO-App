@@ -835,12 +835,14 @@ def obtener_comisiones_ciclo(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha <= fin_ciclo,
+        models.Venta.cancelada == False,
     ).all()
 
-    ventas_telefonos = db.query(models.VentaTelefono).filter(
+    ventas_telefonos = db.query(models.Venta).filter(
         models.VentaTelefono.empleado_id == empleado_id,
         models.VentaTelefono.fecha >= inicio_ciclo,
         models.VentaTelefono.fecha <= fin_ciclo,
+        models.Venta.cancelada == False,
     ).all()
 
     accesorios = [
