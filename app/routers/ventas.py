@@ -511,32 +511,31 @@ def agregar_comision_por_tipo_venta(
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    # Definir extras por tipo de venta
+    # Definir extras por tipo de venta (solo para TELEFONO)
     comisiones_por_tipo = {
         "Contado": 10,
-        "Pajoy": 100,
-        "Paguitos": 110
+        "Paguitos": 100,
+        "Payoy": 110
     }
 
-
+    # Comisión base (si no tiene, es 0)
     comision_base = venta.comision_obj.cantidad if venta.comision_obj else 0
 
+    # Si el tipo es TELEFONO, se suma la comisión extra
+    if venta.tipo.upper() == "TELEFONO":
+        comision_total = (comision_base * venta.cantidad) + comisiones_por_tipo.get(venta.tipo_venta, 0)
+    else:
+        comision_total = (comision_base * venta.cantidad)
 
-    comision_total = comision_base * venta.cantidad
-
-
-    comision_total += comisiones_por_tipo.get(venta.tipo_venta, 0)
-
-
- 
     db.commit()
     db.refresh(venta)
 
-
+    # devolvemos la venta con el campo calculado
     respuesta = venta.__dict__.copy()
     respuesta["comision_total"] = comision_total  
 
     return respuesta
+
 
 
 
