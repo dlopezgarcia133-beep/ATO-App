@@ -54,3 +54,20 @@ def enviar_ticket(destinatario: str, venta_data: dict):
 
 
 
+
+def calcular_comision_telefono(v):
+    # Comisión base (si no tiene, es 0)
+    comision_base = v.comision_obj.cantidad if v.comision_obj else 0
+
+    # Tabla de comisiones extra según tipo_venta
+    comisiones_por_tipo = {
+        "Contado": 10,
+        "Paguitos": 100,
+        "Payoy": 110
+    }
+
+    # Extra según tipo_venta (si no está en el dict, devuelve 0)
+    extra = comisiones_por_tipo.get(v.tipo_venta, 0)
+
+    # Comisión final = base * cantidad + extra
+    return (comision_base * v.cantidad) + extra

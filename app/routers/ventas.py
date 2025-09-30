@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
-from app.utilidades import enviar_ticket, verificar_rol_requerido
+from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_rol_requerido
 from datetime import date
 
 
@@ -511,7 +511,7 @@ def agregar_comision_por_tipo_venta(
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    # Definir extras por tipo de venta (solo para TELEFONO)
+    
     comisiones_por_tipo = {
         "Contado": 10,
         "Paguitos": 100,
@@ -843,13 +843,15 @@ def obtener_comisiones_ciclo(
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha <= fin_ciclo,
         models.Venta.cancelada == False,
+        models.Venta.tipo_producto == "accesorio"
     ).all()
 
     ventas_telefonos = db.query(models.Venta).filter(
-        models.VentaTelefono.empleado_id == empleado_id,
-        models.VentaTelefono.fecha >= inicio_ciclo,
-        models.VentaTelefono.fecha <= fin_ciclo,
+        models.Venta.empleado_id == empleado_id,
+        models.Venta.fecha >= inicio_ciclo,
+        models.Venta.fecha <= fin_ciclo,
         models.Venta.cancelada == False,
+        models.Venta.tipo_producto == "telefono"
     ).all()
 
     accesorios = [
@@ -864,16 +866,16 @@ def obtener_comisiones_ciclo(
     ]
 
     telefonos = [
-        {
-            "marca": v.marca,
-            "modelo": v.modelo,
-            "tipo": v.tipo,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
+    {
+        "marca": v.marca,
+        "modelo": v.modelo,
+        "tipo": v.tipo_venta,
+        "comision": calcular_comision_telefono(v),
+        "fecha": v.fecha,
+        "hora": v.hora
+    }
+    for v in ventas_telefonos
+]
 
     chips = [
         {
