@@ -905,6 +905,8 @@ def obtener_comisiones_ciclo(
         "ventas_chips": chips
     }
 
+# vamos a modificar 
+
 
 @router.get("/comisiones/ciclo/{empleado_id}", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_ciclo_admin(
