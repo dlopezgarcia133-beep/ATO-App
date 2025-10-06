@@ -314,6 +314,7 @@ class VentaTelefonoConComision(BaseModel):
     producto: str
     cantidad: int
     tipo_venta: str
+    comision: float
     comision_total: float
     fecha: date
     hora: time

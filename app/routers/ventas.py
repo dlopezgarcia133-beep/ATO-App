@@ -785,11 +785,6 @@ def obtener_comisiones_ciclo(
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
-    # 🔹 Validar si puede consultar comisiones de otros empleados
-    if empleado_id is None:
-        empleado_id = usuario.id
-    elif usuario.rol not in ("admin", "encargado"):
-        raise HTTPException(status_code=403, detail="No tienes permiso para ver comisiones de otros usuarios")
 
     # 🔹 CHIPS
     ventas_chips = db.query(models.VentaChip).filter(
@@ -838,6 +833,7 @@ def obtener_comisiones_ciclo(
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
             "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
@@ -933,6 +929,7 @@ def obtener_comisiones_ciclo_admin(
         "producto": v.producto,
         "cantidad": v.cantidad,
         "tipo_venta": v.tipo_venta,
+        "comision": v.comision_obj.cantidad if v.comision_obj else 0,    
         "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
         "fecha": v.fecha,
         "hora": v.hora

@@ -88,13 +88,8 @@ def obtener_comisiones_por_fechas(
     db: Session = Depends(get_db),
     usuario_actual: models.Usuario = Depends(get_current_user),
 ):
-    # 🔹 Determinar el empleado (si es admin puede consultar a otros)
-    if usuario_actual.rol == models.RolEnum.admin and empleado_id is not None:
-        usuario = db.query(models.Usuario).filter(models.Usuario.id == empleado_id).first()
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Empleado no encontrado")
-    else:
-        usuario = usuario_actual
+    
+    usuario = usuario_actual
 
     fecha_pago = fin + timedelta(days=3)
 
@@ -159,6 +154,7 @@ def obtener_comisiones_por_fechas(
             telefonos.append({
                 "producto": v.producto,
                 "cantidad": v.cantidad,
+                "comision_base": comision_base,
                 "comision_total": comision_total,
                 "tipo_venta": v.tipo_venta,
                 "fecha": v.fecha.strftime("%Y-%m-%d"),
