@@ -786,6 +786,7 @@ def obtener_comisiones_ciclo(
     fecha_pago = fin_ciclo + timedelta(days=3)
 
 
+
     # 🔹 CHIPS
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
@@ -833,7 +834,6 @@ def obtener_comisiones_ciclo(
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
             "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
@@ -929,7 +929,6 @@ def obtener_comisiones_ciclo_admin(
         "producto": v.producto,
         "cantidad": v.cantidad,
         "tipo_venta": v.tipo_venta,
-        "comision": v.comision_obj.cantidad if v.comision_obj else 0,    
         "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
         "fecha": v.fecha,
         "hora": v.hora
