@@ -929,17 +929,16 @@ def obtener_comisiones_ciclo_admin(
     ]
 
     telefonos = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "tipo_venta": v.tipo_venta,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_telefonos
-    ]
+    {
+        "producto": v.producto,
+        "cantidad": v.cantidad,
+        "tipo_venta": v.tipo_venta,
+        "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+        "fecha": v.fecha,
+        "hora": v.hora
+    }
+    for v in ventas_telefonos
+]
 
     chips = [
         {

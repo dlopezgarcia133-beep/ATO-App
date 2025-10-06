@@ -159,7 +159,7 @@ def obtener_comisiones_por_fechas(
             telefonos.append({
                 "producto": v.producto,
                 "cantidad": v.cantidad,
-                "comision": comision_total,
+                "comision_total": comision_total,
                 "tipo_venta": v.tipo_venta,
                 "fecha": v.fecha.strftime("%Y-%m-%d"),
                 "hora": v.hora.strftime("%H:%M:%S")
