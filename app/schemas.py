@@ -305,25 +305,26 @@ class VentaAccesorioConComision(BaseModel):
     producto: str
     cantidad: int
     comision: float
+    tipo_venta: Optional[str] = None
+    comision_total: float
     fecha: date
     hora: time
 
 class VentaTelefonoConComision(BaseModel):
-    marca: str
-    modelo: str
-    tipo: str
-    comision: float
+    producto: str
+    cantidad: int
+    tipo_venta: str
+    comision_total: float
     fecha: date
     hora: time
-    
 
 class VentaChipConComision(BaseModel):
     tipo_chip: str
     numero_telefono: str
     comision: float
+    comision_manual: Optional[float] = 0
     fecha: date
     hora: time
-
 
 class ComisionesCicloResponse(BaseModel):
     inicio_ciclo: date

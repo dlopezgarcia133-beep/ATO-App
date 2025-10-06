@@ -502,46 +502,6 @@ def validar_chip(
 
 
 
-@router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaResponse)
-def agregar_comision_por_tipo_venta(
-    id: int,
-    db: Session = Depends(get_db)
-):
-    venta = db.query(models.Venta).filter(models.Venta.id == id).first()
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-
-    
-    comisiones_por_tipo = {
-        "Contado": 10,
-        "Paguitos": 100,
-        "Payoy": 110
-    }
-
-    # Comisión base (si no tiene, es 0)
-    comision_base = venta.comision_obj.cantidad if venta.comision_obj else 0
-
-    # Si el tipo es TELEFONO, se suma la comisión extra
-    if venta.tipo.upper() == "TELEFONO":
-        comision_total = (comision_base * venta.cantidad) + comisiones_por_tipo.get(venta.tipo_venta, 0)
-    else:
-        comision_total = (comision_base * venta.cantidad)
-
-    db.commit()
-    db.refresh(venta)
-
-    # devolvemos la venta con el campo calculado
-    respuesta = venta.__dict__.copy()
-    respuesta["comision_total"] = comision_total  
-
-    return respuesta
-
-
-
-
-
-
-
 @router.put("/venta_chips/{venta_id}/motivo_rechazo")
 def motivo_rechazo_chip(
     venta_id: int,
@@ -825,12 +785,13 @@ def obtener_comisiones_ciclo(
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
-    # Validar si puede consultar a otros
+    # 🔹 Validar si puede consultar comisiones de otros empleados
     if empleado_id is None:
         empleado_id = usuario.id
-    elif usuario.rol != "admin" and usuario.rol != "encargado":
+    elif usuario.rol not in ("admin", "encargado"):
         raise HTTPException(status_code=403, detail="No tienes permiso para ver comisiones de otros usuarios")
 
+    # 🔹 CHIPS
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.validado == True,
@@ -838,6 +799,7 @@ def obtener_comisiones_ciclo(
         models.VentaChip.fecha <= fin_ciclo,
     ).all()
 
+    # 🔹 ACCESORIOS
     ventas_accesorios = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
@@ -846,6 +808,7 @@ def obtener_comisiones_ciclo(
         models.Venta.tipo_producto == "accesorio"
     ).all()
 
+    # 🔹 TELÉFONOS
     ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
@@ -854,44 +817,54 @@ def obtener_comisiones_ciclo(
         models.Venta.tipo_producto == "telefono"
     ).all()
 
+    # 🔹 Procesar ACCESORIOS
     accesorios = [
         {
             "producto": v.producto,
             "cantidad": v.cantidad,
             "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "tipo_venta": v.tipo_venta,
+            "comision_total": (v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
             "fecha": v.fecha,
             "hora": v.hora
         }
-        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
+        for v in ventas_accesorios
+        if v.comision_obj and v.comision_obj.cantidad > 0
     ]
 
+    # 🔹 Procesar TELÉFONOS
     telefonos = [
-    {
-        "marca": v.marca,
-        "modelo": v.modelo,
-        "tipo": v.tipo_venta,
-        "comision": calcular_comision_telefono(v),
-        "fecha": v.fecha,
-        "hora": v.hora
-    }
-    for v in ventas_telefonos
-]
+        {
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "tipo_venta": v.tipo_venta,
+            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_telefonos
+    ]
 
+    # 🔹 Procesar CHIPS
     chips = [
         {
             "tipo_chip": v.tipo_chip,
             "numero_telefono": v.numero_telefono,
             "comision": v.comision or 0,
+            "comision_manual": v.comision_manual or 0,
             "fecha": v.fecha,
             "hora": v.hora
         }
-        for v in ventas_chips if (v.comision or 0) > 0
+        for v in ventas_chips
+        if (v.comision or 0) > 0 or (v.comision_manual or 0) > 0
     ]
 
-    total_accesorios = sum(v["comision"] for v in accesorios)
-    total_telefonos = sum(v["comision"] for v in telefonos)
-    total_chips = sum(v["comision"] for v in chips)
+    # 🔹 Totales
+    total_accesorios = sum(v["comision_total"] for v in accesorios)
+    total_telefonos = sum(v["comision_total"] for v in telefonos)
+    total_chips = sum((v["comision"] + (v["comision_manual"] or 0)) for v in chips)
 
+    # 🔹 Respuesta final
     return {
         "inicio_ciclo": inicio_ciclo,
         "fin_ciclo": fin_ciclo,
@@ -904,6 +877,7 @@ def obtener_comisiones_ciclo(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
 
 # vamos a modificar 
 
@@ -931,12 +905,16 @@ def obtener_comisiones_ciclo_admin(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha <= fin_ciclo,
+        models.Venta.cancelada == False,
+        models.Venta.tipo_producto == "accesorio"
     ).all()
 
     ventas_telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.empleado_id == empleado_id,
-        models.VentaTelefono.fecha >= inicio_ciclo,
-        models.VentaTelefono.fecha <= fin_ciclo,
+        models.Venta.empleado_id == empleado_id,
+        models.Venta.fecha >= inicio_ciclo,
+        models.Venta.fecha <= fin_ciclo,
+        models.Venta.cancelada == False,
+        models.Venta.tipo_producto == "telefono"
     ).all()
 
     accesorios = [
@@ -952,14 +930,15 @@ def obtener_comisiones_ciclo_admin(
 
     telefonos = [
         {
-            "marca": v.marca,
-            "modelo": v.modelo,
-            "tipo": v.tipo,
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "tipo_venta": v.tipo_venta,
             "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
         }
-        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
+        for v in ventas_telefonos
     ]
 
     chips = [
@@ -989,3 +968,50 @@ def obtener_comisiones_ciclo_admin(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
+
+@router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaConComisionResponse)
+def agregar_comision_por_tipo_venta(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    venta = db.query(models.Venta).filter(models.Venta.id == id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    # Tabla de comisiones adicionales según tipo de venta
+    comisiones_por_tipo = {
+        "Contado": 10,
+        "Paguitos": 100,
+        "Payoy": 110
+    }
+
+    # Comisión base (si no tiene, se asume 0)
+    comision_base = venta.comision_obj.cantidad if venta.comision_obj else 0
+
+    # Comisión extra según el tipo de venta
+    comision_extra = comisiones_por_tipo.get(venta.tipo_venta, 0)
+
+    # Cálculo total
+    if venta.tipo_producto and venta.tipo_producto.lower() == "telefono":
+        comision_total = (comision_base * venta.cantidad) + comision_extra
+    else:
+        comision_total = comision_base * venta.cantidad
+
+    # Guardar cambios (si quisieras persistir la comisión total en BD, aquí podrías hacerlo)
+    db.commit()
+    db.refresh(venta)
+
+    return {
+        "id": venta.id,
+        "producto": venta.producto,
+        "cantidad": venta.cantidad,
+        "tipo_venta": venta.tipo_venta,
+        "tipo_producto": venta.tipo_producto,
+        "comision_base": comision_base,
+        "comision_extra": comision_extra,
+        "comision_total": comision_total,
+        "fecha": venta.fecha,
+        "hora": venta.hora
+    }
+

@@ -80,7 +80,6 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
     return comision
 
 
-
 @router.get("/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_por_fechas(
     inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
@@ -89,16 +88,25 @@ def obtener_comisiones_por_fechas(
     db: Session = Depends(get_db),
     usuario_actual: models.Usuario = Depends(get_current_user),
 ):
-    # Si es admin y se proporcionó un empleado_id, obtener ese usuario
+    # 🔹 Determinar el empleado (si es admin puede consultar a otros)
     if usuario_actual.rol == models.RolEnum.admin and empleado_id is not None:
         usuario = db.query(models.Usuario).filter(models.Usuario.id == empleado_id).first()
         if not usuario:
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
     else:
-        usuario = usuario_actual  # Si no es admin o no se envió empleado_id
+        usuario = usuario_actual
 
     fecha_pago = fin + timedelta(days=3)
 
+    # 🔹 Obtener todas las ventas (accesorios y teléfonos)
+    ventas = db.query(models.Venta).filter(
+        models.Venta.empleado_id == usuario.id,
+        models.Venta.fecha >= inicio,
+        models.Venta.fecha <= fin,
+        models.Venta.cancelada == False
+    ).all()
+
+    # 🔹 Obtener ventas de chips
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == usuario.id,
         models.VentaChip.numero_telefono.isnot(None),
@@ -107,19 +115,7 @@ def obtener_comisiones_por_fechas(
         models.VentaChip.fecha <= fin,
     ).all()
 
-    ventas_accesorios = db.query(models.Venta).filter(
-        models.Venta.empleado_id == usuario.id,
-        models.Venta.fecha >= inicio,
-        models.Venta.fecha <= fin,
-    ).all()
-
-    ventas_telefonos = db.query(models.VentaTelefono).filter(
-        models.VentaTelefono.empleado_id == usuario.id,
-        models.VentaTelefono.fecha >= inicio,
-        models.VentaTelefono.fecha <= fin,
-    ).all()
-
-    if not ventas_accesorios and not ventas_telefonos and not ventas_chips:
+    if not ventas and not ventas_chips:
         return {
             "inicio_ciclo": inicio,
             "fin_ciclo": fin,
@@ -133,53 +129,86 @@ def obtener_comisiones_por_fechas(
             "ventas_chips": []
         }
 
-    accesorios = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "fecha": v.fecha.strftime("%Y-%m-%d"),
-            "hora": v.hora.strftime("%H:%M:%S")
-        }
-        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
+    # 🔹 Inicializar acumuladores
+    accesorios = []
+    telefonos = []
+    chips = []
 
-    telefonos = [
-        {
-            "marca": v.marca,
-            "modelo": v.modelo,
-            "tipo": v.tipo,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "fecha": v.fecha.strftime("%Y-%m-%d"),
-            "hora": v.hora.strftime("%H:%M:%S")
-        }
-        for v in ventas_telefonos if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
+    total_accesorios = 0
+    total_telefonos = 0
+    total_chips = 0
 
-    chips = [
-        {
+    # 🔹 Comisiones extra para teléfonos según tipo de venta
+    comisiones_por_tipo = {
+        "Contado": 10,
+        "Paguitos": 100,
+        "Payoy": 110
+    }
+
+    # 🔹 Procesar ventas (accesorios y teléfonos)
+    for v in ventas:
+        comision_base = v.comision_obj.cantidad if v.comision_obj else 0
+        comision_extra = comisiones_por_tipo.get(v.tipo_venta, 0)
+        comision_total = comision_base * v.cantidad
+
+        # 📱 Teléfonos
+        if v.tipo_producto == "telefono":
+            comision_total += comision_extra
+            total_telefonos += comision_total
+
+            telefonos.append({
+                "producto": v.producto,
+                "cantidad": v.cantidad,
+                "comision": comision_total,
+                "tipo_venta": v.tipo_venta,
+                "fecha": v.fecha.strftime("%Y-%m-%d"),
+                "hora": v.hora.strftime("%H:%M:%S")
+            })
+
+        # 🎧 Accesorios
+        elif v.tipo_producto == "accesorio":
+            total_accesorios += comision_total
+
+            accesorios.append({
+                "producto": v.producto,
+                "cantidad": v.cantidad,
+                "comision": comision_base,
+                "tipo_venta": v.tipo_venta,
+                "comision_total": comision_total,
+                "fecha": v.fecha.strftime("%Y-%m-%d"),
+                "hora": v.hora.strftime("%H:%M:%S")
+            })
+
+    # 🔹 Procesar chips
+    for v in ventas_chips:
+        comision_total = v.comision or 0
+        total_chips += comision_total
+
+        chips.append({
             "tipo_chip": v.tipo_chip,
             "numero_telefono": v.numero_telefono,
             "comision": v.comision or 0,
+            "comision_manual": 0,
             "fecha": v.fecha.strftime("%Y-%m-%d"),
             "hora": v.hora.strftime("%H:%M:%S")
-        }
-        for v in ventas_chips if (v.comision or 0) > 0
-    ]
+        })
+
+    # 🔹 Totales generales
+    total_general = total_accesorios + total_telefonos + total_chips
 
     return {
         "inicio_ciclo": inicio,
         "fin_ciclo": fin,
         "fecha_pago": fecha_pago,
-        "total_chips": sum(c["comision"] for c in chips),
-        "total_accesorios": sum(a["comision"] for a in accesorios),
-        "total_telefonos": sum(t["comision"] for t in telefonos),
-        "total_general": sum(c["comision"] for c in chips) +
-                         sum(a["comision"] for a in accesorios) +
-                         sum(t["comision"] for t in telefonos),
+        "total_chips": total_chips,
+        "total_accesorios": total_accesorios,
+        "total_telefonos": total_telefonos,
+        "total_general": total_general,
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
+
 
 
