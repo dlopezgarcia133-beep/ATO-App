@@ -970,7 +970,7 @@ def obtener_comisiones_ciclo_admin(
     }
 
 
-@router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaConComisionResponse)
+@router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaTelefonoConComision)
 def agregar_comision_por_tipo_venta(
     id: int,
     db: Session = Depends(get_db)
