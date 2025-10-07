@@ -905,7 +905,7 @@ def obtener_comisiones_ciclo_admin(
         models.Venta.tipo_producto == "accesorio"
     ).all()
 
-    ventas_telefonos = db.query(models.VentaTelefono).filter(
+    ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha <= fin_ciclo,

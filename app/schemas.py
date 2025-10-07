@@ -322,7 +322,6 @@ class VentaChipConComision(BaseModel):
     tipo_chip: str
     numero_telefono: str
     comision: float
-    comision_manual: Optional[float] = 0
     fecha: date
     hora: time
 
