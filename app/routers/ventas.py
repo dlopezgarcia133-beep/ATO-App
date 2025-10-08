@@ -406,6 +406,7 @@ def crear_venta_chip(
         tipo_chip=venta.tipo_chip,
         numero_telefono=venta.numero_telefono,
         monto_recarga=venta.monto_recarga,
+        clave=venta.clave,
         fecha=fecha_actual.date(),
         hora=fecha_actual.time(),
     )
