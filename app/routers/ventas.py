@@ -780,6 +780,10 @@ def obtener_comisiones_ciclo(
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(get_current_user)
 ):
+    
+    empleado_id = empleado_id or usuario.id
+
+
     hoy = date.today()
     dias_desde_lunes = hoy.weekday()
     inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
@@ -978,8 +982,8 @@ def agregar_comision_por_tipo_venta(
     # Tabla de comisiones adicionales según tipo de venta
     comisiones_por_tipo = {
         "Contado": 10,
-        "Paguitos": 100,
-        "Payoy": 110
+        "Paguitos": 110,
+        "Pajoy": 100
     }
 
     # Comisión base (si no tiene, se asume 0)

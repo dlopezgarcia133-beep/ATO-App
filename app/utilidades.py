@@ -62,8 +62,8 @@ def calcular_comision_telefono(v):
     # Tabla de comisiones extra según tipo_venta
     comisiones_por_tipo = {
         "Contado": 10,
-        "Paguitos": 100,
-        "Payoy": 110
+        "Paguitos": 110,
+        "Pajoy": 100
     }
 
     # Extra según tipo_venta (si no está en el dict, devuelve 0)
