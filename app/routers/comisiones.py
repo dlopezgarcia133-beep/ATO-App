@@ -86,10 +86,10 @@ def obtener_comisiones_por_fechas(
     fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
     empleado_id: int | None = Query(None, description="ID del empleado (solo admin)"),
     db: Session = Depends(get_db),
-    usuario_actual: models.Usuario = Depends(get_current_user),
+    current_user: models.Usuario = Depends(get_current_user),
 ):
     
-    usuario = usuario_actual
+    empleado_id = current_user.id 
 
     fecha_pago = fin + timedelta(days=3)
 

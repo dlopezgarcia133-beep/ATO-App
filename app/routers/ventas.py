@@ -778,10 +778,10 @@ def crear_corte(
 def obtener_comisiones_ciclo(
     empleado_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user)
+    current_user: models.Usuario = Depends(get_current_user)
 ):
     
-    empleado_id = empleado_id or usuario.id
+    empleado_id = current_user.id
 
 
     hoy = date.today()
