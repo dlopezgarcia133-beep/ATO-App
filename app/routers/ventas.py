@@ -780,17 +780,13 @@ def obtener_comisiones_ciclo(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    
-    empleado_id = current_user.id
-
-
     hoy = date.today()
     dias_desde_lunes = hoy.weekday()
     inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
-
+    empleado_id = empleado_id or current_user.id
 
     # 🔹 CHIPS
     ventas_chips = db.query(models.VentaChip).filter(
@@ -825,7 +821,7 @@ def obtener_comisiones_ciclo(
             "cantidad": v.cantidad,
             "comision": v.comision_obj.cantidad if v.comision_obj else 0,
             "tipo_venta": v.tipo_venta,
-            "comision_total": getattr(v, "comision_total", None) or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+            "comision_total": (v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
             "fecha": v.fecha,
             "hora": v.hora
         }
@@ -839,7 +835,7 @@ def obtener_comisiones_ciclo(
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
-            "comision_total": getattr(v, "comision_total", None) or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
         }
