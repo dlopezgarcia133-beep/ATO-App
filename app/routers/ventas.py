@@ -922,7 +922,7 @@ def obtener_comisiones_ciclo_admin(
         {
             "producto": v.producto,
             "cantidad": v.cantidad,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "comision": getattr(v, "comision_total", None) or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
         }
