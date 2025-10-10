@@ -86,16 +86,16 @@ def obtener_comisiones_por_fechas(
     fin: date = Query(..., description="Fecha de fin del ciclo (domingo)"),
     empleado_id: int | None = Query(None, description="ID del empleado (solo admin)"),
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
+    usuario_actual: models.Usuario = Depends(get_current_user),
 ):
     
-    empleado_id = current_user.id 
+    usuario = usuario_actual
 
     fecha_pago = fin + timedelta(days=3)
 
     # 🔹 Obtener todas las ventas (accesorios y teléfonos)
     ventas = db.query(models.Venta).filter(
-        models.Venta.empleado_id == empleado_id,
+        models.Venta.empleado_id == usuario.id,
         models.Venta.fecha >= inicio,
         models.Venta.fecha <= fin,
         models.Venta.cancelada == False
@@ -103,7 +103,7 @@ def obtener_comisiones_por_fechas(
 
     # 🔹 Obtener ventas de chips
     ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == empleado_id,
+        models.VentaChip.empleado_id == usuario.id,
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio,
@@ -203,7 +203,5 @@ def obtener_comisiones_por_fechas(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
-
-
 
 
