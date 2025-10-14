@@ -162,6 +162,7 @@ def obtener_comisiones_por_fechas(
             telefonos.append({
                 "producto": getattr(v, "producto", ""),
                 "cantidad": int(cantidad),
+                "comision": float(comision_base),
                 "comision_total": float(comision_total),
                 "tipo_venta": getattr(v, "tipo_venta", "") or "",  # obligatorio en schema, entregar string
                 "fecha": getattr(v, "fecha"),  # entregar date (no str)
