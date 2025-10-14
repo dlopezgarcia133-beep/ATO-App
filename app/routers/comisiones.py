@@ -80,7 +80,6 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
     return comision
 
 
-from sqlalchemy import func
 
 @router.get("/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_por_fechas(
@@ -117,10 +116,10 @@ def obtener_comisiones_por_fechas(
             "inicio_ciclo": inicio,
             "fin_ciclo": fin,
             "fecha_pago": None,
-            "total_chips": 0,
-            "total_accesorios": 0,
-            "total_telefonos": 0,
-            "total_general": 0,
+            "total_chips": 0.0,
+            "total_accesorios": 0.0,
+            "total_telefonos": 0.0,
+            "total_general": 0.0,
             "ventas_accesorios": [],
             "ventas_telefonos": [],
             "ventas_chips": []
