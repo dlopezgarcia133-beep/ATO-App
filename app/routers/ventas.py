@@ -807,7 +807,7 @@ def obtener_comisiones_ciclo(
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "accesorio"
     ).all()
-
+    print("Fechas ventas encontradas:", [v.fecha for v in ventas_telefonos])
     # 🔹 TELÉFONOS
     ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
