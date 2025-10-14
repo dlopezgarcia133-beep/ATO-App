@@ -902,14 +902,14 @@ def obtener_comisiones_ciclo_admin(
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.validado == True,
-        models.date(models.VentaChip.fecha) >= inicio_ciclo,
-        models.date(models.VentaChip.fecha) <= fin_ciclo,
+        models.VentaChip(models.VentaChip.fecha) >= inicio_ciclo,
+        models.VentaChip(models.VentaChip.fecha) <= fin_ciclo,
     ).all()
 
     ventas_accesorios = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.date(models.Venta.fecha) >= inicio_ciclo,
-        models.date(models.Venta.fecha) <= fin_ciclo,
+        models.Venta(models.Venta.fecha) >= inicio_ciclo,
+        models.Venta(models.Venta.fecha) <= fin_ciclo,
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "accesorio"
     ).all()
@@ -917,8 +917,8 @@ def obtener_comisiones_ciclo_admin(
     # ← CORRECCIÓN: usar models.Venta aquí para teléfonos (consistente)
     ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.date(models.Venta.fecha) >= inicio_ciclo,
-        models.date(models.Venta.fecha) <= fin_ciclo,
+        models.Venta(models.Venta.fecha) >= inicio_ciclo,
+        models.Venta(models.Venta.fecha) <= fin_ciclo,
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "telefono"
     ).all()
