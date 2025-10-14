@@ -457,14 +457,14 @@ def validar_chip(
         # Comisiones usando rangos (min, max)
         comisiones_por_chip = {
             "Chip Azul": [
-                ((0, 49), 5),
-                ((50, 99), 10),
-                ((100, 1000), 15)
+                ((0,50), 15),
+                ((51, 100), 20),
+                ((101, 1000), 50)
             ],
             "Chip ATO": [
                 ((0, 50), 5),
                 ((51, 100), 10),
-                ((101, 150), 15)
+                ((101, 150),25)
             ],
             "Portabilidad": [
                 ((0, 500), 50),
@@ -477,6 +477,9 @@ def validar_chip(
             "Chip Preactivado": [
                 ((0, 500), 35),
                 
+            ],
+              "B63": [
+              ((0, 500), 25),
             ]
         }
 
