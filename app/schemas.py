@@ -307,7 +307,7 @@ class VentaAccesorioConComision(BaseModel):
     cantidad: int
     comision: float
     tipo_venta: Optional[str] = None
-    comision_total: float
+    comision_total: Optional[float] = None
     fecha: date
     hora: time
 
@@ -315,6 +315,7 @@ class VentaTelefonoConComision(BaseModel):
     producto: str
     cantidad: int
     tipo_venta: str
+    comision: float
     comision_total: float
     fecha: date
     hora: time

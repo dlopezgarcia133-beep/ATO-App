@@ -80,6 +80,8 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
     return comision
 
 
+from sqlalchemy import func
+
 @router.get("/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_por_fechas(
     inicio: date = Query(..., description="Fecha de inicio del ciclo (lunes)"),
@@ -88,26 +90,26 @@ def obtener_comisiones_por_fechas(
     db: Session = Depends(get_db),
     usuario_actual: models.Usuario = Depends(get_current_user),
 ):
-    
-    usuario = usuario_actual
+    # Si vino empleado_id (admin), usarlo; si no, usar el id del usuario autenticado
+    empleado_a_consultar = empleado_id if empleado_id is not None else usuario_actual.id
 
     fecha_pago = fin + timedelta(days=3)
 
     # 🔹 Obtener todas las ventas (accesorios y teléfonos)
     ventas = db.query(models.Venta).filter(
-        models.Venta.empleado_id == usuario.id,
-        models.Venta.fecha >= inicio,
-        models.Venta.fecha <= fin,
+        models.Venta.empleado_id == empleado_a_consultar,
+        func.date(models.Venta.fecha) >= inicio,  # comparar solo fecha
+        func.date(models.Venta.fecha) <= fin,
         models.Venta.cancelada == False
     ).all()
 
     # 🔹 Obtener ventas de chips
     ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == usuario.id,
+        models.VentaChip.empleado_id == empleado_a_consultar,
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
-        models.VentaChip.fecha >= inicio,
-        models.VentaChip.fecha <= fin,
+        func.date(models.VentaChip.fecha) >= inicio,
+        func.date(models.VentaChip.fecha) <= fin,
     ).all()
 
     if not ventas and not ventas_chips:
@@ -129,63 +131,71 @@ def obtener_comisiones_por_fechas(
     telefonos = []
     chips = []
 
-    total_accesorios = 0
-    total_telefonos = 0
-    total_chips = 0
+    total_accesorios = 0.0
+    total_telefonos = 0.0
+    total_chips = 0.0
 
     # 🔹 Comisiones extra para teléfonos según tipo de venta
     comisiones_por_tipo = {
         "Contado": 10,
-        "Paguitos": 100,
-        "Payoy": 110
+        "Paguitos": 110,
+        "Pajoy": 100
     }
 
     # 🔹 Procesar ventas (accesorios y teléfonos)
     for v in ventas:
-        comision_base = v.comision_obj.cantidad if v.comision_obj else 0
-        comision_extra = comisiones_por_tipo.get(v.tipo_venta, 0)
-        comision_total = comision_base * v.cantidad
+        # Leer de forma segura
+        comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
+        comision_extra = comisiones_por_tipo.get(getattr(v, "tipo_venta", "") or "", 0)
+        cantidad = getattr(v, "cantidad", 0) or 0
+
+        # Comision base total (unitaria * cantidad)
+        comision_total = comision_base * cantidad
 
         # 📱 Teléfonos
-        if v.tipo_producto == "telefono":
+        if getattr(v, "tipo_producto", "") == "telefono":
+            # aplicar extra siempre para telefono
             comision_total += comision_extra
             total_telefonos += comision_total
 
+            # Asegurarnos de entregar los tipos que espera el schema:
+            # VentaTelefonoConComision: producto:str, cantidad:int, tipo_venta:str, comision_total:float, fecha:date, hora:time
             telefonos.append({
-                "producto": v.producto,
-                "cantidad": v.cantidad,
-                "comision_total": comision_total,
-                "tipo_venta": v.tipo_venta,
-                "fecha": v.fecha.strftime("%Y-%m-%d"),
-                "hora": v.hora.strftime("%H:%M:%S")
+                "producto": getattr(v, "producto", ""),
+                "cantidad": int(cantidad),
+                "comision_total": float(comision_total),
+                "tipo_venta": getattr(v, "tipo_venta", "") or "",  # obligatorio en schema, entregar string
+                "fecha": getattr(v, "fecha"),  # entregar date (no str)
+                "hora": getattr(v, "hora")     # entregar time (no str)
             })
 
         # 🎧 Accesorios
-        elif v.tipo_producto == "accesorio":
+        elif getattr(v, "tipo_producto", "") == "accesorio":
             total_accesorios += comision_total
 
             accesorios.append({
-                "producto": v.producto,
-                "cantidad": v.cantidad,
-                "comision": comision_base,
-                "tipo_venta": v.tipo_venta,
-                "comision_total": comision_total,
-                "fecha": v.fecha.strftime("%Y-%m-%d"),
-                "hora": v.hora.strftime("%H:%M:%S")
+                "producto": getattr(v, "producto", ""),
+                "cantidad": int(cantidad),
+                "comision": float(comision_base),
+                "tipo_venta": getattr(v, "tipo_venta", None),
+                "comision_total": float(comision_total),
+                "fecha": getattr(v, "fecha"),
+                "hora": getattr(v, "hora")
             })
 
     # 🔹 Procesar chips
     for v in ventas_chips:
-        comision_total = v.comision or 0
-        total_chips += comision_total
+        comision_val = getattr(v, "comision", 0) or 0
+        total_chips += float(comision_val)
 
+        # Atención: el schema VentaChipConComision NO incluye comision_manual
+        # así que no lo añadimos aquí para evitar errores de validación.
         chips.append({
-            "tipo_chip": v.tipo_chip,
-            "numero_telefono": v.numero_telefono,
-            "comision": v.comision or 0,
-            "comision_manual": 0,
-            "fecha": v.fecha.strftime("%Y-%m-%d"),
-            "hora": v.hora.strftime("%H:%M:%S")
+            "tipo_chip": getattr(v, "tipo_chip", ""),
+            "numero_telefono": getattr(v, "numero_telefono", ""),
+            "comision": float(comision_val),
+            "fecha": getattr(v, "fecha"),
+            "hora": getattr(v, "hora")
         })
 
     # 🔹 Totales generales
@@ -203,5 +213,6 @@ def obtener_comisiones_por_fechas(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
 
 
