@@ -879,7 +879,7 @@ def obtener_comisiones_ciclo(
     }
 
 
-# vamos a modificar 
+# vamos a modificar ya no se que es 
 
 
 @router.get("/comisiones/ciclo/{empleado_id}", response_model=schemas.ComisionesCicloResponse)
