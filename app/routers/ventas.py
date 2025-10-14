@@ -807,7 +807,7 @@ def obtener_comisiones_ciclo(
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "accesorio"
     ).all()
-    
+
     # 🔹 TELÉFONOS
     ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
@@ -816,41 +816,34 @@ def obtener_comisiones_ciclo(
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "telefono"
     ).all()
-    print("Fechas ventas encontradas:", [v.fecha for v in ventas_telefonos])
+
     # 🔹 Procesar ACCESORIOS
-    accesorios = []
-    for v in ventas_accesorios:
-        comision_unitaria = getattr(v.comision_obj, "cantidad", 0)
-        comision_total = v.comision_total or (comision_unitaria * v.cantidad)
-        if comision_unitaria > 0 or comision_total > 0:
-            accesorios.append({
-                "producto": v.producto,
-                "cantidad": v.cantidad,
-                "comision": comision_unitaria,
-                "tipo_venta": v.tipo_venta,
-                "comision_total": comision_total,
-                "fecha": v.fecha,
-                "hora": v.hora
-            })
+    accesorios = [
+        {
+            "producto": v.producto,
+            "cantidad": v.cantidad,
+            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
+            "tipo_venta": v.tipo_venta,
+            "comision_total": (v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
+            "fecha": v.fecha,
+            "hora": v.hora
+        }
+        for v in ventas_accesorios
+        if v.comision_obj and v.comision_obj.cantidad > 0
+    ]
 
     # 🔹 Procesar TELÉFONOS
-    telefonos = []
-    for v in ventas_telefonos:
-        # En teléfonos, si no hay comision_obj, igual debe usarse comision_total
-        comision_unitaria = getattr(v.comision_obj, "cantidad", 0)
-        comision_total = v.comision_total
-        # Si no tiene comision_total, calcularlo con comision_obj solo si existe
-        if comision_total is None:
-            comision_total = (comision_unitaria * v.cantidad) if v.comision_obj else 0
-
-        telefonos.append({
+    telefonos = [
+        {
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
-            "comision_total": comision_total,
+            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
             "fecha": v.fecha,
             "hora": v.hora
-        })
+        }
+        for v in ventas_telefonos
+    ]
 
     # 🔹 Procesar CHIPS
     chips = [
@@ -884,7 +877,6 @@ def obtener_comisiones_ciclo(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
-
 
 
 # vamos a modificar 
