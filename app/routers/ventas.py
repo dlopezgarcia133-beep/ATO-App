@@ -818,32 +818,39 @@ def obtener_comisiones_ciclo(
     ).all()
 
     # 🔹 Procesar ACCESORIOS
-    accesorios = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "tipo_venta": v.tipo_venta,
-            "comision_total": (v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_accesorios
-        if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
+    accesorios = []
+    for v in ventas_accesorios:
+        comision_unitaria = getattr(v.comision_obj, "cantidad", 0)
+        comision_total = v.comision_total or (comision_unitaria * v.cantidad)
+        if comision_unitaria > 0 or comision_total > 0:
+            accesorios.append({
+                "producto": v.producto,
+                "cantidad": v.cantidad,
+                "comision": comision_unitaria,
+                "tipo_venta": v.tipo_venta,
+                "comision_total": comision_total,
+                "fecha": v.fecha,
+                "hora": v.hora
+            })
 
     # 🔹 Procesar TELÉFONOS
-    telefonos = [
-        {
+    telefonos = []
+    for v in ventas_telefonos:
+        # En teléfonos, si no hay comision_obj, igual debe usarse comision_total
+        comision_unitaria = getattr(v.comision_obj, "cantidad", 0)
+        comision_total = v.comision_total
+        # Si no tiene comision_total, calcularlo con comision_obj solo si existe
+        if comision_total is None:
+            comision_total = (comision_unitaria * v.cantidad) if v.comision_obj else 0
+
+        telefonos.append({
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
-            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+            "comision_total": comision_total,
             "fecha": v.fecha,
             "hora": v.hora
-        }
-        for v in ventas_telefonos
-    ]
+        })
 
     # 🔹 Procesar CHIPS
     chips = [
@@ -877,6 +884,7 @@ def obtener_comisiones_ciclo(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
 
 
 # vamos a modificar 
