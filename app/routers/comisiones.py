@@ -97,8 +97,8 @@ def obtener_comisiones_por_fechas(
     # 🔹 Obtener todas las ventas (accesorios y teléfonos)
     ventas = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_a_consultar,
-        func.date(models.Venta.fecha) >= inicio,  # comparar solo fecha
-        func.date(models.Venta.fecha) <= fin,
+        models.date(models.Venta.fecha) >= inicio,  # comparar solo fecha
+        models.date(models.Venta.fecha) <= fin,
         models.Venta.cancelada == False
     ).all()
 
@@ -107,8 +107,8 @@ def obtener_comisiones_por_fechas(
         models.VentaChip.empleado_id == empleado_a_consultar,
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
-        func.date(models.VentaChip.fecha) >= inicio,
-        func.date(models.VentaChip.fecha) <= fin,
+        models.date(models.VentaChip.fecha) >= inicio,
+        models.date(models.VentaChip.fecha) <= fin,
     ).all()
 
     if not ventas and not ventas_chips:
