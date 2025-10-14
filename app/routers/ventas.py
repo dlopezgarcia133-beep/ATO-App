@@ -882,6 +882,8 @@ def obtener_comisiones_ciclo(
 # vamos a modificar ya no se que es 
 
 
+
+
 @router.get("/comisiones/ciclo/{empleado_id}", response_model=schemas.ComisionesCicloResponse)
 def obtener_comisiones_ciclo_admin(
     empleado_id: int,
@@ -894,67 +896,99 @@ def obtener_comisiones_ciclo_admin(
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
+    # ------------------------------------------------
+    # Usar func.date(...) para comparar solo la parte fecha
+    # ------------------------------------------------
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.validado == True,
-        models.VentaChip.fecha >= inicio_ciclo,
-        models.VentaChip.fecha <= fin_ciclo,
+        func.date(models.VentaChip.fecha) >= inicio_ciclo,
+        func.date(models.VentaChip.fecha) <= fin_ciclo,
     ).all()
 
     ventas_accesorios = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio_ciclo,
-        models.Venta.fecha <= fin_ciclo,
+        func.date(models.Venta.fecha) >= inicio_ciclo,
+        func.date(models.Venta.fecha) <= fin_ciclo,
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "accesorio"
     ).all()
 
+    # ← CORRECCIÓN: usar models.Venta aquí para teléfonos (consistente)
     ventas_telefonos = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio_ciclo,
-        models.Venta.fecha <= fin_ciclo,
+        func.date(models.Venta.fecha) >= inicio_ciclo,
+        func.date(models.Venta.fecha) <= fin_ciclo,
         models.Venta.cancelada == False,
         models.Venta.tipo_producto == "telefono"
     ).all()
 
-    accesorios = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_accesorios if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
+    # ------------------------------------------------
+    # Procesar ACCESORIOS: si comision_obj es None -> comision 0
+    # ------------------------------------------------
+    accesorios = []
+    for v in ventas_accesorios:
+        comision_unitaria = getattr(getattr(v, "comision_obj", None), "cantidad", 0)
+        comision_total_attr = getattr(v, "comision_total", None)
+        # En accesorios si no existe comision_total lo calculamos sólo si hay comision_obj
+        comision_total = comision_total_attr if comision_total_attr is not None else (comision_unitaria * getattr(v, "cantidad", 0))
+        # incluir solo si hay comisión (según tu regla)
+        if comision_unitaria > 0 or (comision_total and comision_total > 0):
+            accesorios.append({
+                "producto": getattr(v, "producto", None),
+                "cantidad": getattr(v, "cantidad", 0),
+                "comision": comision_unitaria,
+                "comision_total": comision_total,
+                "tipo_venta": getattr(v, "tipo_venta", None),
+                "fecha": getattr(v, "fecha", None),
+                "hora": getattr(v, "hora", None)
+            })
 
-    telefonos = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "tipo_venta": v.tipo_venta,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_telefonos
-    ]
+    # ------------------------------------------------
+    # Procesar TELÉFONOS: siempre considerar comision_total cuando exista
+    # ------------------------------------------------
+    telefonos = []
+    for v in ventas_telefonos:
+        comision_unitaria = getattr(getattr(v, "comision_obj", None), "cantidad", 0)
+        comision_total_attr = getattr(v, "comision_total", None)
 
-    chips = [
-        {
-            "tipo_chip": v.tipo_chip,
-            "numero_telefono": v.numero_telefono,
-            "comision": v.comision or 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_chips if (v.comision or 0) > 0
-    ]
+        # En teléfonos: si comision_total existe lo usamos; si no, lo calculamos si comision_obj existe; si no, 0
+        if comision_total_attr is not None:
+            comision_total = comision_total_attr
+        else:
+            comision_total = (comision_unitaria * getattr(v, "cantidad", 0)) if comision_unitaria > 0 else 0
 
-    total_accesorios = sum(v["comision"] for v in accesorios)
-    total_telefonos = sum(v["comision"] for v in telefonos)
-    total_chips = sum(v["comision"] for v in chips)
+        telefonos.append({
+            "producto": getattr(v, "producto", None),
+            "cantidad": getattr(v, "cantidad", 0),
+            "tipo_venta": getattr(v, "tipo_venta", None),
+            "comision": comision_unitaria,
+            "comision_total": comision_total,
+            "fecha": getattr(v, "fecha", None),
+            "hora": getattr(v, "hora", None)
+        })
+
+    # ------------------------------------------------
+    # Procesar CHIPS
+    # ------------------------------------------------
+    chips = []
+    for v in ventas_chips:
+        com = getattr(v, "comision", 0) or 0
+        if com > 0:
+            chips.append({
+                "tipo_chip": getattr(v, "tipo_chip", None),
+                "numero_telefono": getattr(v, "numero_telefono", None),
+                "comision": com,
+                "fecha": getattr(v, "fecha", None),
+                "hora": getattr(v, "hora", None)
+            })
+
+    # ------------------------------------------------
+    # Totales (usar comision_total para accesorios y telefonos)
+    # ------------------------------------------------
+    total_accesorios = sum(v.get("comision_total", 0) or 0 for v in accesorios)
+    total_telefonos = sum(v.get("comision_total", 0) or 0 for v in telefonos)
+    total_chips = sum(v.get("comision", 0) or 0 for v in chips)
 
     return {
         "inicio_ciclo": inicio_ciclo,
@@ -968,6 +1002,7 @@ def obtener_comisiones_ciclo_admin(
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
     }
+
 
 @router.put("/ventas/{id}/comision_tipo", response_model=schemas.VentaTelefonoConComision)
 def agregar_comision_por_tipo_venta(
