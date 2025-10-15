@@ -824,7 +824,7 @@ def obtener_comisiones_ciclo(
             "cantidad": v.cantidad,
             "comision": v.comision_obj.cantidad if v.comision_obj else 0,
             "tipo_venta": v.tipo_venta,
-            "comision_total": (v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
+            "comision_total": float(v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
             "fecha": v.fecha,
             "hora": v.hora
         }
@@ -838,7 +838,7 @@ def obtener_comisiones_ciclo(
             "producto": v.producto,
             "cantidad": v.cantidad,
             "tipo_venta": v.tipo_venta,
-            "comision_total": v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0),
+            "comision_total": float(v.comision_total or ((v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0)),
             "fecha": v.fecha,
             "hora": v.hora
         }
