@@ -361,7 +361,8 @@ def crear_ventas_multiples(
     total=item.cantidad * item.precio_unitario,
     metodo_pago=venta.metodo_pago,
     comision_id=comision_id,
-    tipo_producto=tipo_producto,   
+    tipo_producto=tipo_producto, 
+    fecha=fecha_actual.date(),  
     hora=fecha_actual.time(),
     correo_cliente=venta.correo_cliente,
 )
@@ -896,9 +897,7 @@ def obtener_comisiones_ciclo_admin(
     fin_ciclo = inicio_ciclo + timedelta(days=6)
     fecha_pago = fin_ciclo + timedelta(days=3)
 
-    # ------------------------------------------------
-    # Usar func.date(...) para comparar solo la parte fecha
-    # ------------------------------------------------
+  
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.validado == True,
