@@ -52,7 +52,7 @@ def actualizar_producto_inventario_general(
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
 def obtener_productos_nombres(db: Session = Depends(get_db),
                              current_user: models.Usuario = Depends(get_current_user)):
-    productos = db.query(models.InventarioGeneral.producto).distinct().all()
+    productos = db.query(models.InventarioModulo.producto).distinct().all()
     return [p[0] for p in productos]
 
 @router.get("/buscar", response_model=List[str])
@@ -65,10 +65,10 @@ def autocomplete_telefonos(
     Busca en inventario_general solo productos de tipo 'telefono'
     """
     productos = (
-    db.query(models.InventarioGeneral.producto)
+    db.query(models.InventarioModulo.producto)
     .filter(
-        models.InventarioGeneral.tipo_producto == "telefono",
-        models.func.upper(models.InventarioGeneral.producto).ilike(f"%{query.upper()}%")
+        models.InventarioModulo.tipo_producto == "telefono",
+        models.func.upper(models.InventarioModulo.producto).ilike(f"%{query.upper()}%")
     )
     .limit(10)
     .all()
