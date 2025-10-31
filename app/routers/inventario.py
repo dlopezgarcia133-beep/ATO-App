@@ -359,7 +359,6 @@ def eliminar_producto_en_todos_los_modulos(
 
     db.commit()
     return {"message": f"Producto '{clave}' eliminado de todos los módulos"}
-
 @router.post("/actualizar_inventario_excel", response_model=dict)
 def actualizar_inventario_desde_excel(
     modulo_id: int = Form(...),
@@ -367,7 +366,6 @@ def actualizar_inventario_desde_excel(
     db: Session = Depends(get_db)
 ):
     import pandas as pd
-    import re
 
     # 1️⃣ Leer el archivo Excel
     try:
@@ -375,56 +373,56 @@ def actualizar_inventario_desde_excel(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {e}")
 
-    # 2️⃣ Normalizar nombres de columnas (mayúsculas, sin espacios ni caracteres raros)
-    columnas_normalizadas = []
-    for c in df.columns:
-        c_limpia = re.sub(r"[^A-Z]", "", str(c).upper())  # solo letras A-Z
-        columnas_normalizadas.append(c_limpia)
+    # 2️⃣ Normalizar nombres de columnas (sin eliminar letras)
+    df.columns = [str(c).strip().upper().replace("Á", "A").replace("É", "E")
+                  .replace("Í", "I").replace("Ó", "O").replace("Ú", "U")
+                  for c in df.columns]
 
-    df.columns = columnas_normalizadas
-
-    # 3️⃣ Definir equivalencias válidas
+    # 3️⃣ Definir equivalencias de nombres posibles (muy flexible)
     equivalencias = {
-        "CANTIDAD": ["CANTIDAD", "CANT", "QTY"],
-        "CLAVE": ["CLAVE", "CODIGO", "CODE"],
-        "DESCRIPCION": ["DESCRIPCION", "PRODUCTO", "DESC"],
-        "PRECIO": ["PRECIO", "PRICE", "COSTO"],
+        "CANTIDAD": ["CANTIDAD", "QTY", "CANT", "CANTIDAD DISPONIBLE"],
+        "CLAVE": ["CLAVE", "CODIGO", "CÓDIGO", "CODE"],
+        "DESCRIPCION": ["DESCRIPCION", "PRODUCTO", "NOMBRE", "DESC"],
+        "PRECIO": ["PRECIO", "PRECIO UNITARIO", "PRICE", "COSTO"],
     }
 
-    # 4️⃣ Buscar columnas requeridas en cualquier forma
+    # 4️⃣ Buscar columnas requeridas sin importar el orden
     columnas_mapeadas = {}
     for requerido, posibles in equivalencias.items():
         for col in df.columns:
-            if any(col.startswith(p) for p in posibles):
+            if any(p in col for p in posibles):
                 columnas_mapeadas[requerido] = col
                 break
 
-    # Validar si falta alguna
+    # 5️⃣ Validar que estén todas las columnas requeridas
     faltantes = [r for r in equivalencias.keys() if r not in columnas_mapeadas]
     if faltantes:
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"El archivo debe contener las columnas: "
-                f"{', '.join(equivalencias.keys())}. Faltan: {', '.join(faltantes)}"
-            ),
+            detail=f"El archivo debe tener las columnas: {', '.join(equivalencias.keys())}. Faltan: {', '.join(faltantes)}"
         )
 
-    # 5️⃣ Contadores
+    # 6️⃣ Contadores
     actualizados = 0
     agregados = 0
 
-    # 6️⃣ Recorrer filas
+    # 7️⃣ Procesar cada fila
     for _, fila in df.iterrows():
         clave = str(fila[columnas_mapeadas["CLAVE"]]).strip()
         producto = str(fila[columnas_mapeadas["DESCRIPCION"]]).strip()
-        cantidad = int(fila[columnas_mapeadas["CANTIDAD"]])
 
+        # Convertir cantidad
+        try:
+            cantidad = int(fila[columnas_mapeadas["CANTIDAD"]])
+        except:
+            raise HTTPException(status_code=400, detail=f"Cantidad inválida en {clave}")
+
+        # Limpiar y convertir precio
         precio_str = str(fila[columnas_mapeadas["PRECIO"]]).replace("$", "").replace(",", "").strip()
         try:
             precio = int(float(precio_str))
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Precio inválido en la clave {clave}: {fila[columnas_mapeadas['PRECIO']]}")
+        except:
+            raise HTTPException(status_code=400, detail=f"Precio inválido en la clave {clave}: {precio_str}")
 
         # Detectar tipo de producto
         tipo_producto = (
@@ -466,6 +464,7 @@ def actualizar_inventario_desde_excel(
             f"{actualizados} productos actualizados y {agregados} nuevos agregados."
         )
     }
+
 
 
 
