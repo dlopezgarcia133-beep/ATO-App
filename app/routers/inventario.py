@@ -361,7 +361,6 @@ def eliminar_producto_en_todos_los_modulos(
     return {"message": f"Producto '{clave}' eliminado de todos los módulos"}
 
 
-
 @router.post("/actualizar_inventario_excel", response_model=dict)
 def actualizar_inventario_desde_excel(
     modulo_id: int = Form(...),
@@ -376,15 +375,20 @@ def actualizar_inventario_desde_excel(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {e}")
 
-    # 2️⃣ Normalizar nombres de columnas
-    df.columns = [c.strip().upper() for c in df.columns]
+    # 2️⃣ Normalizar nombres de columnas (quita espacios y convierte a mayúsculas)
+    df.columns = [str(c).strip().upper() for c in df.columns]
 
-    # 3️⃣ Validar que tenga las columnas correctas
+    # 3️⃣ Validar columnas requeridas sin importar el orden
     columnas_requeridas = {"CANTIDAD", "CLAVE", "DESCRIPCION", "PRECIO"}
-    if not columnas_requeridas.issubset(df.columns):
+    columnas_en_archivo = set(df.columns)
+
+    # Detectar si faltan columnas
+    faltantes = columnas_requeridas - columnas_en_archivo
+    if faltantes:
         raise HTTPException(
             status_code=400,
-            detail=f"El archivo debe contener las columnas: {', '.join(columnas_requeridas)}"
+            detail=f"El archivo debe contener las columnas: {', '.join(columnas_requeridas)}. "
+                   f"Faltan: {', '.join(faltantes)}"
         )
 
     # 4️⃣ Contadores
@@ -397,7 +401,7 @@ def actualizar_inventario_desde_excel(
         producto = str(fila["DESCRIPCION"]).strip()
         cantidad = int(fila["CANTIDAD"])
 
-        # Limpiar el precio (eliminar "$" y comas)
+        # Limpiar y convertir precio
         precio_str = str(fila["PRECIO"]).replace("$", "").replace(",", "").strip()
         try:
             precio = int(float(precio_str))
@@ -447,6 +451,7 @@ def actualizar_inventario_desde_excel(
             f"{actualizados} productos actualizados y {agregados} nuevos agregados."
         )
     }
+
 
 
 
