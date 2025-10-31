@@ -258,6 +258,14 @@ class InventarioGlobalCreate(BaseModel):
     tipo_producto: str
 
 
+class InventarioGlobalUpdate(BaseModel):
+    cantidad: Optional[int] = None
+    precio: Optional[int] = None
+    clave: Optional[str] = None
+    producto: Optional[str] = None
+    tipo_producto: Optional[str] = None
+
+
 
 class MovimientoInventarioModulo(BaseModel):
     producto_id: int
