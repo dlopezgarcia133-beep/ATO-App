@@ -272,6 +272,171 @@ def mover_producto_a_modulo(
 
 
 
+@router.post("/replicar", response_model=dict)
+def agregar_o_actualizar_producto_todos_modulos(
+    datos: schemas.InventarioGlobalCreate,
+    db: Session = Depends(get_db)
+):
+    # 1️⃣ Obtener todos los módulos registrados
+    modulos = db.query(models.Modulo).all()
+    if not modulos:
+        raise HTTPException(status_code=404, detail="No hay módulos registrados")
+
+    # 2️⃣ Recorrer cada módulo
+    for modulo in modulos:
+        producto_existente = (
+            db.query(models.InventarioModulo)
+            .filter_by(clave=datos.clave, modulo_id=modulo.id)
+            .first()
+        )
+
+        if producto_existente:
+            # 3️⃣ Si ya existe el producto en este módulo, actualizamos datos
+            producto_existente.producto = datos.producto
+            producto_existente.precio = datos.precio
+            producto_existente.tipo_producto = datos.tipo_producto
+            # Si quieres también actualizar cantidad, descomenta la siguiente línea:
+            # producto_existente.cantidad = datos.cantidad
+        else:
+            # 4️⃣ Si no existe, creamos un nuevo registro para este módulo
+            nuevo_producto = models.InventarioModulo(
+                cantidad=datos.cantidad,
+                clave=datos.clave,
+                producto=datos.producto,
+                precio=datos.precio,
+                modulo_id=modulo.id,
+                tipo_producto=datos.tipo_producto
+            )
+            db.add(nuevo_producto)
+
+    # 5️⃣ Guardamos todos los cambios
+    db.commit()
+    return {"message": "Producto agregado o actualizado en todos los módulos"}
+
+
+
+
+@router.put("/actualizar_todos/{producto}", response_model=dict)
+def actualizar_producto_en_todos_los_modulos(
+    producto: str,
+    datos: schemas.InventarioGlobalUpdate,
+    db: Session = Depends(get_db)
+):
+    # Buscar todos los productos con esa producto
+    productos = db.query(models.InventarioModulo).filter_by(producto=producto).all()
+
+    if not productos:
+        raise HTTPException(status_code=404, detail="No se encontró ningún producto con esa producto")
+
+    # Actualizar los campos especificados
+    for producto in productos:
+        if datos.producto is not None:
+            producto.producto = datos.producto
+        if datos.precio is not None:
+            producto.precio = datos.precio
+        if datos.tipo_producto is not None:
+            producto.tipo_producto = datos.tipo_producto
+
+    db.commit()
+    return {"message": f"Producto '{producto}' actualizado en todos los módulos"}
+
+
+
+@router.delete("/eliminar_todos/{clave}", response_model=dict)
+def eliminar_producto_en_todos_los_modulos(
+    clave: str,
+    db: Session = Depends(get_db)
+):
+    # Buscar todos los registros con la clave dada
+    productos = db.query(models.InventarioModulo).filter_by(clave=clave).all()
+
+    if not productos:
+        raise HTTPException(status_code=404, detail="No se encontró ningún producto con esa clave")
+
+    # Eliminar todos los productos encontrados
+    for producto in productos:
+        db.delete(producto)
+
+    db.commit()
+    return {"message": f"Producto '{clave}' eliminado de todos los módulos"}
+
+
+
+
+@router.post("/actualizar_inventario_excel", response_model=dict)
+def actualizar_inventario_desde_excel(
+    modulo_id: int = Form(...),
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    # 1️⃣ Leer el archivo Excel
+    try:
+        df = pd.read_excel(archivo.file)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {e}")
+
+    # 2️⃣ Validar columnas requeridas
+    columnas_requeridas = {"Clave", "Producto", "Cantidad", "Precio"}
+    if not columnas_requeridas.issubset(df.columns):
+        raise HTTPException(
+            status_code=400,
+            detail=f"El archivo debe contener las columnas: {', '.join(columnas_requeridas)}"
+        )
+
+    # 3️⃣ Contadores
+    actualizados = 0
+    agregados = 0
+
+    # 4️⃣ Recorrer cada fila del Excel
+    for _, fila in df.iterrows():
+        clave = str(fila["Clave"]).strip()
+        producto = str(fila["Producto"]).strip()
+        cantidad = int(fila["Cantidad"])
+        precio = int(fila["Precio"])
+
+        # 🔍 Detectar tipo de producto automáticamente
+        tipo_producto = "telefono" if producto.upper().startswith("TEL") or clave.upper().startswith("TEL") else "accesorios"
+
+        # Buscar si ya existe el producto en el módulo
+        producto_db = (
+            db.query(models.InventarioModulo)
+            .filter_by(clave=clave, modulo_id=modulo_id)
+            .first()
+        )
+
+        if producto_db:
+            # Actualizar datos
+            producto_db.producto = producto
+            producto_db.cantidad = cantidad
+            producto_db.precio = precio
+            producto_db.tipo_producto = tipo_producto
+            actualizados += 1
+        else:
+            # Crear nuevo producto
+            nuevo = models.InventarioModulo(
+                cantidad=cantidad,
+                clave=clave,
+                producto=producto,
+                precio=precio,
+                modulo_id=modulo_id,
+                tipo_producto=tipo_producto
+            )
+            db.add(nuevo)
+            agregados += 1
+
+    # 5️⃣ Guardar cambios
+    db.commit()
+
+    return {
+        "message": (
+            f"Inventario del módulo {modulo_id} actualizado correctamente. "
+            f"{actualizados} productos actualizados y {agregados} nuevos agregados."
+        )
+    }
+
+
+
+
 @router.post("/inventario/fisico", response_model=schemas.InventarioFisicoResponse)
 def registrar_inventario_fisico(
     datos: schemas.InventarioFisicoCreate,

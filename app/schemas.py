@@ -250,6 +250,14 @@ class InventarioModuloResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class InventarioGlobalCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+    tipo_producto: str
+
+
 
 class MovimientoInventarioModulo(BaseModel):
     producto_id: int
