@@ -362,42 +362,56 @@ def eliminar_producto_en_todos_los_modulos(
 
 
 
-
 @router.post("/actualizar_inventario_excel", response_model=dict)
 def actualizar_inventario_desde_excel(
     modulo_id: int = Form(...),
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
+    import pandas as pd
+
     # 1️⃣ Leer el archivo Excel
     try:
         df = pd.read_excel(archivo.file)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {e}")
 
-    # 2️⃣ Validar columnas requeridas
-    columnas_requeridas = {"Clave", "Producto", "Cantidad", "Precio"}
+    # 2️⃣ Normalizar nombres de columnas
+    df.columns = [c.strip().upper() for c in df.columns]
+
+    # 3️⃣ Validar que tenga las columnas correctas
+    columnas_requeridas = {"CANTIDAD", "CLAVE", "DESCRIPCION", "PRECIO"}
     if not columnas_requeridas.issubset(df.columns):
         raise HTTPException(
             status_code=400,
             detail=f"El archivo debe contener las columnas: {', '.join(columnas_requeridas)}"
         )
 
-    # 3️⃣ Contadores
+    # 4️⃣ Contadores
     actualizados = 0
     agregados = 0
 
-    # 4️⃣ Recorrer cada fila del Excel
+    # 5️⃣ Recorrer filas del Excel
     for _, fila in df.iterrows():
-        clave = str(fila["Clave"]).strip()
-        producto = str(fila["Producto"]).strip()
-        cantidad = int(fila["Cantidad"])
-        precio = int(fila["Precio"])
+        clave = str(fila["CLAVE"]).strip()
+        producto = str(fila["DESCRIPCION"]).strip()
+        cantidad = int(fila["CANTIDAD"])
 
-        # 🔍 Detectar tipo de producto automáticamente
-        tipo_producto = "telefono" if producto.upper().startswith("TEL") or clave.upper().startswith("TEL") else "accesorios"
+        # Limpiar el precio (eliminar "$" y comas)
+        precio_str = str(fila["PRECIO"]).replace("$", "").replace(",", "").strip()
+        try:
+            precio = int(float(precio_str))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Precio inválido en la clave {clave}: {fila['PRECIO']}")
 
-        # Buscar si ya existe el producto en el módulo
+        # Detectar tipo de producto automáticamente
+        tipo_producto = (
+            "telefono"
+            if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+            else "accesorios"
+        )
+
+        # Buscar si ya existe en el módulo
         producto_db = (
             db.query(models.InventarioModulo)
             .filter_by(clave=clave, modulo_id=modulo_id)
@@ -405,14 +419,14 @@ def actualizar_inventario_desde_excel(
         )
 
         if producto_db:
-            # Actualizar datos
+            # 🔁 Actualizar valores existentes
             producto_db.producto = producto
             producto_db.cantidad = cantidad
             producto_db.precio = precio
             producto_db.tipo_producto = tipo_producto
             actualizados += 1
         else:
-            # Crear nuevo producto
+            # ➕ Crear nuevo producto
             nuevo = models.InventarioModulo(
                 cantidad=cantidad,
                 clave=clave,
@@ -424,7 +438,7 @@ def actualizar_inventario_desde_excel(
             db.add(nuevo)
             agregados += 1
 
-    # 5️⃣ Guardar cambios
+    # 6️⃣ Guardar cambios
     db.commit()
 
     return {
