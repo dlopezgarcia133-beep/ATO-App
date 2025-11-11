@@ -70,7 +70,7 @@ class VentaCreate(BaseModel):
     tipo_producto: str 
     tipo_venta: str
     metodo_pago: str
-    correo_cliente: Optional[str] = None
+    telefono_cliente: Optional[str] = None
      
 
 class VentaResponse(VentaCreate):
@@ -86,7 +86,7 @@ class VentaResponse(VentaCreate):
     tipo_venta: Optional[str] = None
     metodo_pago: Optional[str] = None
     cancelada : Optional[bool] = None
-    correo_cliente: Optional[str] = None
+    telefono_cliente: Optional[str] = None
     fecha: date
     hora: time
 
@@ -116,7 +116,7 @@ class ProductoEnVenta(BaseModel):
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]
-    correo_cliente: Optional[str] = None
+    telefono_cliente: Optional[str] = None
     metodo_pago: str
 
 class VentaChipCreate(BaseModel):
@@ -396,3 +396,13 @@ class InventarioFisicoResponse(InventarioFisicoBase):
 
     class Config:
         orm_mode = True
+
+
+
+class ItemConteo(BaseModel):
+    producto_id: int
+    cantidad: int
+
+class ConteoRequest(BaseModel):
+    modulo_id: int
+    productos: List[ItemConteo]

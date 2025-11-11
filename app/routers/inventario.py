@@ -653,3 +653,73 @@ def eliminar_telefono(
     db.delete(telefono)
     db.commit()
     return {"mensaje": "Teléfono eliminado del inventario."}
+
+
+
+
+
+@router.get("/inventario/congelar/{modulo_id}")
+def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
+
+    # 1️⃣ Obtener inventario del módulo
+    inventario = (
+        db.query(InventarioModulo)
+        .filter(InventarioModulo.modulo_id == modulo_id)
+        .all()
+    )
+
+    if not inventario:
+        return {"ok": False, "msg": "No hay inventario para ese módulo"}
+
+    # 2️⃣ Preparar DataFrame
+    data = []
+    for item in inventario:
+        data.append({
+            "producto_id": item.producto_id,
+            "cantidad": item.cantidad
+        })
+
+    df = pd.DataFrame(data)
+
+    # 3️⃣ Crear archivo Excel
+    fecha = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    filename = f"inventario_modulo_{modulo_id}_congelado_{fecha}.xlsx"
+    filepath = f"/mnt/data/{filename}"
+
+    df.to_excel(filepath, index=False)
+
+    # 4️⃣ Poner cantidades en 0
+    for item in inventario:
+        item.cantidad = 0
+
+    db.commit()
+
+    # 5️⃣ Devolver archivo Excel
+    return FileResponse(
+        filepath,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+@router.get("/inventario/buscar")
+def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
+
+    producto = (
+        db.query(InventarioModulo)
+        .filter(InventarioModulo.modulo_id == modulo_id)
+        .filter(InventarioModulo.clave.ilike(f"%{clave}%"))
+        .first()
+    )
+
+    if not producto:
+        return {"ok": False, "msg": "Producto no encontrado"}
+
+    return {
+        "ok": True,
+        "producto": {
+            "id": producto.producto_id,
+            "clave": producto.clave,
+            "cantidad_actual": producto.cantidad
+        }
+    }

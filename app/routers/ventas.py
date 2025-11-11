@@ -310,6 +310,98 @@ def cancelar_venta(
 
 
 
+
+
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from typing import List
+from datetime import datetime
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import requests
+import uuid
+from supabase import create_client
+
+from .. import models, schemas
+from ..database import get_db
+from ..dependencies import get_current_user
+from ..config import zona_horaria  # si ya la tienes en tu config
+
+router = APIRouter()
+
+# # --- Configuración ---
+# SUPABASE_URL = "https://TU_PROYECTO.supabase.co"
+# SUPABASE_KEY = "TU_SUPABASE_KEY"
+# WHATSAPP_TOKEN = "TU_TOKEN_PERMANENTE"
+# PHONE_NUMBER_ID = "861665657026345"  # tu ID de app Meta
+# BUCKET_NAME = "tickets"
+
+
+# # --- Función: Generar ticket PDF ---
+# def generar_ticket_pdf(cliente: str, telefono: str, ventas: List[models.Venta]):
+#     buffer = BytesIO()
+#     pdf = canvas.Canvas(buffer, pagesize=letter)
+
+#     pdf.setFont("Helvetica-Bold", 16)
+#     pdf.drawString(200, 750, "Ticket de Compra")
+
+#     pdf.setFont("Helvetica", 12)
+#     pdf.drawString(50, 720, f"Cliente: {cliente}")
+#     pdf.drawString(50, 700, f"Teléfono: {telefono}")
+#     pdf.drawString(50, 680, f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+#     pdf.drawString(50, 650, "Productos:")
+#     y = 630
+#     total = 0
+#     for v in ventas:
+#         linea = f"- {v.producto} x{v.cantidad}  ${v.precio_unitario:.2f} c/u"
+#         pdf.drawString(70, y, linea)
+#         y -= 20
+#         total += v.cantidad * v.precio_unitario
+
+#     pdf.setFont("Helvetica-Bold", 12)
+#     pdf.drawString(50, y - 10, f"TOTAL: ${total:.2f}")
+
+#     pdf.showPage()
+#     pdf.save()
+#     buffer.seek(0)
+#     return buffer
+
+
+# # --- Subir PDF a Supabase ---
+# def subir_ticket_supabase(buffer):
+#     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+#     nombre_archivo = f"ticket_{uuid.uuid4()}.pdf"
+#     ruta = f"{BUCKET_NAME}/{nombre_archivo}"
+#     supabase.storage.from_(BUCKET_NAME).upload(ruta, buffer.getvalue(), {"content-type": "application/pdf"})
+#     public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(ruta)
+#     return public_url
+
+
+# # --- Enviar ticket por WhatsApp ---
+# def enviar_ticket_whatsapp(numero_cliente: str, url_pdf: str):
+#     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+#     payload = {
+#         "messaging_product": "whatsapp",
+#         "to": numero_cliente,
+#         "type": "document",
+#         "document": {
+#             "link": url_pdf,
+#             "filename": "ticket.pdf",
+#             "caption": "Gracias por tu compra 💙 Aquí está tu ticket."
+#         }
+#     }
+#     headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+#     response = requests.post(url, json=payload, headers=headers)
+#     return response.json()
+
+
+
+
+
 @router.post("/ventas/multiples", response_model=List[schemas.VentaResponse])
 def crear_ventas_multiples(
     venta: schemas.VentaMultipleCreate,
@@ -337,35 +429,34 @@ def crear_ventas_multiples(
         )
 
         if not inventario:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No hay inventario para el producto: {item.producto}"
-            )
+            raise HTTPException(status_code=400, detail=f"No hay inventario para el producto: {item.producto}")
 
         if inventario.cantidad < item.cantidad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Inventario insuficiente para el producto: {item.producto}"
-            )
+            raise HTTPException(status_code=400, detail=f"Inventario insuficiente para el producto: {item.producto}")
+
         fecha_actual = datetime.now(zona_horaria)
         inventario.cantidad -= item.cantidad
 
-        tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO") else "accesorio"
+        tipo_producto = (
+            "telefono"
+            if item.producto.strip().upper().startswith("TELEFONO")
+            else "accesorio"
+        )
 
         nueva = models.Venta(
-    empleado_id=current_user.id,
-    modulo_id=modulo_id,
-    producto=item.producto,
-    cantidad=item.cantidad,
-    precio_unitario=item.precio_unitario,
-    total=item.cantidad * item.precio_unitario,
-    metodo_pago=venta.metodo_pago,
-    comision_id=comision_id,
-    tipo_producto=tipo_producto, 
-    fecha=fecha_actual.date(),  
-    hora=fecha_actual.time(),
-    correo_cliente=venta.correo_cliente,
-)
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            total=item.cantidad * item.precio_unitario,
+            metodo_pago=venta.metodo_pago,
+            comision_id=comision_id,
+            tipo_producto=tipo_producto,
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
+            telefono_cliente=venta.telefono_cliente,  # 👈 cambio aquí
+        )
 
         db.add(nueva)
         ventas_realizadas.append(nueva)
@@ -373,6 +464,18 @@ def crear_ventas_multiples(
     db.commit()
     for v in ventas_realizadas:
         db.refresh(v)
+
+    # Generar ticket PDF y enviar por WhatsApp
+    try:
+        pdf_buffer = generar_ticket_pdf(
+            cliente=venta.cliente if hasattr(venta, "cliente") else "Cliente",
+            telefono=venta.telefono_cliente,
+            ventas=ventas_realizadas,
+        )
+        url_pdf = subir_ticket_supabase(pdf_buffer)
+        respuesta_whatsapp = enviar_ticket_whatsapp(venta.telefono_cliente, url_pdf)
+    except Exception as e:
+        respuesta_whatsapp = {"error": str(e)}
 
     # Conversión manual segura
     return [
