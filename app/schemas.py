@@ -231,7 +231,7 @@ class InventarioModuloCreate(BaseModel):
     clave: str
     producto: str
     precio: int
-    modulo_id: int
+    modulo: str
 
 
 class InventarioModuloUpdate(BaseModel):
