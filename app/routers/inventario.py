@@ -115,16 +115,31 @@ def obtener_inventario_general(
 def crear_producto_modulo(
     datos: schemas.InventarioModuloCreate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido([ models.RolEnum.admin]))
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
 ):
-   
-    modulo_obj = db.query(models.Modulo).filter_by(nombre=datos.modulo).first()
+    # Buscar módulo por ID en lugar de nombre
+    modulo_obj = db.query(models.Modulo).filter_by(id=datos.modulo_id).first()
     if not modulo_obj:
         raise HTTPException(status_code=404, detail="Módulo no encontrado")
 
-    existente = db.query(models.InventarioModulo).filter_by(clave=datos.clave, modulo_id=modulo_obj.id).first()
+    # Verificar si ya existe el producto en el módulo
+    existente = db.query(models.InventarioModulo).filter_by(
+        clave=datos.clave, modulo_id=modulo_obj.id
+    ).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="El producto ya existe en el módulo")
 
-    nuevo = models.InventarioModulo(producto=datos.producto, clave=datos.clave, cantidad=datos.cantidad, precio=datos.precio,  modulo_id=modulo_obj.id)
+    # Crear nuevo producto
+    nuevo = models.InventarioModulo(
+        producto=datos.producto,
+        clave=datos.clave,
+        cantidad=datos.cantidad,
+        precio=datos.precio,
+        modulo_id=modulo_obj.id
+    )
+
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
