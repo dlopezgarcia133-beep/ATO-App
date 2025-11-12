@@ -313,24 +313,24 @@ def cancelar_venta(
 
 
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List
-from datetime import datetime
-from io import BytesIO
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-import requests
-import uuid
-from supabase import create_client
+# from fastapi import APIRouter, Depends, HTTPException
+# from sqlalchemy.orm import Session
+# from sqlalchemy import func
+# from typing import List
+# from datetime import datetime
+# from io import BytesIO
+# from reportlab.pdfgen import canvas
+# from reportlab.lib.pagesizes import letter
+# import requests
+# import uuid
+# from supabase import create_client
 
-from .. import models, schemas
-from ..database import get_db
-from ..dependencies import get_current_user
-from ..config import zona_horaria  # si ya la tienes en tu config
+# from .. import models, schemas
+# from ..database import get_db
+# from ..dependencies import get_current_user
+# from ..config import zona_horaria  # si ya la tienes en tu config
 
-router = APIRouter()
+# router = APIRouter()
 
 # # --- Configuración ---
 # SUPABASE_URL = "https://TU_PROYECTO.supabase.co"
