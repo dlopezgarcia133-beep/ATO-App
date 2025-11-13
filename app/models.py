@@ -55,7 +55,7 @@ class Venta(Base):
     cancelada = Column(Boolean, default=False)
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
-    correo_cliente = Column(String, nullable=True)
+    telefono_cliente = Column(String, nullable=True)
     tipo_producto = Column(String, nullable=False)
     
     empleado = relationship("Usuario", back_populates="ventas")
