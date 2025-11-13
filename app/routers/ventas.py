@@ -78,7 +78,7 @@ def crear_ventas(
     comision_id=comision_id,
     fecha=fecha_actual.date(),
     hora=fecha_actual.time(),
-    correo_cliente=venta.correo_cliente,
+    telefono_cliente=venta.telefono_cliente,
 )
 
         db.add(nueva)
