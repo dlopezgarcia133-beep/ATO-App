@@ -11,6 +11,7 @@ from app.utilidades import verificar_rol_requerido
 from sqlalchemy.orm import Session
 from app.models import InventarioModulo
 from datetime import datetime
+from fastapi.responses import FileResponse
 
 
 router = APIRouter()
