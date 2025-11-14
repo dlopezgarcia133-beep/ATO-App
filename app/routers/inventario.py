@@ -691,7 +691,7 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     data = []
     for item in inventario:
         data.append({
-            "producto_id": item.producto_id,
+            "producto": item.producto,   # <-- CAMBIO AQUÍ
             "cantidad": item.cantidad
         })
 
@@ -718,6 +718,7 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     )
 
 
+
 @router.get("/inventario/buscar")
 def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
 
@@ -734,7 +735,7 @@ def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
     return {
         "ok": True,
         "producto": {
-            "id": producto.producto_id,
+            "producto": producto.producto,   # <-- CAMBIO AQUÍ
             "clave": producto.clave,
             "cantidad_actual": producto.cantidad
         }
