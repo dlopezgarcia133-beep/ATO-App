@@ -678,7 +678,6 @@ def eliminar_telefono(
 @router.get("/inventario/congelar/{modulo_id}")
 def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
 
-    # 1️⃣ Obtener inventario del módulo
     inventario = (
         db.query(InventarioModulo)
         .filter(InventarioModulo.modulo_id == modulo_id)
@@ -688,30 +687,32 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     if not inventario:
         return {"ok": False, "msg": "No hay inventario para ese módulo"}
 
-    # 2️⃣ Preparar DataFrame
     data = []
     for item in inventario:
         data.append({
-            "producto": item.producto,   # <-- CAMBIO AQUÍ
+            "producto": item.producto,   # Cambiado desde producto_id
             "cantidad": item.cantidad
         })
 
     df = pd.DataFrame(data)
 
-    # 3️⃣ Crear archivo Excel
+    from datetime import datetime
     fecha = datetime.now().strftime("%Y-%m-%d_%H-%M")
+
+    import os
+    output_dir = "/tmp/inventarios"
+    os.makedirs(output_dir, exist_ok=True)
+
     filename = f"inventario_modulo_{modulo_id}_congelado_{fecha}.xlsx"
-    filepath = f"/mnt/data/{filename}"
+    filepath = f"{output_dir}/{filename}"
 
     df.to_excel(filepath, index=False)
 
-    # 4️⃣ Poner cantidades en 0
     for item in inventario:
         item.cantidad = 0
 
     db.commit()
 
-    # 5️⃣ Devolver archivo Excel
     return FileResponse(
         filepath,
         filename=filename,
