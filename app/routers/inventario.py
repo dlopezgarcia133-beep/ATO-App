@@ -9,6 +9,7 @@ from app.config import get_current_user
 from app.database import get_db
 from app.utilidades import verificar_rol_requerido
 from sqlalchemy.orm import Session
+from app.models import InventarioModulo
 
 
 router = APIRouter()
@@ -559,40 +560,40 @@ async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(
 
 
 
-# Crear teléfono en inventario_general
-@router.post("/inventario/telefonos", response_model=schemas.InventarioGeneralResponse)
-def crear_telefono(
-    datos: schemas.InventarioTelefonoGeneralCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
-):
-    # Generar clave automática o esperar que venga de otro proceso
-    clave_generada = f"{datos.marca[:3].upper()}-{datos.modelo[:3].upper()}"
+# # Crear teléfono en inventario_general
+# @router.post("/inventario/telefonos", response_model=schemas.InventarioGeneralResponse)
+# def crear_telefono(
+#     datos: schemas.InventarioTelefonoGeneralCreate,
+#     db: Session = Depends(get_db),
+#     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+# ):
+#     # Generar clave automática o esperar que venga de otro proceso
+#     clave_generada = f"{datos.marca[:3].upper()}-{datos.modelo[:3].upper()}"
 
-    existente = db.query(models.InventarioGeneral).filter_by(clave=clave_generada).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="El teléfono ya está registrado en inventario.")
+#     existente = db.query(models.InventarioGeneral).filter_by(clave=clave_generada).first()
+#     if existente:
+#         raise HTTPException(status_code=400, detail="El teléfono ya está registrado en inventario.")
 
-    nuevo = models.InventarioGeneral(
-        clave=clave_generada,
-        producto=f"{datos.marca.upper()} {datos.modelo.upper()}",
-        cantidad=datos.cantidad,
-        precio=int(datos.precio),
-        tipo="telefono"
-    )
-    db.add(nuevo)
-    db.commit()
-    db.refresh(nuevo)
-    return nuevo
+#     nuevo = models.InventarioGeneral(
+#         clave=clave_generada,
+#         producto=f"{datos.marca.upper()} {datos.modelo.upper()}",
+#         cantidad=datos.cantidad,
+#         precio=int(datos.precio),
+#         tipo="telefono"
+#     )
+#     db.add(nuevo)
+#     db.commit()
+#     db.refresh(nuevo)
+#     return nuevo
 
 
-# Obtener todos los teléfonos
-@router.get("/inventario/telefonos", response_model=list[schemas.InventarioGeneralResponse])
-def obtener_telefonos(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    return db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
+# # Obtener todos los teléfonos
+# @router.get("/inventario/telefonos", response_model=list[schemas.InventarioGeneralResponse])
+# def obtener_telefonos(
+#     db: Session = Depends(get_db),
+#     current_user: models.Usuario = Depends(get_current_user)
+# ):
+#     return db.query(models.InventarioGeneral).filter_by(tipo="telefono").all()
 
 @router.post("/inventario/fisico/upload")
 def subir_inventario_fisico(
