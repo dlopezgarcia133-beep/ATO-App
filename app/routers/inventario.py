@@ -688,32 +688,32 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     if not inventario:
         return {"ok": False, "msg": "No hay inventario para ese módulo"}
 
+    # 1️⃣ Primero guardamos las cantidades ORIGINALES
     data = []
     for item in inventario:
         data.append({
-            "producto": item.producto,   # Cambiado desde producto_id
-            "cantidad": item.cantidad
+            "producto": item.producto,
+            "cantidad": item.cantidad    # <<-- aquí toma el valor original
         })
 
     df = pd.DataFrame(data)
 
-    from datetime import datetime
+    # 2️⃣ Guardar Excel ANTES de modificar cantidades
     fecha = datetime.now().strftime("%Y-%m-%d_%H-%M")
-
-    import os
     output_dir = "/tmp/inventarios"
     os.makedirs(output_dir, exist_ok=True)
 
     filename = f"inventario_modulo_{modulo_id}_congelado_{fecha}.xlsx"
     filepath = f"{output_dir}/{filename}"
-
     df.to_excel(filepath, index=False)
 
+    # 3️⃣ Ahora sí poner cantidades en 0
     for item in inventario:
         item.cantidad = 0
 
     db.commit()
 
+    # 4️⃣ Enviar Excel
     return FileResponse(
         filepath,
         filename=filename,
