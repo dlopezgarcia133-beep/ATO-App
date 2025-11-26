@@ -52,43 +52,11 @@ def actualizar_producto_inventario_general(
 
 
 
-from typing import List
-from sqlalchemy import func, Integer
-from fastapi import Query
-
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
-def obtener_productos_nombres(
-    q: str | None = Query(None, description="Texto a buscar en el nombre (opcional)"),
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-):
-    prod_col = models.InventarioModulo.producto
-
-    # Extrae el número que sigue a $ (si existe). Ej: "ADAPTADOR $120" -> "120" (text)
-    cantidad_texto = func.substring(prod_col, r'\$(\d+)')
-
-    # Castea a Integer; si no hay número quedará NULL
-    cantidad_num = func.cast(cantidad_texto, Integer)
-
-    # Fallback para NULL: poner un número muy grande para que queden al final
-    cantidad_para_orden = func.coalesce(cantidad_num, 999999)
-
-    query = db.query(prod_col)
-
-    # Si nos pasan ?q=texto, filtramos por ese texto (ilike = case-insensitive)
-    if q:
-        query = query.filter(prod_col.ilike(f"%{q}%"))
-
-    # distinct() sobre el producto y ordenar por la cantidad numérica extraída
-    productos = (
-        query
-        .distinct()
-        .order_by(cantidad_para_orden.asc(), prod_col.asc())
-        .all()
-    )
-
+def obtener_productos_nombres(db: Session = Depends(get_db),
+                             current_user: models.Usuario = Depends(get_current_user)):
+    productos = db.query(models.InventarioModulo.producto).distinct().all()
     return [p[0] for p in productos]
-
 
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
