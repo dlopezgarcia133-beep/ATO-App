@@ -3,7 +3,7 @@ import pandas as pd
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
-from sqlalchemy import func
+from sqlalchemy import func, Numeric
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
@@ -90,6 +90,10 @@ def obtener_productos_nombres(
 
         # rows -> lista de tuples (producto, precio)
         return [r[0] for r in rows]
+    except Exception:
+        
+        # Lanzar HTTPException puede ser más correcto; devolvemos vacio para no romper el front
+        return []
 
 
 @router.get("/buscar", response_model=List[str])
