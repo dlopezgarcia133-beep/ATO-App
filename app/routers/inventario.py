@@ -3,7 +3,7 @@ import pandas as pd
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
-from sqlalchemy import func, Numeric
+from sqlalchemy import func
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
@@ -52,49 +52,11 @@ def actualizar_producto_inventario_general(
 
 
 
-from sqlalchemy import func, Integer
-
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
-def obtener_productos_nombres(
-    q: str | None = Query(None, description="Texto a buscar en el nombre (opcional)"),
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    prod = models.InventarioModulo.producto
-
-    try:
-        # Solo productos que contienen '$'
-        base_q = db.query(
-            prod.label("producto"),
-            # Capturamos lo que sigue al $: aceptamos dígitos, comas y puntos
-            func.cast(
-                func.regexp_replace(
-                    func.regexp_replace(func.regexp_replace(prod, r'.*\$([0-9\.,]+).*', r'\1'), r',', '', 'g'),
-                    r'[^\d\.]', '', 'g'
-                ),
-                Numeric
-            ).label("precio")
-        ).filter(prod.contains("$"))
-
-        if q:
-            base_q = base_q.filter(prod.ilike(f"%{q}%"))
-
-        # Agrupamos por producto y precio para evitar problemas con DISTINCT,
-        # y ordenamos por precio ascendente y luego por nombre asc
-        rows = (
-            base_q
-            .group_by("producto", "precio")
-            .order_by(func.coalesce(func.nullif(func.cast(func.column("precio"), Numeric), None), 999999999).asc(), func.upper(func.trim(func.column("producto"))))
-            .all()
-        )
-
-        # rows -> lista de tuples (producto, precio)
-        return [r[0] for r in rows]
-    except Exception:
-        
-        # Lanzar HTTPException puede ser más correcto; devolvemos vacio para no romper el front
-        return []
-
+def obtener_productos_nombres(db: Session = Depends(get_db),
+                             current_user: models.Usuario = Depends(get_current_user)):
+    productos = db.query(models.InventarioModulo.producto).distinct().all()
+    return [p[0] for p in productos]
 
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
