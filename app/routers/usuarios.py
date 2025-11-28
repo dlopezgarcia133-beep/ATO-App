@@ -8,10 +8,6 @@ from app.database import get_db
 from app.routers.auth import hashear_contraseña
 from app.utilidades import verificar_rol_requerido
 
-from typing import List
-from sqlalchemy import func
-from fastapi import Query
-
 
 
 
@@ -152,19 +148,9 @@ def eliminar_usuario(
     return {"mensaje": f"Usuario '{usuario.username}' eliminado correctamente"}
 
 
-@router.get("/usuarios", response_model=List[schemas.UsuarioResponse])
+@router.get("/usuarios", response_model=list[schemas.UsuarioResponse])
 def obtener_usuarios(
-    letra: str | None = Query(None, min_length=1, max_length=1, description="Letra inicial (opcional)"),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    q = db.query(models.Usuario)
-
-    if letra:
-        letra_up = letra.upper()
-        # Usamos substr para comparar primera letra (case-insensitive)
-        q = q.filter(func.upper(func.substr(func.trim(models.Usuario.nombre), 1, 1)) == letra_up)
-
-    # Ordenamos por nombre (sin distinguir mayúsc/minúsc)
-    q = q.order_by(func.upper(func.trim(models.Usuario.nombre)))
-    return q.all()
+    return db.query(models.Usuario).all()
