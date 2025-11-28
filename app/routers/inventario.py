@@ -56,30 +56,40 @@ from sqlalchemy import func, Integer
 
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
 def obtener_productos_nombres(
+    q: str | None = Query(None, description="Texto a buscar en el nombre (opcional)"),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     prod = models.InventarioModulo.producto
 
-    # Extraer solo productos que sí tienen $ en su nombre
-    productos_con_precio = db.query(prod).filter(prod.contains("$"))
+    try:
+        # Solo productos que contienen '$'
+        base_q = db.query(
+            prod.label("producto"),
+            # Capturamos lo que sigue al $: aceptamos dígitos, comas y puntos
+            func.cast(
+                func.regexp_replace(
+                    func.regexp_replace(func.regexp_replace(prod, r'.*\$([0-9\.,]+).*', r'\1'), r',', '', 'g'),
+                    r'[^\d\.]', '', 'g'
+                ),
+                Numeric
+            ).label("precio")
+        ).filter(prod.contains("$"))
 
-    # Extraer el número después del $
-    precio_texto = func.substring(prod, r'\$(\d+)')  # captura SOLO el número después del $
+        if q:
+            base_q = base_q.filter(prod.ilike(f"%{q}%"))
 
-    # Convertirlo a entero
-    precio_num = func.cast(precio_texto, Integer)
+        # Agrupamos por producto y precio para evitar problemas con DISTINCT,
+        # y ordenamos por precio ascendente y luego por nombre asc
+        rows = (
+            base_q
+            .group_by("producto", "precio")
+            .order_by(func.coalesce(func.nullif(func.cast(func.column("precio"), Numeric), None), 999999999).asc(), func.upper(func.trim(func.column("producto"))))
+            .all()
+        )
 
-    # Ordenar por el precio numérico ascendente
-    productos_ordenados = (
-        productos_con_precio
-        .distinct()
-        .order_by(precio_num.asc())
-        .all()
-    )
-
-    # Regresar solo la cadena del nombre
-    return [p[0] for p in productos_ordenados]
+        # rows -> lista de tuples (producto, precio)
+        return [r[0] for r in rows]
 
 
 @router.get("/buscar", response_model=List[str])
