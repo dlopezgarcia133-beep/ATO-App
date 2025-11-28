@@ -52,11 +52,35 @@ def actualizar_producto_inventario_general(
 
 
 
+from sqlalchemy import func, Integer
+
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
-def obtener_productos_nombres(db: Session = Depends(get_db),
-                             current_user: models.Usuario = Depends(get_current_user)):
-    productos = db.query(models.InventarioModulo.producto).distinct().all()
-    return [p[0] for p in productos]
+def obtener_productos_nombres(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    prod = models.InventarioModulo.producto
+
+    # Extraer solo productos que sí tienen $ en su nombre
+    productos_con_precio = db.query(prod).filter(prod.contains("$"))
+
+    # Extraer el número después del $
+    precio_texto = func.substring(prod, r'\$(\d+)')  # captura SOLO el número después del $
+
+    # Convertirlo a entero
+    precio_num = func.cast(precio_texto, Integer)
+
+    # Ordenar por el precio numérico ascendente
+    productos_ordenados = (
+        productos_con_precio
+        .distinct()
+        .order_by(precio_num.asc())
+        .all()
+    )
+
+    # Regresar solo la cadena del nombre
+    return [p[0] for p in productos_ordenados]
+
 
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
