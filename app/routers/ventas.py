@@ -772,68 +772,182 @@ def corte_general(
 
 
 
-@router.get("/ventas/cortes")
-def obtener_cortes(
-    fecha: date = Query(None),
-    modulo_id: int = Query(None),
+@router.post("/ventas/multiples", response_model=List[schemas.VentaResponse])
+def crear_ventas_multiples(
+    venta: schemas.VentaMultipleCreate,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(models.CorteDia)
+    ventas_realizadas = []
 
-    if fecha:
-        query = query.filter(models.CorteDia.fecha == fecha)
-    if modulo_id:
-        query = query.filter(models.CorteDia.modulo_id == modulo_id)
+    # calcular la fecha/hora una sola vez (evita inconsistencias por zona horaria)
+    fecha_actual = datetime.now(zona_horaria)
 
-    cortes = query.order_by(models.CorteDia.fecha.desc()).all()
+    for item in venta.productos:
+        com = (
+            db.query(models.Comision)
+            .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
+            .first()
+        )
+        comision_id = com.id if com else None
+        modulo_id = current_user.modulo.id
 
-    cortes_completos = []
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == modulo_id,
+                models.InventarioModulo.producto == item.producto
+            )
+            .first()
+        )
 
-    for corte in cortes:
-        # 🔍 Obtener ventas por fecha y módulo, y que no estén canceladas
-        ventas = db.query(models.Venta).filter(
-            func.date(models.Venta.fecha) == corte.fecha,
-            models.Venta.modulo_id == corte.modulo_id,
-            models.Venta.cancelada == False
-        ).all()
+        if not inventario:
+            raise HTTPException(status_code=400, detail=f"No hay inventario para el producto: {item.producto}")
 
-        # 🔄 Convertir a dict y agregar las ventas
-        cortes_completos.append({
-            "fecha": corte.fecha,
-            "total_efectivo": corte.total_efectivo,
-            "total_tarjeta": corte.total_tarjeta,
-            "adicional_recargas": corte.adicional_recargas,
-            "adicional_transporte": corte.adicional_transporte,
-            "adicional_otros": corte.adicional_otros,
-            "total_sistema": corte.total_sistema,
-            "total_general": corte.total_general,
-            "modulo_id": corte.modulo_id,
-            "accesorios_efectivo": corte.accesorios_efectivo,
-            "accesorios_tarjeta": corte.accesorios_tarjeta,
-            "accesorios_total": corte.accesorios_total,
-            "telefonos_efectivo": corte.telefonos_efectivo,
-            "telefonos_tarjeta": corte.telefonos_tarjeta,
-            "telefonos_total": corte.telefonos_total,
+        if inventario.cantidad < item.cantidad:
+            raise HTTPException(status_code=400, detail=f"Inventario insuficiente para el producto: {item.producto}")
 
-            # 👇 Aquí incluyes las ventas (ya sea accesorio o teléfono)
-            "ventas": [
-                {
-                    "id": v.id,
-                    "producto": v.producto,
-                    "tipo_producto": v.tipo_producto,
-                    "tipo_venta": v.tipo_venta,
-                    "precio_unitario": v.precio_unitario,
-                    "cantidad": v.cantidad,
-                    "total": v.total,
-                    "fecha": v.fecha,
-                   
-                }
-                for v in ventas
-            ]
-        })
+        # disminuir inventario
+        inventario.cantidad -= item.cantidad
 
-    return cortes_completos
+        # detectar tipo de producto buscando la palabra TELEFONO en cualquier parte
+        tipo_producto = (
+            "telefono"
+            if "TELEFONO" in item.producto.strip().upper()
+            else "accesorio"
+        )
+
+        nueva = models.Venta(
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            total=item.cantidad * item.precio_unitario,
+            metodo_pago=venta.metodo_pago,
+            comision_id=comision_id,
+            tipo_producto=tipo_producto,
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
+            telefono_cliente=venta.telefono_cliente,
+        )
+
+        db.add(nueva)
+        ventas_realizadas.append(nueva)
+
+    # confirmar transacción de ventas e inventario
+    db.commit()
+
+    # refrescar objetos creados para tener los id y relaciones
+    for v in ventas_realizadas:
+        db.refresh(v)
+
+    # --- UPSET/ACTUALIZACIÓN de CorteDia ---
+    try:
+        # obtener o crear corte para la fecha y módulo
+        fecha_corte = fecha_actual.date()
+        modulo_id = current_user.modulo.id
+
+        corte = db.query(models.CorteDia).filter(
+            models.CorteDia.fecha == fecha_corte,
+            models.CorteDia.modulo_id == modulo_id
+        ).first()
+
+        if not corte:
+            corte = models.CorteDia(
+                fecha=fecha_corte,
+                modulo_id=modulo_id,
+                total_efectivo=0.0,
+                total_tarjeta=0.0,
+                adicional_recargas=0.0,
+                adicional_transporte=0.0,
+                adicional_otros=0.0,
+                total_sistema=0.0,
+                total_general=0.0,
+                accesorios_efectivo=0.0,
+                accesorios_tarjeta=0.0,
+                accesorios_total=0.0,
+                telefonos_efectivo=0.0,
+                telefonos_tarjeta=0.0,
+                telefonos_total=0.0
+            )
+            db.add(corte)
+            db.flush()  # asegura que corte tenga id si es necesario
+
+        # Sumarizar las ventas realizadas en este request al corte
+        suma_request = 0.0
+        for v in ventas_realizadas:
+            pago = (v.metodo_pago or "").strip().lower()
+            es_efectivo = pago == "efectivo" or pago == "cash"  # ajusta si tienes otros valores
+            total_v = float(v.total or 0)
+
+            if es_efectivo:
+                corte.total_efectivo = (corte.total_efectivo or 0) + total_v
+                if v.tipo_producto == "accesorio":
+                    corte.accesorios_efectivo = (corte.accesorios_efectivo or 0) + total_v
+                else:
+                    corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + total_v
+            else:
+                # todo lo que no sea "efectivo" lo acumulamos en tarjeta (ajusta según necesites)
+                corte.total_tarjeta = (corte.total_tarjeta or 0) + total_v
+                if v.tipo_producto == "accesorio":
+                    corte.accesorios_tarjeta = (corte.accesorios_tarjeta or 0) + total_v
+                else:
+                    corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + total_v
+
+            # totales por tipo
+            if v.tipo_producto == "accesorio":
+                corte.accesorios_total = (corte.accesorios_total or 0) + total_v
+            else:
+                corte.telefonos_total = (corte.telefonos_total or 0) + total_v
+
+            # acumulador para total sistema y general
+            corte.total_sistema = (corte.total_sistema or 0) + total_v
+            suma_request += total_v
+
+        # Actualizar total_general (si quieres incluir ya las adicionales, agrégalas aquí)
+        corte.total_general = (corte.total_general or 0) + suma_request
+
+        db.commit()
+        # opcional: db.refresh(corte)
+    except Exception as e:
+        # No queremos romper la respuesta si falla la actualización del corte,
+        # pero sí devolvemos información del error en logs.
+        db.rollback()
+        # loguear e.g. logger.error(...) si tienes logger
+        print("Error actualizando CorteDia:", e)
+
+    # Generar ticket PDF y enviar por WhatsApp
+    try:
+        pdf_buffer = generar_ticket_pdf(
+            cliente=venta.cliente if hasattr(venta, "cliente") else "Cliente",
+            telefono=venta.telefono_cliente,
+            ventas=ventas_realizadas,
+        )
+        url_pdf = subir_ticket_supabase(pdf_buffer)
+        respuesta_whatsapp = enviar_ticket_whatsapp(venta.telefono_cliente, url_pdf)
+    except Exception as e:
+        respuesta_whatsapp = {"error": str(e)}
+
+    # Conversión manual segura y respuesta
+    return [
+        schemas.VentaResponse(
+            id=v.id,
+            empleado=schemas.UsuarioResponse.from_orm(v.empleado) if v.empleado else None,
+            modulo=v.modulo,
+            producto=v.producto,
+            cantidad=v.cantidad,
+            precio_unitario=v.precio_unitario,
+            metodo_pago=v.metodo_pago,
+            total=v.precio_unitario * v.cantidad,
+            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            fecha=v.fecha,
+            hora=v.hora,
+            cancelada=v.cancelada
+        )
+        for v in ventas_realizadas
+    ]
+
 
 
 
