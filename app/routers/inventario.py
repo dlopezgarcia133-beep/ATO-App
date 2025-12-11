@@ -1,5 +1,6 @@
 import datetime
 import pandas as pd
+import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
@@ -54,7 +55,7 @@ def actualizar_producto_inventario_general(
 
 @router.get("/inventario/general/productos-nombres", response_model=List[str])
 def obtener_productos_nombres(db: Session = Depends(get_db),
-                             current_user: models.Usuario = Depends(get_current_user)):
+     current_user: models.Usuario = Depends(get_current_user)):
     productos = db.query(models.InventarioModulo.producto).distinct().all()
     return [p[0] for p in productos]
 
@@ -678,7 +679,6 @@ def eliminar_telefono(
 
 @router.get("/inventario/congelar/{modulo_id}")
 def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
-
     inventario = (
         db.query(InventarioModulo)
         .filter(InventarioModulo.modulo_id == modulo_id)
@@ -688,36 +688,38 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     if not inventario:
         return {"ok": False, "msg": "No hay inventario para ese módulo"}
 
-    # 1️⃣ Primero guardamos las cantidades ORIGINALES
-    data = []
+    # 1) Preparar datos para el Excel (tomamos valores actuales)
+    rows = []
     for item in inventario:
-        data.append({
-            "producto": item.producto,
-            "cantidad": item.cantidad    # <<-- aquí toma el valor original
+        rows.append({
+            "inventario_id": item.id,            # id del registro de inventario (útil para luego)
+            "producto": item.producto,           # id del producto o referencia que uses
+            "clave": getattr(item, "clave", ""),
+            "cantidad_anterior": item.cantidad
         })
 
-    df = pd.DataFrame(data)
+    # 2) Poner cantidades a 0 dentro de transacción
+    try:
+        for item in inventario:
+            item.cantidad = 0
+            db.add(item)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al congelar inventario: {e}")
 
-    # 2️⃣ Guardar Excel ANTES de modificar cantidades
-    fecha = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    output_dir = "/tmp/inventarios"
-    os.makedirs(output_dir, exist_ok=True)
+    # 3) Generar Excel en memoria y devolver (StreamingResponse)
+    df = pd.DataFrame(rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="inventario_previo", index=False)
+    output.seek(0)
 
-    filename = f"inventario_modulo_{modulo_id}_congelado_{fecha}.xlsx"
-    filepath = f"{output_dir}/{filename}"
-    df.to_excel(filepath, index=False)
-
-    # 3️⃣ Ahora sí poner cantidades en 0
-    for item in inventario:
-        item.cantidad = 0
-
-    db.commit()
-
-    # 4️⃣ Enviar Excel
-    return FileResponse(
-        filepath,
-        filename=filename,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    filename = f"inventario_modulo_{modulo_id}_congelado_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
