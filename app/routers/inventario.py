@@ -1,6 +1,7 @@
 import datetime
 import pandas as pd
 import os
+import io
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
@@ -678,7 +679,24 @@ def eliminar_telefono(
 
 
 @router.get("/inventario/congelar/{modulo_id}")
-def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
+def congelar_inventario(modulo_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """
+    Genera un Excel con las cantidades actuales y luego pone a 0 las cantidades
+    del módulo. Solo accesible para admins.
+    """
+
+    # --- 1) Validar permiso de admin ---
+    # Ajusta la comprobación según tu modelo de usuario real.
+    is_admin = False
+    if hasattr(current_user, "is_admin"):
+        is_admin = bool(getattr(current_user, "is_admin"))
+    elif hasattr(current_user, "role"):
+        is_admin = getattr(current_user, "role") in ("admin", "superadmin", "owner")
+    # Si tu user tiene otro campo, reemplaza la lógica anterior.
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden congelar el inventario")
+
+    # --- 2) Leer inventario del módulo ---
     inventario = (
         db.query(InventarioModulo)
         .filter(InventarioModulo.modulo_id == modulo_id)
@@ -686,19 +704,30 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
     )
 
     if not inventario:
-        return {"ok": False, "msg": "No hay inventario para ese módulo"}
+        raise HTTPException(status_code=404, detail="No hay inventario para ese módulo")
 
-    # 1) Preparar datos para el Excel (tomamos valores actuales)
+    # --- 3) Preparar datos para Excel (tomar cantidades actuales) ---
     rows = []
     for item in inventario:
         rows.append({
-            "inventario_id": item.id,            # id del registro de inventario (útil para luego)
-            "producto": item.producto,           # id del producto o referencia que uses
+            "inventario_id": item.id,
+            "producto": getattr(item, "producto", ""),
             "clave": getattr(item, "clave", ""),
             "cantidad_anterior": item.cantidad
         })
 
-    # 2) Poner cantidades a 0 dentro de transacción
+    # --- 4) Generar Excel EN MEMORIA (bytes buffer) ---
+    try:
+        df = pd.DataFrame(rows)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="inventario_previo", index=False)
+        output.seek(0)
+    except Exception as e:
+        # Si la generación del archivo falla, no tocamos la BD
+        raise HTTPException(status_code=500, detail=f"Error generando Excel: {e}")
+
+    # --- 5) Poner cantidades a 0 en la BD (dentro de try/except para rollback) ---
     try:
         for item in inventario:
             item.cantidad = 0
@@ -706,22 +735,16 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db)):
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al congelar inventario: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al setear cantidades a 0: {e}")
 
-    # 3) Generar Excel en memoria y devolver (StreamingResponse)
-    df = pd.DataFrame(rows)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="inventario_previo", index=False)
-    output.seek(0)
-
+    # --- 6) Devolver el Excel como streaming response (descarga en cliente) ---
     filename = f"inventario_modulo_{modulo_id}_congelado_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers=headers
     )
-
 
 
 @router.get("/inventario/buscar")
