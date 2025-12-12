@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models import InventarioModulo
 from datetime import datetime
 from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 
 
 router = APIRouter()
