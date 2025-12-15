@@ -597,6 +597,46 @@ async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(
 
 
 
+
+
+@router.post("/guardar_conteo")
+def guardar_conteo(
+    data: ConteoInventarioRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    # 🔐 Solo admins
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if not data.productos:
+        raise HTTPException(status_code=400, detail="No hay productos para guardar")
+
+    for item in data.productos:
+        registro = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.id == item.producto_id,
+                models.InventarioModulo.modulo_id == data.modulo_id
+            )
+            .first()
+        )
+
+        if not registro:
+            continue  # si no existe, lo ignoramos
+
+        # ✅ Aquí se guarda el conteo físico REAL
+        registro.cantidad = item.cantidad
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "message": "Inventario actualizado correctamente con conteo físico"
+    }
+
+
+
 # # Crear teléfono en inventario_general
 # @router.post("/inventario/telefonos", response_model=schemas.InventarioGeneralResponse)
 # def crear_telefono(
