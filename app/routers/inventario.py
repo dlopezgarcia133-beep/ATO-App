@@ -255,12 +255,12 @@ def eliminar_producto_modulo(
 
 
 
-@router.get("inventario/buscar")
-def buscar_producto(modulo_id: int = Query(...), clave: str = Query(...), db: Session = Depends(get_db)):
-    """
-    Buscar un producto dentro del inventario por modulo_id y clave.
-    Devuelve { ok: True, producto: {...} } o { ok: False, msg: "Producto no encontrado" }.
-    """
+@router.get("/inventario/buscar")
+def buscar_producto(
+    modulo_id: int = Query(...),
+    clave: str = Query(...),
+    db: Session = Depends(get_db)
+):
     producto = (
         db.query(models.InventarioModulo)
         .filter(models.InventarioModulo.modulo_id == modulo_id)
@@ -271,17 +271,16 @@ def buscar_producto(modulo_id: int = Query(...), clave: str = Query(...), db: Se
     if not producto:
         return {"ok": False, "msg": "Producto no encontrado"}
 
-    # Ajusta los campos que quieres exponer al frontend:
     return {
         "ok": True,
         "producto": {
-            "id": producto.id,
+            "id": producto.id,              # ✅ OBLIGATORIO
             "producto": producto.producto,
             "clave": producto.clave,
-            "cantidad_actual": producto.cantidad,
-            
+            "cantidad_actual": producto.cantidad
         }
     }
+
 
 
 
