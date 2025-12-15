@@ -279,7 +279,7 @@ def buscar_producto(modulo_id: int = Query(...), clave: str = Query(...), db: Se
             "producto": producto.producto,
             "clave": producto.clave,
             "cantidad_actual": producto.cantidad,
-            // agrega otros campos si los necesitas: precio, descripcion, etc.
+            
         }
     }
 
