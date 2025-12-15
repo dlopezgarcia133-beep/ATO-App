@@ -601,7 +601,7 @@ async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(
 
 @router.post("/guardar_conteo")
 def guardar_conteo(
-    data: ConteoInventarioRequest,
+    data: schemas.ConteoInventarioRequest,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
