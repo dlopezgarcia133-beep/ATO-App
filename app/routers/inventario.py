@@ -143,7 +143,8 @@ def crear_producto_modulo(
         clave=datos.clave,
         cantidad=datos.cantidad,
         precio=datos.precio,
-        modulo_id=modulo_obj.id
+        modulo_id=modulo_obj.id,
+        tipo_producto=datos.tipo_producto
     )
 
     db.add(nuevo)

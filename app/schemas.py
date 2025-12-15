@@ -232,6 +232,7 @@ class InventarioModuloCreate(BaseModel):
     producto: str
     precio: int
     modulo_id: int
+    tipo_producto: Optional[str] = None
 
 
 class InventarioModuloUpdate(BaseModel):
@@ -245,7 +246,8 @@ class InventarioModuloResponse(BaseModel):
     clave : str
     cantidad: int
     precio: int
-    modulo: ModuloOut
+    modulo: ModuloOut  
+    tipo_producto: str
 
     class Config:
         from_attributes = True
