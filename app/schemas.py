@@ -247,7 +247,6 @@ class InventarioModuloResponse(BaseModel):
     cantidad: int
     precio: int
     modulo: ModuloOut  
-    tipo_producto: str
 
     class Config:
         from_attributes = True
