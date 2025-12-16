@@ -1,5 +1,5 @@
 
-from unittest import case
+from sqlalchemy import case
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
 from sqlalchemy.orm import Session
@@ -149,6 +149,8 @@ def eliminar_usuario(
     return {"mensaje": f"Usuario '{usuario.username}' eliminado correctamente"}
 
 
+
+
 @router.get("/usuarios", response_model=list[schemas.UsuarioResponse])
 def obtener_usuarios(
     db: Session = Depends(get_db),
@@ -156,7 +158,7 @@ def obtener_usuarios(
         verificar_rol_requerido(models.RolEnum.admin)
     )
 ):
-    usuarios = (
+    return (
         db.query(models.Usuario)
         .order_by(
             case(
@@ -168,6 +170,3 @@ def obtener_usuarios(
         )
         .all()
     )
-
-    return usuarios
-
