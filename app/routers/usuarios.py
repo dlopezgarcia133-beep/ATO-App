@@ -159,16 +159,15 @@ def obtener_usuarios(
     usuarios = (
         db.query(models.Usuario)
         .order_by(
-            # 1️⃣ Admins primero (no A ni C)
             case(
-                (models.Usuario.nombre.ilike("A%"), 1),
-                (models.Usuario.nombre.ilike("C%"), 2),
+                (models.Usuario.username.ilike("A%"), 1),
+                (models.Usuario.username.ilike("C%"), 2),
                 else_=0
             ),
-            # 2️⃣ Orden alfabético dentro del grupo
-            models.Usuario.nombre.asc()
+            models.Usuario.username.asc()
         )
         .all()
     )
 
     return usuarios
+
