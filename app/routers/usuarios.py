@@ -151,6 +151,23 @@ def eliminar_usuario(
 @router.get("/usuarios", response_model=list[schemas.UsuarioResponse])
 def obtener_usuarios(
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido(models.RolEnum.admin)
+    )
 ):
-    return db.query(models.Usuario).all()
+    usuarios = (
+        db.query(models.Usuario)
+        .order_by(
+            # 1️⃣ Admins primero (no A ni C)
+            case(
+                (models.Usuario.nombre.ilike("A%"), 1),
+                (models.Usuario.nombre.ilike("C%"), 2),
+                else_=0
+            ),
+            # 2️⃣ Orden alfabético dentro del grupo
+            models.Usuario.nombre.asc()
+        )
+        .all()
+    )
+
+    return usuarios
