@@ -1,4 +1,5 @@
 
+from unittest import case
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
 from sqlalchemy.orm import Session
