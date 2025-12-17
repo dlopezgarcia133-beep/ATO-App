@@ -416,3 +416,12 @@ class ProductoConteo(BaseModel):
 class ConteoInventarioRequest(BaseModel):
     modulo_id: int
     productos: List[ProductoConteo]
+
+
+class EntradaItem(BaseModel):
+    producto_id: int
+    cantidad: int
+
+class EntradaMercanciaRequest(BaseModel):
+    modulo_id: int
+    productos: list[EntradaItem]

@@ -129,6 +129,34 @@ def obtener_inventario_general(
 
 
 
+@router.post("/inventario/entrada_mercancia")
+def entrada_mercancia(
+    data: schemas.EntradaMercanciaRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    for item in data.productos:
+        registro = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.id == item.producto_id,
+                models.InventarioModulo.modulo_id == data.modulo_id
+            )
+            .first()
+        )
+
+        if not registro:
+            continue
+
+        registro.cantidad += item.cantidad  # 🔥 SUMA
+
+    db.commit()
+
+    return {"ok": True, "message": "Mercancía agregada correctamente"}
+
 
 
 @router.post("/inventario/modulo", response_model=schemas.InventarioModuloResponse)
