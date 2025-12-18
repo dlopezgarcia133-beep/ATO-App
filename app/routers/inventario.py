@@ -55,6 +55,41 @@ def actualizar_producto_inventario_general(
 
 
 
+
+@router.get("/inventario/inventario/buscar-autocomplete")
+def buscar_productos_autocomplete(
+    modulo_id: int,
+    q: str,
+    db: Session = Depends(get_db)
+):
+    productos = (
+        db.query(
+            InventarioModulo.id,
+            InventarioModulo.producto,
+            InventarioModulo.clave
+        )
+        .filter(
+            InventarioModulo.modulo_id == modulo_id,
+            (
+                InventarioModulo.clave.ilike(f"%{q}%") |
+                InventarioModulo.producto.ilike(f"%{q}%")
+            )
+        )
+        .order_by(InventarioModulo.producto.asc())
+        .limit(20)
+        .all()
+    )
+
+    return [
+        {
+            "id": p.id,
+            "producto": p.producto,
+            "clave": p.clave
+        }
+        for p in productos
+    ]
+
+
 @router.get(
     "/inventario/general/productos-nombres",
     response_model=List[str]
