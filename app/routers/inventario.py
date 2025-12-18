@@ -56,7 +56,7 @@ def actualizar_producto_inventario_general(
 
 
 
-@router.get("/inventario/inventario/buscar-autocomplete")
+@router.get("/inventario/buscar-autocomplete")
 def buscar_productos_autocomplete(
     modulo_id: int,
     q: str,
