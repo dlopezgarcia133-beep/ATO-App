@@ -15,6 +15,8 @@ from app.models import InventarioModulo
 from datetime import datetime
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
+from io import BytesIO
+
 
 
 router = APIRouter()
