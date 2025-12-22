@@ -90,6 +90,53 @@ def buscar_productos_autocomplete(
     ]
 
 
+
+@router.get("/inventario/descargar/{modulo_id}")
+def descargar_inventario_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    # 🔒 SOLO ADMIN
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    productos = (
+        db.query(models.InventarioModulo)
+        .filter(models.InventarioModulo.modulo_id == modulo_id)
+        .all()
+    )
+
+    if not productos:
+        raise HTTPException(status_code=404, detail="Inventario vacío")
+
+
+
+    data = [
+        {
+            "Clave": p.clave,
+            "Producto": p.producto,
+            "Cantidad": p.cantidad,
+            "Precio": p.precio
+        }
+        for p in productos
+    ]
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=inventario_modulo_{modulo_id}.xlsx"
+        }
+    )
+
+
+
 @router.get(
     "/inventario/general/productos-nombres",
     response_model=List[str]
