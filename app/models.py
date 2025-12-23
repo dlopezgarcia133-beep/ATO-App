@@ -275,7 +275,7 @@ class NominaEmpleado(Base):
     id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     periodo_id = Column(Integer, ForeignKey("nomina_periodo.id"))
-
+    grupo = Column(String(1), nullable=False)
     sueldo_base = Column(Float, default=0)
     horas_extra = Column(Float, default=0)
     pago_horas_extra = Column(Float, default=0)
