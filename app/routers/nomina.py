@@ -12,22 +12,20 @@ router = APIRouter()
 
 @router.get("/periodo/activo", response_model=NominaPeriodoResponse)
 def obtener_periodo_activo(
+    grupo: Literal["A", "C"],
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    periodo = (
-        db.query(NominaPeriodo)
-        .filter(NominaPeriodo.activa == True)
-        .first()
-    )
+    periodo = db.query(NominaPeriodo).filter(
+        NominaPeriodo.activa == True,
+        NominaPeriodo.grupo == grupo
+    ).first()
 
     if not periodo:
-        raise HTTPException(
-            status_code=404,
-            detail="No hay un periodo de nómina activo"
-        )
+        raise HTTPException(404, "No hay periodo activo")
 
     return periodo
+
 
 
 def verificar_admin(user):
@@ -46,19 +44,21 @@ def activar_periodo_nomina(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    verificar_admin(current_user)
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
 
-    # Desactivar periodos anteriores
+    # 🔹 cerrar periodo activo del mismo grupo
     db.query(NominaPeriodo).filter(
-        NominaPeriodo.activa == True
+        NominaPeriodo.activa == True,
+        NominaPeriodo.grupo == data.grupo
     ).update({"activa": False})
 
-    # Crear nuevo periodo
     nuevo = NominaPeriodo(
         fecha_inicio=data.fecha_inicio,
         fecha_fin=data.fecha_fin,
+        grupo=data.grupo,
         activa=True,
-        estado="abierta"
+        cerrada=False
     )
 
     db.add(nuevo)
