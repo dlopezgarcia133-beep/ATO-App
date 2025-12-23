@@ -20,7 +20,7 @@ app.include_router(comisiones.router, prefix="/comisiones", tags=["Comisiones"])
 app.include_router(traspasos.router, prefix="/traspasos", tags=["Traspasos"])
 app.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 app.include_router(inventarioTelefonos.router, prefix="/inventario_telefonos", tags=["Inventario Telefonos"])
-app.include_router(usuarios.router, prefix="/nomina", tags=["Nomina"])
+app.include_router(nomina.router, prefix="/nomina", tags=["Nomina"])
 
 app.add_middleware(
     CORSMiddleware,
