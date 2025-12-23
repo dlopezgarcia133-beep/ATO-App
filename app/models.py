@@ -266,7 +266,7 @@ class NominaPeriodo(Base):
     fecha_fin = Column(Date, nullable=False)
     activa = Column(Boolean, default=False)
     estado = Column(String(20), default="abierta")  # abierta | congelada | pagada
-    creado = Column(Timestamp, server_default=func.now())
+    creado = Column(DateTime, server_default=func.now())
 
 
 class NominaEmpleado(Base):
