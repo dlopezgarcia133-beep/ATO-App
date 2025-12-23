@@ -1,4 +1,5 @@
 import enum
+from sqlite3.dbapi2 import Timestamp
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
@@ -254,3 +255,27 @@ class InventarioTelefonoFisico(Base):
     clave = Column(String)
     cantidad = Column(Integer)
     fecha = Column(DateTime, default=datetime.utcnow)
+
+
+
+class NominaPeriodo(Base):
+    __tablename__ = "nomina_periodo"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha_inicio = Column(Date, nullable=False)
+    fecha_fin = Column(Date, nullable=False)
+    activa = Column(Boolean, default=False)
+    estado = Column(String(20), default="abierta")  # abierta | congelada | pagada
+    creado = Column(Timestamp, server_default=func.now())
+
+
+class NominaEmpleado(Base):
+    __tablename__ = "nomina_empleados"
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    periodo_id = Column(Integer, ForeignKey("nomina_periodos.id"))
+
+    sueldo_base = Column(Float, default=0)
+    horas_extra = Column(Float, default=0)
+    pago_horas_extra = Column(Float, default=0)

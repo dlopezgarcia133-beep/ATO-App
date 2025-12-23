@@ -425,3 +425,36 @@ class EntradaItem(BaseModel):
 class EntradaMercanciaRequest(BaseModel):
     modulo_id: int
     productos: list[EntradaItem]
+
+
+class NominaPeriodoResponse(BaseModel):
+    id: int
+    fecha_inicio: date
+    fecha_fin: date
+    estado: str
+
+    class Config:
+        from_attributes = True
+
+class NominaPeriodoCreate(BaseModel):
+    fecha_inicio: date
+    fecha_fin: date
+
+
+class NominaEmpleadoResponse(BaseModel):
+    usuario_id: int
+    usuario: str
+    nombre: str
+    rol: str
+
+    comisiones: float
+    sueldo_base: float
+    horas_extra: float
+    pago_horas_extra: float
+
+    total_pagar: float
+
+
+class NominaEmpleadoUpdate(BaseModel):
+    sueldo_base: float
+    horas_extra: float
