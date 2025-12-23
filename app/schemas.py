@@ -3,6 +3,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time
 from app.models import EstadoTraspasoEnum, RolEnum
+from typing import Literal
 
 
 class AsistenciaBase(BaseModel):
