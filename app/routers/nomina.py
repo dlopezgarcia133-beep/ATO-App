@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import NominaPeriodo
-from app.schemas import NominaPeriodoResponse
+from app.models import NominaEmpleado, NominaPeriodo
+from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
+from app.services import calcular_totales_comisiones
 
 
 router = APIRouter()
@@ -92,12 +93,15 @@ def obtener_resumen_nomina(
 
     for emp in empleados:
         # 🔹 COMISIONES YA EXISTENTES (solo dinero)
-        total_comisiones = obtener_total_comisiones(
-            db=db,
-            usuario_id=emp.id,
-            fecha_inicio=periodo.fecha_inicio,
-            fecha_fin=periodo.fecha_fin
-        )
+        totales = calcular_totales_comisiones(
+        db=db,
+        empleado_id=emp.id,
+        inicio=periodo.fecha_inicio,
+        fin=periodo.fecha_fin
+)
+
+        total_comisiones = totales["total_general"]
+
 
         # 🔹 Datos de nómina (si no existen, 0)
         nomina = db.query(NominaEmpleado).filter_by(
