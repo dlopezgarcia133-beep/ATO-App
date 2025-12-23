@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.nomina import NominaPeriodo
-from app.schemas.nomina import NominaPeriodoResponse
+from app.models import NominaPeriodo
+from app.schemas import NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
 
