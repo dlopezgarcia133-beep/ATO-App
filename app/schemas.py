@@ -446,7 +446,7 @@ class NominaPeriodoCreate(BaseModel):
 class NominaEmpleadoResponse(BaseModel):
     usuario_id: int
     usuario: str
-    nombre: str
+
     rol: str
 
     comisiones: float
