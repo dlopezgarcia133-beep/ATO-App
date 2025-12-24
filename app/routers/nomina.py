@@ -57,7 +57,7 @@ def activar_periodo_nomina(
         fecha_inicio=data.fecha_inicio,
         fecha_fin=data.fecha_fin,
         activa=True,
-        cerrada=False
+        
     )
 
     db.add(nuevo)
