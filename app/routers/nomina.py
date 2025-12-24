@@ -116,8 +116,7 @@ def obtener_resumen_nomina(
 
         resultado.append({
             "usuario_id": emp.id,
-            "usuario": emp.usuario,
-            "nombre": emp.nombre,
+            "usuario": emp.username,
             "rol": emp.rol,
             "comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
