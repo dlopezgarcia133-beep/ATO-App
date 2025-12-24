@@ -440,7 +440,7 @@ class NominaPeriodoResponse(BaseModel):
 class NominaPeriodoCreate(BaseModel):
     fecha_inicio: date
     fecha_fin: date
-    grupo: Literal["A", "C"]
+    
 
 
 class NominaEmpleadoResponse(BaseModel):
