@@ -537,6 +537,125 @@ def eliminar_producto_en_todos_los_modulos(
 
     db.commit()
     return {"message": f"Producto '{clave}' eliminado de todos los módulos"}
+
+
+
+
+@router.post("/inventario/preview_excel")
+def preview_inventario_excel(
+    modulo_id: int = Form(...),
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    import pandas as pd
+
+    try:
+        df = pd.read_excel(archivo.file)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error al leer el archivo Excel: {e}"
+        )
+
+    # Normalizar columnas
+    df.columns = [
+        str(c).strip().upper()
+        .replace("Á", "A").replace("É", "E")
+        .replace("Í", "I").replace("Ó", "O")
+        .replace("Ú", "U")
+        for c in df.columns
+    ]
+
+    equivalencias = {
+        "CANTIDAD": ["CANTIDAD", "QTY", "CANT", "CANTIDAD DISPONIBLE"],
+        "CLAVE": ["CLAVE", "CODIGO", "CÓDIGO", "CODE"],
+        "DESCRIPCION": ["DESCRIPCION", "PRODUCTO", "NOMBRE", "DESC"],
+        "PRECIO": ["PRECIO", "PRECIO UNITARIO", "PRICE", "COSTO"],
+    }
+
+    columnas = {}
+    for requerido, posibles in equivalencias.items():
+        for col in df.columns:
+            if any(p in col for p in posibles):
+                columnas[requerido] = col
+                break
+
+    faltantes = [c for c in equivalencias if c not in columnas]
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan columnas requeridas: {', '.join(faltantes)}"
+        )
+
+    filas_validas = []
+    filas_error = []
+    claves_en_excel = set()
+
+    for index, fila in df.iterrows():
+        errores = []
+
+        clave = str(fila[columnas["CLAVE"]]).strip()
+        producto = str(fila[columnas["DESCRIPCION"]]).strip()
+
+        if not clave:
+            errores.append("Clave vacía")
+
+        if clave in claves_en_excel:
+            errores.append("Clave duplicada en el archivo")
+        claves_en_excel.add(clave)
+
+        # Cantidad
+        try:
+            cantidad = int(fila[columnas["CANTIDAD"]])
+            if cantidad < 0:
+                errores.append("Cantidad negativa")
+        except:
+            errores.append("Cantidad inválida")
+
+        # Precio
+        precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
+        try:
+            precio = int(float(precio_raw))
+            if precio <= 0:
+                errores.append("Precio inválido")
+        except:
+            errores.append("Precio inválido")
+
+        tipo_producto = (
+            "telefono"
+            if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+            else "accesorios"
+        )
+
+        existe = (
+            db.query(models.InventarioModulo)
+            .filter_by(clave=clave, modulo_id=modulo_id)
+            .first()
+        )
+
+        if errores:
+            filas_error.append({
+                "fila": index + 2,
+                "clave": clave,
+                "errores": errores
+            })
+        else:
+            filas_validas.append({
+                "clave": clave,
+                "producto": producto,
+                "cantidad": cantidad,
+                "precio": precio,
+                "tipo_producto": tipo_producto,
+                "accion": "actualizar" if existe else "agregar"
+            })
+
+    return {
+        "validas": filas_validas,
+        "errores": filas_error
+    }
+
+
+
 @router.post("/actualizar_inventario_excel", response_model=dict)
 def actualizar_inventario_desde_excel(
     modulo_id: int = Form(...),
