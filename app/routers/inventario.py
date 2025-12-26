@@ -541,7 +541,7 @@ def eliminar_producto_en_todos_los_modulos(
 
 
 
-@router.post("/inventario/preview_excel")
+@router.post("/preview_excel")
 def preview_inventario_excel(
     modulo_id: int = Form(...),
     archivo: UploadFile = File(...),
