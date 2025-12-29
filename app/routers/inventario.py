@@ -549,13 +549,7 @@ def preview_inventario_excel(
 ):
     import pandas as pd
 
-    try:
-        df = pd.read_excel(archivo.file)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error al leer el archivo Excel: {e}"
-        )
+    df = pd.read_excel(archivo.file)
 
     # Normalizar columnas
     df.columns = [
@@ -591,77 +585,69 @@ def preview_inventario_excel(
     filas_error = []
     claves_en_excel = set()
 
+    # 🔁 ESTE for ES CLAVE
     for index, fila in df.iterrows():
         errores = []
 
-    # ✅ Inicializar SIEMPRE
-    tipo_producto = "accesorios"
-    precio = 0
-    cantidad = 0
+        clave = str(fila[columnas["CLAVE"]]).strip()
+        producto = str(fila[columnas["DESCRIPCION"]]).strip()
 
-    clave = str(fila[columnas["CLAVE"]]).strip()
-    producto = str(fila[columnas["DESCRIPCION"]]).strip()
+        if not clave:
+            errores.append("Clave vacía")
 
-    if not clave:
-        errores.append("Clave vacía")
+        if clave in claves_en_excel:
+            errores.append("Clave duplicada en el archivo")
+        claves_en_excel.add(clave)
 
-    if clave in claves_en_excel:
-        errores.append("Clave duplicada en el archivo")
-    claves_en_excel.add(clave)
+        # 1️⃣ Detectar tipo PRIMERO
+        tipo_producto = (
+            "telefono"
+            if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+            else "accesorios"
+        )
 
-    # 🔎 Detectar tipo de producto ANTES de validar precio
-    if producto.upper().startswith("TEL") or clave.upper().startswith("TEL"):
-        tipo_producto = "telefono"
+        # 2️⃣ Cantidad
+        try:
+            cantidad = int(fila[columnas["CANTIDAD"]])
+            if cantidad < 0:
+                errores.append("Cantidad negativa")
+        except:
+            errores.append("Cantidad inválida")
 
-    # Cantidad
-    try:
-        cantidad = int(fila[columnas["CANTIDAD"]])
-        if cantidad < 0:
-            errores.append("Cantidad negativa")
-    except:
-        errores.append("Cantidad inválida")
+        # 3️⃣ Precio
+        precio = 0
+        precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
+        try:
+            precio = int(float(precio_raw))
+        except:
+            if tipo_producto == "accesorios":
+                errores.append("Precio inválido")
 
-    # Precio
-    precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
-    try:
-        precio = int(float(precio_raw))
-    except:
-        errores.append("Precio inválido")
+        # 4️⃣ Validación por tipo
+        if tipo_producto == "accesorios" and precio <= 0:
+            errores.append("Precio inválido para accesorio")
 
-        # Detectar tipo de producto (ANTES de validar precio)
-    tipo_producto = (
-        "telefono"
-        if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
-        else "accesorios"
-    )
+        existe = (
+            db.query(models.InventarioModulo)
+            .filter_by(clave=clave, modulo_id=modulo_id)
+            .first()
+        )
 
-    # Validación de precio SOLO para accesorios
-    if tipo_producto == "accesorios" and precio <= 0:
-        errores.append("Precio inválido para accesorio")
-
-
-    existe = (
-        db.query(models.InventarioModulo)
-        .filter_by(clave=clave, modulo_id=modulo_id)
-        .first()
-    )
-
-    if errores:
-        filas_error.append({
-            "fila": index + 2,
-            "clave": clave,
-            "errores": errores
-        })
-    else:
-        filas_validas.append({
-            "clave": clave,
-            "producto": producto,
-            "cantidad": cantidad,
-            "precio": precio,
-            "tipo_producto": tipo_producto,
-            "accion": "actualizar" if existe else "agregar"
-        })
-
+        if errores:
+            filas_error.append({
+                "fila": index + 2,
+                "clave": clave,
+                "errores": errores
+            })
+        else:
+            filas_validas.append({
+                "clave": clave,
+                "producto": producto,
+                "cantidad": cantidad,
+                "precio": precio,
+                "tipo_producto": tipo_producto,
+                "accion": "actualizar" if existe else "agregar"
+            })
 
     return {
         "validas": filas_validas,
