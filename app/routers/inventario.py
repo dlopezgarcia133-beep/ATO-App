@@ -612,14 +612,20 @@ def preview_inventario_excel(
         except:
             errores.append("Cantidad inválida")
 
+
         # Precio
+
         precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
+
         try:
             precio = int(float(precio_raw))
-            if precio <= 0:
-                errores.append("Precio inválido")
         except:
             errores.append("Precio inválido")
+            precio = 0
+# 🔴 VALIDACIÓN SEGÚN TIPO
+        if tipo_producto == "accesorios" and precio <= 0:
+            errores.append("Precio inválido para accesorio")
+
 
         tipo_producto = (
             "telefono"
