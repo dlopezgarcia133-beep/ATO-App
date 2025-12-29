@@ -592,7 +592,7 @@ def preview_inventario_excel(
     claves_en_excel = set()
 
     for index, fila in df.iterrows():
-    errores = []
+        errores = []
 
     # ✅ Inicializar SIEMPRE
     tipo_producto = "accesorios"
