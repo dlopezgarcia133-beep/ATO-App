@@ -616,12 +616,12 @@ def preview_inventario_excel(
         # Precio
 
         precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
-
+        precio = 0
         try:
             precio = int(float(precio_raw))
         except:
             errores.append("Precio inválido")
-            precio = 0
+            
 # 🔴 VALIDACIÓN SEGÚN TIPO
         if tipo_producto == "accesorios" and precio <= 0:
             errores.append("Precio inválido para accesorio")
