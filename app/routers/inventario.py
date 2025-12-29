@@ -628,9 +628,17 @@ def preview_inventario_excel(
     except:
         errores.append("Precio inválido")
 
-    # ✅ Validación correcta según tipo
+        # Detectar tipo de producto (ANTES de validar precio)
+    tipo_producto = (
+        "telefono"
+        if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+        else "accesorios"
+    )
+
+    # Validación de precio SOLO para accesorios
     if tipo_producto == "accesorios" and precio <= 0:
         errores.append("Precio inválido para accesorio")
+
 
     existe = (
         db.query(models.InventarioModulo)
