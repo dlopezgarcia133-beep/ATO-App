@@ -592,68 +592,68 @@ def preview_inventario_excel(
     claves_en_excel = set()
 
     for index, fila in df.iterrows():
-        errores = []
+    errores = []
 
-        clave = str(fila[columnas["CLAVE"]]).strip()
-        producto = str(fila[columnas["DESCRIPCION"]]).strip()
+    # ✅ Inicializar SIEMPRE
+    tipo_producto = "accesorios"
+    precio = 0
+    cantidad = 0
 
-        if not clave:
-            errores.append("Clave vacía")
+    clave = str(fila[columnas["CLAVE"]]).strip()
+    producto = str(fila[columnas["DESCRIPCION"]]).strip()
 
-        if clave in claves_en_excel:
-            errores.append("Clave duplicada en el archivo")
-        claves_en_excel.add(clave)
+    if not clave:
+        errores.append("Clave vacía")
 
-        # Cantidad
-        try:
-            cantidad = int(fila[columnas["CANTIDAD"]])
-            if cantidad < 0:
-                errores.append("Cantidad negativa")
-        except:
-            errores.append("Cantidad inválida")
+    if clave in claves_en_excel:
+        errores.append("Clave duplicada en el archivo")
+    claves_en_excel.add(clave)
 
+    # 🔎 Detectar tipo de producto ANTES de validar precio
+    if producto.upper().startswith("TEL") or clave.upper().startswith("TEL"):
+        tipo_producto = "telefono"
 
-        # Precio
+    # Cantidad
+    try:
+        cantidad = int(fila[columnas["CANTIDAD"]])
+        if cantidad < 0:
+            errores.append("Cantidad negativa")
+    except:
+        errores.append("Cantidad inválida")
 
-        precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
-        precio = 0
-        try:
-            precio = int(float(precio_raw))
-        except:
-            errores.append("Precio inválido")
-            
-# 🔴 VALIDACIÓN SEGÚN TIPO
-        if tipo_producto == "accesorios" and precio <= 0:
-            errores.append("Precio inválido para accesorio")
+    # Precio
+    precio_raw = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
+    try:
+        precio = int(float(precio_raw))
+    except:
+        errores.append("Precio inválido")
 
+    # ✅ Validación correcta según tipo
+    if tipo_producto == "accesorios" and precio <= 0:
+        errores.append("Precio inválido para accesorio")
 
-        tipo_producto = (
-            "telefono"
-            if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
-            else "accesorios"
-        )
+    existe = (
+        db.query(models.InventarioModulo)
+        .filter_by(clave=clave, modulo_id=modulo_id)
+        .first()
+    )
 
-        existe = (
-            db.query(models.InventarioModulo)
-            .filter_by(clave=clave, modulo_id=modulo_id)
-            .first()
-        )
+    if errores:
+        filas_error.append({
+            "fila": index + 2,
+            "clave": clave,
+            "errores": errores
+        })
+    else:
+        filas_validas.append({
+            "clave": clave,
+            "producto": producto,
+            "cantidad": cantidad,
+            "precio": precio,
+            "tipo_producto": tipo_producto,
+            "accion": "actualizar" if existe else "agregar"
+        })
 
-        if errores:
-            filas_error.append({
-                "fila": index + 2,
-                "clave": clave,
-                "errores": errores
-            })
-        else:
-            filas_validas.append({
-                "clave": clave,
-                "producto": producto,
-                "cantidad": cantidad,
-                "precio": precio,
-                "tipo_producto": tipo_producto,
-                "accion": "actualizar" if existe else "agregar"
-            })
 
     return {
         "validas": filas_validas,
@@ -733,6 +733,14 @@ def actualizar_inventario_desde_excel(
             if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
             else "accesorios"
         )
+
+# ✅ Validación coherente con preview
+        if tipo_producto == "accesorios" and precio <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Precio inválido para accesorio en la clave {clave}"
+            )
+
 
         # Buscar producto existente
         producto_db = (
