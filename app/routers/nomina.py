@@ -84,25 +84,32 @@ def obtener_resumen_nomina(
     if not periodo:
         return []
 
-    # 🔹 YA NO FILTRAMOS POR ROL
     empleados = db.query(Usuario).all()
+
+    # 🔹 TRAEMOS TODA LA NÓMINA DEL PERIODO DE UNA VEZ
+    nominas = db.query(NominaEmpleado).filter(
+        NominaEmpleado.periodo_id == periodo.id
+    ).all()
+
+    nomina_map = {
+        n.usuario_id: n for n in nominas
+    }
 
     resultado = []
 
     for emp in empleados:
 
-        # 🔹 DETERMINAR GRUPO POR USERNAME
         if not emp.username:
-            continue  # seguridad extra
+            continue
 
         primera_letra = emp.username.upper()[0]
 
         if primera_letra not in ("A", "C"):
-            continue  # ignoramos usuarios que no pertenecen a nómina
+            continue
 
-        grupo = primera_letra  # "A" o "C"
+        grupo = primera_letra
 
-        # 🔹 COMISIONES
+        # 🔹 COMISIONES (aún 1 por empleado, pero ya no N+1 doble)
         totales = calcular_totales_comisiones(
             db=db,
             empleado_id=emp.id,
@@ -112,11 +119,8 @@ def obtener_resumen_nomina(
 
         total_comisiones = totales["total_general"]
 
-        # 🔹 Datos de nómina
-        nomina = db.query(NominaEmpleado).filter_by(
-            usuario_id=emp.id,
-            periodo_id=periodo.id
-        ).first()
+        # 🔹 NÓMINA DESDE EL MAP (SIN QUERY)
+        nomina = nomina_map.get(emp.id)
 
         sueldo_base = nomina.sueldo_base if nomina else 0
         horas_extra = nomina.horas_extra if nomina else 0
