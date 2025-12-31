@@ -84,25 +84,35 @@ def obtener_resumen_nomina(
     if not periodo:
         return []
 
-    empleados = db.query(Usuario).filter(
-        Usuario.rol.in_(["asesor", "encargado"])
-    ).all()
+    # 🔹 YA NO FILTRAMOS POR ROL
+    empleados = db.query(Usuario).all()
 
     resultado = []
 
     for emp in empleados:
-        # 🔹 COMISIONES YA EXISTENTES (solo dinero)
+
+        # 🔹 DETERMINAR GRUPO POR USERNAME
+        if not emp.username:
+            continue  # seguridad extra
+
+        primera_letra = emp.username.upper()[0]
+
+        if primera_letra not in ("A", "C"):
+            continue  # ignoramos usuarios que no pertenecen a nómina
+
+        grupo = primera_letra  # "A" o "C"
+
+        # 🔹 COMISIONES
         totales = calcular_totales_comisiones(
-        db=db,
-        empleado_id=emp.id,
-        inicio=periodo.fecha_inicio,
-        fin=periodo.fecha_fin
-)
+            db=db,
+            empleado_id=emp.id,
+            inicio=periodo.fecha_inicio,
+            fin=periodo.fecha_fin
+        )
 
         total_comisiones = totales["total_general"]
 
-
-        # 🔹 Datos de nómina (si no existen, 0)
+        # 🔹 Datos de nómina
         nomina = db.query(NominaEmpleado).filter_by(
             usuario_id=emp.id,
             periodo_id=periodo.id
@@ -116,8 +126,8 @@ def obtener_resumen_nomina(
 
         resultado.append({
             "usuario_id": emp.id,
-            "usuario": emp.username,
-            "rol": emp.rol,
+            "username": emp.username,
+            "grupo": grupo,
             "comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
@@ -126,6 +136,7 @@ def obtener_resumen_nomina(
         })
 
     return resultado
+
 
 
 @router.get("/resumen/empleado/{usuario_id}")
@@ -138,6 +149,12 @@ def resumen_comisiones_empleado(
     if not periodo:
         raise HTTPException(400, "No hay periodo activo")
 
+    usuario = db.query(Usuario).get(usuario_id)
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    grupo = usuario.username.upper()[0] if usuario.username else None
+
     totales = calcular_totales_comisiones(
         db=db,
         empleado_id=usuario_id,
@@ -146,6 +163,9 @@ def resumen_comisiones_empleado(
     )
 
     return {
+        "usuario_id": usuario.id,
+        "username": usuario.username,
+        "grupo": grupo,
         "accesorios": totales["total_accesorios"],
         "telefonos": totales["total_telefonos"],
         "chips": totales["total_chips"],

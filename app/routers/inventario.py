@@ -772,6 +772,168 @@ def actualizar_inventario_desde_excel(
 
 
 
+@router.post("/preview_excel_general")
+def preview_inventario_excel_general(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    import pandas as pd
+
+    try:
+        df = pd.read_excel(archivo.file)
+    except Exception as e:
+        raise HTTPException(400, f"Error al leer Excel: {e}")
+
+    # Normalizar columnas
+    df.columns = [
+        str(c).strip().upper()
+        .replace("Á","A").replace("É","E")
+        .replace("Í","I").replace("Ó","O")
+        .replace("Ú","U")
+        for c in df.columns
+    ]
+
+    equivalencias = {
+        "CLAVE": ["CLAVE","CODIGO","CÓDIGO","CODE"],
+        "DESCRIPCION": ["DESCRIPCION","PRODUCTO","NOMBRE","DESC"],
+        "CANTIDAD": ["CANTIDAD","QTY","CANT"],
+        "PRECIO": ["PRECIO","PRICE","COSTO"],
+    }
+
+    columnas = {}
+    for req, posibles in equivalencias.items():
+        for col in df.columns:
+            if any(p in col for p in posibles):
+                columnas[req] = col
+                break
+
+    faltantes = [k for k in equivalencias if k not in columnas]
+    if faltantes:
+        raise HTTPException(400, f"Faltan columnas: {', '.join(faltantes)}")
+
+    validos = []
+    errores = []
+    claves_vistas = set()
+
+    for i, fila in df.iterrows():
+        errs = []
+
+        clave = str(fila[columnas["CLAVE"]]).strip()
+        producto = str(fila[columnas["DESCRIPCION"]]).strip()
+
+        if not clave:
+            errs.append("Clave vacía")
+
+        if clave in claves_vistas:
+            errs.append("Clave duplicada en Excel")
+        claves_vistas.add(clave)
+
+        tipo_producto = "telefono" if (
+            producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+        ) else "accesorios"
+
+        try:
+            cantidad = int(fila[columnas["CANTIDAD"]])
+            if cantidad < 0:
+                errs.append("Cantidad negativa")
+        except:
+            errs.append("Cantidad inválida")
+
+        precio_raw = str(fila[columnas["PRECIO"]]).replace("$","").replace(",","").strip()
+        try:
+            precio = int(float(precio_raw))
+        except:
+            precio = 0
+
+        if tipo_producto == "accesorios" and precio <= 0:
+            errs.append("Precio inválido para accesorio")
+
+        existe = (
+            db.query(models.InventarioGeneral)
+            .filter_by(clave=clave)
+            .first()
+        )
+
+        if errs:
+            errores.append({
+                "fila": i + 2,
+                "clave": clave,
+                "errores": errs
+            })
+        else:
+            validos.append({
+                "clave": clave,
+                "producto": producto,
+                "cantidad": cantidad,
+                "precio": precio,
+                "tipo_producto": tipo_producto,
+                "accion": "actualizar" if existe else "agregar"
+            })
+
+    return {"validas": validos, "errores": errores}
+
+
+
+@router.post("/actualizar_inventario_excel_general")
+def actualizar_inventario_excel_general(
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    import pandas as pd
+
+    df = pd.read_excel(archivo.file)
+
+    df.columns = [
+        str(c).strip().upper()
+        .replace("Á","A").replace("É","E")
+        .replace("Í","I").replace("Ó","O")
+        .replace("Ú","U")
+        for c in df.columns
+    ]
+
+    actualizados = 0
+    agregados = 0
+
+    for _, fila in df.iterrows():
+        clave = str(fila["CLAVE"]).strip()
+        producto = str(fila["DESCRIPCION"]).strip()
+        cantidad = int(fila["CANTIDAD"])
+        precio = int(float(str(fila["PRECIO"]).replace("$","").replace(",","")))
+
+        tipo_producto = "telefono" if (
+            producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
+        ) else "accesorios"
+
+        existente = (
+            db.query(models.InventarioGeneral)
+            .filter_by(clave=clave)
+            .first()
+        )
+
+        if existente:
+            existente.producto = producto
+            existente.cantidad = cantidad
+            existente.precio = precio
+            existente.tipo_producto = tipo_producto
+            actualizados += 1
+        else:
+            db.add(models.InventarioGeneral(
+                clave=clave,
+                producto=producto,
+                cantidad=cantidad,
+                precio=precio,
+                tipo_producto=tipo_producto
+            ))
+            agregados += 1
+
+    db.commit()
+
+    return {
+        "message": f"{actualizados} actualizados, {agregados} nuevos agregados"
+    }
+
+
+
 
 
 

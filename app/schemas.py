@@ -445,15 +445,12 @@ class NominaPeriodoCreate(BaseModel):
 
 class NominaEmpleadoResponse(BaseModel):
     usuario_id: int
-    usuario: str
-
-    rol: str
-
+    username: str
+    grupo: str
     comisiones: float
     sueldo_base: float
-    horas_extra: float
+    horas_extra: int
     pago_horas_extra: float
-
     total_pagar: float
 
 
