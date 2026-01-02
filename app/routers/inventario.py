@@ -891,14 +891,18 @@ def actualizar_inventario_excel_general(
         for c in df.columns
     ]
 
+    claves_excel = set()  # 🔥 CLAVES QUE VIENEN EN EL EXCEL
     actualizados = 0
     agregados = 0
+    eliminados = 0
 
     for _, fila in df.iterrows():
         clave = str(fila["CLAVE"]).strip()
         producto = str(fila["DESCRIPCION"]).strip()
         cantidad = int(fila["CANTIDAD"])
         precio = int(float(str(fila["PRECIO"]).replace("$","").replace(",","")))
+
+        claves_excel.add(clave)
 
         tipo_producto = "telefono" if (
             producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
@@ -926,12 +930,23 @@ def actualizar_inventario_excel_general(
             ))
             agregados += 1
 
+    # 🔥 ELIMINAR PRODUCTOS QUE NO VIENEN EN EL EXCEL
+    productos_bd = db.query(models.InventarioGeneral).all()
+
+    for prod in productos_bd:
+        if prod.clave not in claves_excel:
+            db.delete(prod)
+            eliminados += 1
+
     db.commit()
 
     return {
-        "message": f"{actualizados} actualizados, {agregados} nuevos agregados"
+        "message": (
+            f"{actualizados} actualizados, "
+            f"{agregados} agregados, "
+            f"{eliminados} eliminados"
+        )
     }
-
 
 
 

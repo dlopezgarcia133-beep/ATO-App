@@ -452,6 +452,8 @@ class NominaEmpleadoResponse(BaseModel):
     horas_extra: int
     pago_horas_extra: float
     total_pagar: float
+    total_comisiones: float
+
 
 
 class NominaEmpleadoUpdate(BaseModel):
