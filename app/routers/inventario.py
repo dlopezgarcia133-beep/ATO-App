@@ -664,79 +664,87 @@ def actualizar_inventario_desde_excel(
 ):
     import pandas as pd
 
-    # 1️⃣ Leer el archivo Excel
+    # 1️⃣ Leer el Excel
     try:
         df = pd.read_excel(archivo.file)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error al leer el archivo Excel: {e}"
+        )
 
-    # 2️⃣ Normalizar nombres de columnas (sin eliminar letras)
-    df.columns = [str(c).strip().upper().replace("Á", "A").replace("É", "E")
-                  .replace("Í", "I").replace("Ó", "O").replace("Ú", "U")
-                  for c in df.columns]
+    # 2️⃣ Normalizar columnas
+    df.columns = [
+        str(c).strip().upper()
+        .replace("Á", "A").replace("É", "E")
+        .replace("Í", "I").replace("Ó", "O").replace("Ú", "U")
+        for c in df.columns
+    ]
 
-    # 3️⃣ Definir equivalencias de nombres posibles (muy flexible)
+    # 3️⃣ Equivalencias flexibles
     equivalencias = {
-        "CANTIDAD": ["CANTIDAD", "QTY", "CANT", "CANTIDAD DISPONIBLE"],
-        "CLAVE": ["CLAVE", "CODIGO", "CÓDIGO", "CODE"],
-        "DESCRIPCION": ["DESCRIPCION", "PRODUCTO", "NOMBRE", "DESC"],
-        "PRECIO": ["PRECIO", "PRECIO UNITARIO", "PRICE", "COSTO"],
+        "CANTIDAD": ["CANTIDAD", "QTY", "CANT"],
+        "CLAVE": ["CLAVE", "CODIGO", "CÓDIGO"],
+        "DESCRIPCION": ["DESCRIPCION", "PRODUCTO", "NOMBRE"],
+        "PRECIO": ["PRECIO", "PRICE", "COSTO"],
     }
 
-    # 4️⃣ Buscar columnas requeridas sin importar el orden
-    columnas_mapeadas = {}
+    columnas = {}
     for requerido, posibles in equivalencias.items():
         for col in df.columns:
             if any(p in col for p in posibles):
-                columnas_mapeadas[requerido] = col
+                columnas[requerido] = col
                 break
 
-    # 5️⃣ Validar que estén todas las columnas requeridas
-    faltantes = [r for r in equivalencias.keys() if r not in columnas_mapeadas]
+    faltantes = [c for c in equivalencias if c not in columnas]
     if faltantes:
         raise HTTPException(
             status_code=400,
-            detail=f"El archivo debe tener las columnas: {', '.join(equivalencias.keys())}. Faltan: {', '.join(faltantes)}"
+            detail=f"Faltan columnas requeridas: {', '.join(faltantes)}"
         )
 
-    # 6️⃣ Contadores
     actualizados = 0
     agregados = 0
 
-    # 7️⃣ Procesar cada fila
+    # 🔑 Guardar todas las claves del Excel
+    claves_excel = set()
+
+    # 4️⃣ Procesar filas
     for _, fila in df.iterrows():
-        clave = str(fila[columnas_mapeadas["CLAVE"]]).strip()
-        producto = str(fila[columnas_mapeadas["DESCRIPCION"]]).strip()
+        clave = str(fila[columnas["CLAVE"]]).strip()
+        producto = str(fila[columnas["DESCRIPCION"]]).strip()
 
-        # Convertir cantidad
+        claves_excel.add(clave)
+
         try:
-            cantidad = int(fila[columnas_mapeadas["CANTIDAD"]])
+            cantidad = int(fila[columnas["CANTIDAD"]])
         except:
-            raise HTTPException(status_code=400, detail=f"Cantidad inválida en {clave}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cantidad inválida en la clave {clave}"
+            )
 
-        # Limpiar y convertir precio
-        precio_str = str(fila[columnas_mapeadas["PRECIO"]]).replace("$", "").replace(",", "").strip()
+        precio_str = str(fila[columnas["PRECIO"]]).replace("$", "").replace(",", "").strip()
         try:
             precio = int(float(precio_str))
         except:
-            raise HTTPException(status_code=400, detail=f"Precio inválido en la clave {clave}: {precio_str}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Precio inválido en la clave {clave}"
+            )
 
-        # Detectar tipo de producto
         tipo_producto = (
             "telefono"
             if producto.upper().startswith("TEL") or clave.upper().startswith("TEL")
             else "accesorios"
         )
 
-# ✅ Validación coherente con preview
         if tipo_producto == "accesorios" and precio <= 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Precio inválido para accesorio en la clave {clave}"
+                detail=f"Precio inválido para accesorio ({clave})"
             )
 
-
-        # Buscar producto existente
         producto_db = (
             db.query(models.InventarioModulo)
             .filter_by(clave=clave, modulo_id=modulo_id)
@@ -750,23 +758,34 @@ def actualizar_inventario_desde_excel(
             producto_db.tipo_producto = tipo_producto
             actualizados += 1
         else:
-            nuevo = models.InventarioModulo(
-                cantidad=cantidad,
+            db.add(models.InventarioModulo(
                 clave=clave,
                 producto=producto,
+                cantidad=cantidad,
                 precio=precio,
-                modulo_id=modulo_id,
                 tipo_producto=tipo_producto,
-            )
-            db.add(nuevo)
+                modulo_id=modulo_id
+            ))
             agregados += 1
+
+    # 🧹 5️⃣ ELIMINAR productos que NO vienen en el Excel
+    eliminados = (
+        db.query(models.InventarioModulo)
+        .filter(
+            models.InventarioModulo.modulo_id == modulo_id,
+            ~models.InventarioModulo.clave.in_(claves_excel)
+        )
+        .delete(synchronize_session=False)
+    )
 
     db.commit()
 
     return {
         "message": (
             f"Inventario del módulo {modulo_id} actualizado correctamente. "
-            f"{actualizados} productos actualizados y {agregados} nuevos agregados."
+            f"{actualizados} actualizados, "
+            f"{agregados} agregados, "
+            f"{eliminados} eliminados."
         )
     }
 
