@@ -67,13 +67,14 @@ def buscar_productos_general_autocomplete(
         db.query(
             models.InventarioGeneral.id,
             models.InventarioGeneral.producto,
-            models.InventarioGeneral.clave
+            models.InventarioGeneral.clave,
+            models.InventarioGeneral.precio
         )
         .filter(
             (models.InventarioGeneral.clave.ilike(f"%{q}%")) |
             (models.InventarioGeneral.producto.ilike(f"%{q}%"))
         )
-        .order_by(InventarioGeneral.producto.asc())
+        .order_by(models.InventarioGeneral.precio.asc())
         .limit(20)
         .all()
     )
@@ -82,10 +83,12 @@ def buscar_productos_general_autocomplete(
         {
             "id": p.id,
             "producto": p.producto,
-            "clave": p.clave
+            "clave": p.clave,
+            "precio": p.precio
         }
         for p in productos
     ]
+
 
 
 
