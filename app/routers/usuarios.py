@@ -130,23 +130,22 @@ def editar_usuario(
 
 
 @router.delete("/usuarios/{usuario_id}")
-def eliminar_usuario(
+def desactivar_usuario(
     usuario_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+    db: Session = Depends(get_db)
 ):
-    usuario = db.query(models.Usuario).filter_by(id=usuario_id).first()
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.id == usuario_id
+    ).first()
+
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    usuario_reemplazo_id = 1  
-    traspasos = db.query(models.Traspaso).filter_by(solicitado_por=usuario.id).all()
-    for t in traspasos:
-        t.solicitado_por = usuario_reemplazo_id
 
-    db.delete(usuario)
+    usuario.activo = False
     db.commit()
-    return {"mensaje": f"Usuario '{usuario.username}' eliminado correctamente"}
+
+    return {"message": "Usuario desactivado correctamente"}
+
 
 
 

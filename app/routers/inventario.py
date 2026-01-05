@@ -152,6 +152,9 @@ def obtener_productos_nombres(
             models.InventarioModulo.producto,
             func.min(models.InventarioModulo.precio).label("precio_min")
         )
+        .filter(
+            models.InventarioModulo.modulo_id == current_user.modulo_id
+        )
         .group_by(models.InventarioModulo.producto)
         .order_by(func.min(models.InventarioModulo.precio).asc())
         .all()
@@ -159,26 +162,26 @@ def obtener_productos_nombres(
 
     return [p.producto for p in productos]
 
+
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
     query: str = Query(..., min_length=1, description="Texto a buscar"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    """
-    Autocomplete para teléfonos.
-    Busca en inventario_general solo productos de tipo 'telefono'
-    """
     productos = (
-    db.query(models.InventarioModulo.producto)
-    .filter(
-        models.InventarioModulo.tipo_producto == "telefono",
-        models.func.upper(models.InventarioModulo.producto).ilike(f"%{query.upper()}%")
+        db.query(models.InventarioModulo.producto)
+        .filter(
+            models.InventarioModulo.tipo_producto == "telefono",
+            models.InventarioModulo.modulo_id == current_user.modulo_id,
+            models.func.upper(models.InventarioModulo.producto).ilike(f"%{query.upper()}%")
+        )
+        .limit(10)
+        .all()
     )
-    .limit(10)
-    .all()
-)
 
     return [p[0] for p in productos]
+
 
 
 

@@ -22,7 +22,7 @@ class Usuario(Base):
     password = Column(String, nullable=False)
     modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
     is_admin = Column(Boolean, default=False)
-
+    activo = Column(Boolean, default=True)
     ventas = relationship("Venta", back_populates="empleado")
     ventas_telefono = relationship("VentaTelefono", back_populates="empleado")
     ventas_chip = relationship("VentaChip", back_populates="empleado")
