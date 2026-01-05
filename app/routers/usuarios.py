@@ -159,6 +159,7 @@ def obtener_usuarios(
 ):
     return (
         db.query(models.Usuario)
+        .filter(models.Usuario.activo == True)
         .order_by(
             case(
                 (models.Usuario.username.ilike("A%"), 1),
