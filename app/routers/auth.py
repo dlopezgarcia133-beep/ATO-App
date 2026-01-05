@@ -61,6 +61,14 @@ def login(
         models.Asistencia.fecha == hoy
     ).first()
 
+    def determinar_turno(hora):
+        if hora >= datetime.strptime("08:00", "%H:%M").time() and hora < datetime.strptime("15:00", "%H:%M").time():
+            return "mañana"
+        elif hora >= datetime.strptime("15:00", "%H:%M").time() and hora < datetime.strptime("20:00", "%H:%M").time():
+            return "tarde"
+        else:
+            return "fuera de turno"
+
     if not asistencia_existente:
         turno = determinar_turno(ahora_local.time())
         nueva_asistencia = models.Asistencia(
