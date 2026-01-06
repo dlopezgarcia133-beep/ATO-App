@@ -133,6 +133,7 @@ def obtener_resumen_nomina(
             "username": emp.username,
             "grupo": grupo,
             "comisiones": total_comisiones,
+            "total_comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
             "pago_horas_extra": pago_horas_extra,
