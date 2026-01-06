@@ -217,36 +217,53 @@ def obtener_inventario_general(
 
 @router.post("/inventario/entrada_mercancia")
 def entrada_mercancia(
-    data: schemas.EntradaMercanciaRequest,
-    db: Session = Depends(get_db)
+    data: EntradaMercanciaRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
-    for item in data.productos:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
 
+    for item in data.productos:
         registro = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.producto == item.producto,
-                models.InventarioModulo.clave == item.clave,
+                models.InventarioModulo.id == item.producto_id,
                 models.InventarioModulo.modulo_id == data.modulo_id
             )
             .first()
         )
 
-        if registro:
-            registro.cantidad += item.cantidad
-        else:
-            nuevo = models.InventarioModulo(
-                producto=item.producto,
-                clave=item.clave,
-                precio=item.precio,
-                tipo_producto=item.tipo_producto,
+        # 👉 SI NO EXISTE, LO CREAS
+        if not registro:
+            producto_base = (
+                db.query(models.InventarioGeneral)
+                .filter(models.InventarioGeneral.id == item.producto_id)
+                .first()
+            )
+
+            if not producto_base:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Producto no encontrado en inventario general"
+                )
+
+            registro = models.InventarioModulo(
+                producto=producto_base.producto,
+                clave=producto_base.clave,
+                precio=producto_base.precio,
+                tipo_producto=producto_base.tipo_producto,
                 cantidad=item.cantidad,
                 modulo_id=data.modulo_id
             )
-            db.add(nuevo)
+            db.add(registro)
+
+        else:
+            registro.cantidad += item.cantidad
 
     db.commit()
-    return {"message": "Entrada de mercancía registrada correctamente"}
+    return {"ok": True}
+
 
 
 
