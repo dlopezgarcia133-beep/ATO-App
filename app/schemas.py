@@ -420,12 +420,17 @@ class ConteoInventarioRequest(BaseModel):
 
 
 class EntradaItem(BaseModel):
-    producto_id: int
+    producto: str
+    clave: str
+    precio: int
+    tipo_producto: str
     cantidad: int
+
 
 class EntradaMercanciaRequest(BaseModel):
     modulo_id: int
     productos: list[EntradaItem]
+
 
 
 class NominaPeriodoResponse(BaseModel):
