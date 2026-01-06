@@ -217,7 +217,7 @@ def obtener_inventario_general(
 
 @router.post("/inventario/entrada_mercancia")
 def entrada_mercancia(
-    data: EntradaMercanciaRequest,
+    data: schemas.EntradaMercanciaRequest,
     db: Session = Depends(get_db)
 ):
     for item in data.productos:
