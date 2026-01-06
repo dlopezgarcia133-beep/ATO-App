@@ -221,23 +221,22 @@ def entrada_mercancia(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
     modulo_id = current_user.modulo_id
 
     for item in data.productos:
-        producto_general = db.query(models.InventarioGeneral).filter(
-            models.InventarioGeneral.id == item.producto_id
-        ).first()
-
-        if not producto_general:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Producto {item.producto_id} no existe"
+        # 🔍 buscar por producto + módulo
+        registro = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == modulo_id,
+                models.InventarioModulo.producto == item.producto,
+                models.InventarioModulo.clave == item.clave
             )
-
-        registro = db.query(models.InventarioModulo).filter(
-            models.InventarioModulo.modulo_id == modulo_id,
-            models.InventarioModulo.producto_id == item.producto_id
-        ).first()
+            .first()
+        )
 
         if registro:
             registro.cantidad += item.cantidad
@@ -245,16 +244,16 @@ def entrada_mercancia(
         else:
             nuevo = models.InventarioModulo(
                 modulo_id=modulo_id,
-                producto_id=producto_general.id,
-                producto=producto_general.producto,  # 🔑 AUTO
-                clave=producto_general.clave,        # 🔑 AUTO
+                producto=item.producto,
+                clave=item.clave,
                 cantidad=item.cantidad,
                 precio=item.precio
             )
             db.add(nuevo)
 
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "message": "Mercancía registrada correctamente"}
+
 
 
 @router.post("/inventario/modulo", response_model=schemas.InventarioModuloResponse)
