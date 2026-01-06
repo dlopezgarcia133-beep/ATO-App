@@ -227,25 +227,33 @@ def entrada_mercancia(
     modulo_id = current_user.modulo_id
 
     for item in data.productos:
-        # 🔍 buscar por producto + módulo
-        registro = (
-            db.query(models.InventarioModulo)
-            .filter(
-                models.InventarioModulo.modulo_id == modulo_id,
-                models.InventarioModulo.producto == item.producto,
-                models.InventarioModulo.clave == item.clave
-            )
-            .first()
-        )
+        # 1️⃣ Consultar producto en inventario_general
+        producto_general = db.query(models.InventarioGeneral).filter(
+            models.InventarioGeneral.id == item.producto_id
+        ).first()
 
+        if not producto_general:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Producto {item.producto_id} no existe"
+            )
+
+        # 2️⃣ Buscar si ya existe en el módulo (por texto)
+        registro = db.query(models.InventarioModulo).filter(
+            models.InventarioModulo.modulo_id == modulo_id,
+            models.InventarioModulo.producto == producto_general.producto,
+            models.InventarioModulo.clave == producto_general.clave
+        ).first()
+
+        # 3️⃣ Crear o sumar
         if registro:
             registro.cantidad += item.cantidad
             registro.precio = item.precio
         else:
             nuevo = models.InventarioModulo(
                 modulo_id=modulo_id,
-                producto=item.producto,
-                clave=item.clave,
+                producto=producto_general.producto,
+                clave=producto_general.clave,
                 cantidad=item.cantidad,
                 precio=item.precio
             )
