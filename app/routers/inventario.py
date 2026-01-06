@@ -224,43 +224,49 @@ def entrada_mercancia(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="No autorizado")
 
-    modulo_id = current_user.modulo_id
-
     for item in data.productos:
-        # 1️⃣ Consultar producto en inventario_general
-        producto_general = db.query(models.InventarioGeneral).filter(
-            models.InventarioGeneral.id == item.producto_id
-        ).first()
 
-        if not producto_general:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Producto {item.producto_id} no existe"
+        # 1️⃣ Buscar si ya existe en el módulo
+        registro = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.producto_id == item.producto_id,
+                models.InventarioModulo.modulo_id == data.modulo_id
             )
+            .first()
+        )
 
-        # 2️⃣ Buscar si ya existe en el módulo (por texto)
-        registro = db.query(models.InventarioModulo).filter(
-            models.InventarioModulo.modulo_id == modulo_id,
-            models.InventarioModulo.producto == producto_general.producto,
-            models.InventarioModulo.clave == producto_general.clave
-        ).first()
-
-        # 3️⃣ Crear o sumar
         if registro:
+            # 2️⃣ Ya existe → sumar
             registro.cantidad += item.cantidad
-            registro.precio = item.precio
+
         else:
-            nuevo = models.InventarioModulo(
-                modulo_id=modulo_id,
-                producto=producto_general.producto,
-                clave=producto_general.clave,
-                cantidad=item.cantidad,
-                precio=item.precio
+            # 3️⃣ NO existe → crear
+            producto = (
+                db.query(models.InventarioGeneral)
+                .filter(models.InventarioGeneral.id == item.producto_id)
+                .first()
             )
+
+            if not producto:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Producto {item.producto_id} no existe"
+                )
+
+            nuevo = models.InventarioModulo(
+                producto_id=producto.id,
+                modulo_id=data.modulo_id,
+                cantidad=item.cantidad,
+                precio=producto.precio,            # viene del inventario general
+                tipo_producto=producto.tipo_producto
+            )
+
             db.add(nuevo)
 
     db.commit()
-    return {"ok": True, "message": "Mercancía registrada correctamente"}
+
+    return {"ok": True, "message": "Entrada registrada correctamente"}
 
 
 
