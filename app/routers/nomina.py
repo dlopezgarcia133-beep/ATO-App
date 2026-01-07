@@ -7,8 +7,7 @@ from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeri
 from app.models import Usuario
 from app.config import get_current_user
 from app.services import calcular_totales_comisiones
-
-
+from app.utilidades import obtener_comisiones_por_empleado
 router = APIRouter()
 
 @router.get("/periodo/activo", response_model=NominaPeriodoResponse)
@@ -97,6 +96,13 @@ def obtener_resumen_nomina(
 
     resultado = []
 
+    comisiones_map = obtener_comisiones_por_empleado(
+    db,
+    periodo.fecha_inicio,
+    periodo.fecha_fin
+)
+
+
     for emp in empleados:
 
         if not emp.username:
@@ -110,14 +116,8 @@ def obtener_resumen_nomina(
         grupo = primera_letra
 
         # 🔹 COMISIONES (aún 1 por empleado, pero ya no N+1 doble)
-        totales = calcular_totales_comisiones(
-            db=db,
-            empleado_id=emp.id,
-            inicio=periodo.fecha_inicio,
-            fin=periodo.fecha_fin
-        )
+        total_comisiones = comisiones_map.get(emp.id, 0)
 
-        total_comisiones = totales["total_general"]
 
         # 🔹 NÓMINA DESDE EL MAP (SIN QUERY)
         nomina = nomina_map.get(emp.id)
