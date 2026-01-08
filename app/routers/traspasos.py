@@ -23,9 +23,13 @@ def crear_traspaso(
         raise HTTPException(status_code=403, detail="Solo encargados pueden solicitar traspasos")
 
     inventario = db.query(models.InventarioModulo).filter(
-        models.InventarioModulo.producto == traspaso.producto,
-        models.InventarioModulo.modulo.has(nombre=current_user.modulo.nombre)
-    ).first()
+    models.InventarioModulo.producto == traspaso.producto,
+    models.InventarioModulo.clave == traspaso.clave,
+    models.InventarioModulo.precio == traspaso.precio,
+    models.InventarioModulo.tipo_producto == traspaso.tipo_producto,
+    models.InventarioModulo.modulo.has(nombre=current_user.modulo.nombre)
+).first()
+
 
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
@@ -72,9 +76,13 @@ def actualizar_estado_traspaso(
 
         # Inventario en módulo origen
         inv_origen = db.query(models.InventarioModulo).filter(
-            models.InventarioModulo.producto == traspaso.producto,
-            models.InventarioModulo.modulo_id == modulo_origen.id
-        ).first()
+    models.InventarioModulo.producto == traspaso.producto,
+    models.InventarioModulo.clave == traspaso.clave,
+    models.InventarioModulo.precio == traspaso.precio,
+    models.InventarioModulo.tipo_producto == traspaso.tipo_producto,
+    models.InventarioModulo.modulo_id == modulo_origen.id
+).first()
+
 
         if not inv_origen:
             raise HTTPException(status_code=404, detail="Producto no encontrado en módulo origen")

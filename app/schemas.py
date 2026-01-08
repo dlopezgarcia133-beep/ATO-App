@@ -178,6 +178,9 @@ class ModuloResponse(BaseModel):
 
 class TraspasoBase(BaseModel):
     producto: str
+    clave: str
+    precio: int
+    tipo_producto: str
     cantidad: int
     modulo_destino: str
 
@@ -186,6 +189,7 @@ class TraspasoCreate(TraspasoBase):
 
 class TraspasoUpdate(BaseModel):
     estado: Literal["aprobado", "rechazado"]
+
 
 class TraspasoResponse(TraspasoBase):
     id: int
@@ -197,6 +201,7 @@ class TraspasoResponse(TraspasoBase):
 
     class Config:
         from_attributes = True
+
 
 
 

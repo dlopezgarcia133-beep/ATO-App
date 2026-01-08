@@ -103,7 +103,10 @@ class Traspaso(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     producto = Column(String, nullable=False)
+    clave = Column(String, nullable=False)
+    precio = Column(Integer, nullable=False)
     cantidad = Column(Integer, nullable=False)
+    tipo_producto = Column(String, nullable=False)
     modulo_origen = Column(String, nullable=False)
     modulo_destino = Column(String, nullable=False)
     estado = Column(Enum(EstadoTraspasoEnum), default=EstadoTraspasoEnum.pendiente)
