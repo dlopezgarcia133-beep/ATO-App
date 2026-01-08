@@ -225,30 +225,29 @@ def entrada_mercancia(
         raise HTTPException(status_code=403, detail="No autorizado")
 
     for item in data.productos:
+        producto_base = (
+            db.query(models.InventarioGeneral)
+            .filter(models.InventarioGeneral.id == item.producto_id)
+            .first()
+        )
+
+        if not producto_base:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
         registro = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.id == item.producto_id,
+                models.InventarioModulo.producto == producto_base.producto,
+                models.InventarioModulo.clave == producto_base.clave,
                 models.InventarioModulo.modulo_id == data.modulo_id
             )
             .first()
         )
 
-        # 👉 SI NO EXISTE, LO CREAS
-        if not registro:
-            producto_base = (
-                db.query(models.InventarioGeneral)
-                .filter(models.InventarioGeneral.id == item.producto_id)
-                .first()
-            )
-
-            if not producto_base:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Producto no encontrado en inventario general"
-                )
-
-            registro = models.InventarioModulo(
+        if registro:
+            registro.cantidad += item.cantidad
+        else:
+            nuevo = models.InventarioModulo(
                 producto=producto_base.producto,
                 clave=producto_base.clave,
                 precio=producto_base.precio,
@@ -256,13 +255,10 @@ def entrada_mercancia(
                 cantidad=item.cantidad,
                 modulo_id=data.modulo_id
             )
-            db.add(registro)
-
-        else:
-            registro.cantidad += item.cantidad
+            db.add(nuevo)
 
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "message": "Entrada registrada correctamente"}
 
 
 
