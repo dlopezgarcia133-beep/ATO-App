@@ -36,8 +36,11 @@ def crear_traspaso(
     nuevo = models.Traspaso(
         producto=inventario.producto,
         cantidad=inventario.cantidad,
+        clave=inventario.clave
+        precio=inventario.precio,
+        tipo_producto=inventario.tipo_producto,
         modulo_origen=current_user.modulo.nombre if current_user.modulo else None,
-        modulo_destino=inventario.modulo_destino,
+        modulo_destino=traspaso.modulo_destino,
         solicitado_por=current_user.id,
         fecha=fecha_actual.date()
     )
