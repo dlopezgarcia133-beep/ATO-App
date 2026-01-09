@@ -24,11 +24,9 @@ def crear_traspaso(
 
     inventario = db.query(models.InventarioModulo).filter(
     models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.clave == traspaso.clave,
-    models.InventarioModulo.precio == traspaso.precio,
-    models.InventarioModulo.tipo_producto == traspaso.tipo_producto,
-    models.InventarioModulo.modulo.has(nombre=current_user.modulo.nombre)
+    models.InventarioModulo.modulo_id == current_user.modulo.id
 ).first()
+
 
 
     if not inventario or inventario.cantidad < traspaso.cantidad:
@@ -77,11 +75,9 @@ def actualizar_estado_traspaso(
         # Inventario en módulo origen
         inv_origen = db.query(models.InventarioModulo).filter(
     models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.clave == traspaso.clave,
-    models.InventarioModulo.precio == traspaso.precio,
-    models.InventarioModulo.tipo_producto == traspaso.tipo_producto,
     models.InventarioModulo.modulo_id == modulo_origen.id
 ).first()
+
 
 
         if not inv_origen:
