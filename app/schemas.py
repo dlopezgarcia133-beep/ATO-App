@@ -196,6 +196,7 @@ class TraspasoResponse(TraspasoBase):
     fecha: datetime
     solicitado_por: int
     aprobado_por: Optional[int] = None
+    visible_en_pendientes: bool 
 
     class Config:
         from_attributes = True

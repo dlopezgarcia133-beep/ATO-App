@@ -120,14 +120,13 @@ def actualizar_estado_traspaso(
 
 
 # Ver traspasos del módulo actual (asesor o encargado)
-@router.get("/traspasos", response_model=list[schemas.TraspasoResponse])
-def obtener_traspasos(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+@router.get("/traspasos")
+def listar_traspasos(
+    db: Session = Depends(get_db)
 ):
     return db.query(models.Traspaso).filter(
         models.Traspaso.visible_en_pendientes == True
-    ).all()
+    ).order_by(models.Traspaso.fecha.desc()).all()
 
 
 
@@ -139,7 +138,10 @@ def ocultar_traspaso(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    traspaso = db.query(models.Traspaso).filter_by(id=traspaso_id).first()
+    traspaso = db.query(models.Traspaso).filter(
+        models.Traspaso.id == traspaso_id,
+        models.Traspaso.visible_en_pendientes == True
+    ).first()
 
     if not traspaso:
         raise HTTPException(status_code=404, detail="Traspaso no encontrado")
