@@ -113,7 +113,7 @@ class Traspaso(Base):
     fecha = Column(DateTime, default=datetime.utcnow)
     solicitado_por = Column(Integer, ForeignKey("usuarios.id"))
     aprobado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-
+    visible_en_pendientes = Column(Boolean, default=True)
     solicitante = relationship("Usuario", foreign_keys=[solicitado_por])
     aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
 

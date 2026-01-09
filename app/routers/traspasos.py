@@ -42,6 +42,7 @@ def crear_traspaso(
     modulo_origen=current_user.modulo.nombre,
     modulo_destino=traspaso.modulo_destino,
     solicitado_por=current_user.id,
+    
     fecha=fecha_actual
 )
     db.add(nuevo)
@@ -120,5 +121,28 @@ def actualizar_estado_traspaso(
 
 # Ver traspasos del módulo actual (asesor o encargado)
 @router.get("/traspasos", response_model=list[schemas.TraspasoResponse])
-def obtener_traspasos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    return db.query(models.Traspaso).all()
+def obtener_traspasos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    return db.query(models.Traspaso).filter(
+        models.Traspaso.visible_en_pendientes == True
+    ).all()
+
+
+
+
+
+@router.patch("/traspasos/{traspaso_id}/ocultar", status_code=204)
+def ocultar_traspaso(
+    traspaso_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    traspaso = db.query(models.Traspaso).filter_by(id=traspaso_id).first()
+
+    if not traspaso:
+        raise HTTPException(status_code=404, detail="Traspaso no encontrado")
+
+    traspaso.visible_en_pendientes = False
+    db.commit()
