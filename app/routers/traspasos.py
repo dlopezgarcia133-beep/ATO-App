@@ -34,16 +34,16 @@ def crear_traspaso(
     
     fecha_actual = datetime.now(zona_horaria)
     nuevo = models.Traspaso(
-        producto=inventario.producto,
-        cantidad=inventario.cantidad,
-        clave=inventario.clave
-        precio=inventario.precio,
-        tipo_producto=inventario.tipo_producto,
-        modulo_origen=current_user.modulo.nombre if current_user.modulo else None,
-        modulo_destino=traspaso.modulo_destino,
-        solicitado_por=current_user.id,
-        fecha=fecha_actual.date()
-    )
+    producto=inventario.producto,
+    clave=inventario.clave,
+    precio=inventario.precio,
+    tipo_producto=inventario.tipo_producto,
+    cantidad=traspaso.cantidad,
+    modulo_origen=current_user.modulo.nombre,
+    modulo_destino=traspaso.modulo_destino,
+    solicitado_por=current_user.id,
+    fecha=fecha_actual
+)
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
