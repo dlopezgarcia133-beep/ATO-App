@@ -133,7 +133,7 @@ def obtener_traspasos(
 
 
 
-@router.patch("/traspasos/{traspaso_id}/ocultar", status_code=204)
+@router.put("/traspasos/{traspaso_id}/ocultar", status_code=204)
 def ocultar_traspaso(
     traspaso_id: int,
     db: Session = Depends(get_db),
