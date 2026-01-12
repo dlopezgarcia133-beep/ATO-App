@@ -120,13 +120,18 @@ def actualizar_estado_traspaso(
 
 
 # Ver traspasos del módulo actual (asesor o encargado)
-@router.get("/traspasos")
+@router.get(
+    "/traspasos",
+    response_model=list[schemas.TraspasoResponse]
+)
 def listar_traspasos(
     db: Session = Depends(get_db)
 ):
-    return db.query(models.Traspaso).filter(
-        models.Traspaso.visible_en_pendientes == True
-    ).order_by(models.Traspaso.fecha.desc()).all()
+    return db.query(models.Traspaso)\
+        .filter(models.Traspaso.visible_en_pendientes == True)\
+        .order_by(models.Traspaso.fecha.desc())\
+        .all()
+
 
 
 
