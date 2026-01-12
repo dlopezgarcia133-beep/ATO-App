@@ -116,7 +116,7 @@ class Traspaso(Base):
     visible_en_pendientes = Column(Boolean, default=True)
     solicitante = relationship("Usuario", foreign_keys=[solicitado_por])
     aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
-
+    folio = Column(String(50), nullable=True)
 
 
 class InventarioGeneral(Base):

@@ -65,40 +65,43 @@ def actualizar_estado_traspaso(
     traspaso.estado = estado.estado
 
     if estado.estado == "aprobado":
-        # Buscar módulo origen y destino por nombre
+
+        # 🔐 VALIDAR FOLIO
+        if not estado.folio or estado.folio.strip() == "":
+            raise HTTPException(status_code=400, detail="El folio es obligatorio para aprobar")
+
+        traspaso.folio = estado.folio  # ✅ GUARDAR FOLIO
+
+        # Buscar módulo origen y destino
         modulo_origen = db.query(models.Modulo).filter_by(nombre=traspaso.modulo_origen).first()
         modulo_destino = db.query(models.Modulo).filter_by(nombre=traspaso.modulo_destino).first()
 
         if not modulo_origen or not modulo_destino:
             raise HTTPException(status_code=404, detail="Módulo origen o destino no encontrado")
 
-        # Inventario en módulo origen
+        # Inventario origen
         inv_origen = db.query(models.InventarioModulo).filter(
-    models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.modulo_id == modulo_origen.id
-).first()
-
-
+            models.InventarioModulo.producto == traspaso.producto,
+            models.InventarioModulo.modulo_id == modulo_origen.id
+        ).first()
 
         if not inv_origen:
             raise HTTPException(status_code=404, detail="Producto no encontrado en módulo origen")
         if inv_origen.cantidad < traspaso.cantidad:
             raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
 
-        # Inventario en módulo destino
+        # Inventario destino
         inv_destino = db.query(models.InventarioModulo).filter(
             models.InventarioModulo.producto == traspaso.producto,
             models.InventarioModulo.modulo_id == modulo_destino.id
         ).first()
 
-        # Restar en origen
+        # Restar origen
         inv_origen.cantidad -= traspaso.cantidad
 
         if inv_destino:
-            # Sumar en destino
             inv_destino.cantidad += traspaso.cantidad
         else:
-            # Crear el producto en destino copiando info del origen
             nuevo = models.InventarioModulo(
                 cantidad=traspaso.cantidad,
                 clave=inv_origen.clave,
@@ -113,6 +116,7 @@ def actualizar_estado_traspaso(
     db.commit()
     db.refresh(traspaso)
     return traspaso
+
 
 
 # Ver traspasos del módulo actual (asesor o encargado)

@@ -200,6 +200,7 @@ class TraspasoResponse(TraspasoBase):
     clave: Optional[str] = None
     precio: Optional[float] = None
     tipo_producto: Optional[str] = None
+    folio: str | None
 
     class Config:
         from_attributes = True
