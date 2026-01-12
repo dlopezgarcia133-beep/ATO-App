@@ -187,6 +187,7 @@ class TraspasoCreate(TraspasoBase):
 
 class TraspasoUpdate(BaseModel):
     estado: Literal["aprobado", "rechazado"]
+    folio: Optional[str] = None
 
 
 class TraspasoResponse(TraspasoBase):
