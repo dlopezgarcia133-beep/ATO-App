@@ -1,5 +1,6 @@
 
-from time import timezone
+from datetime import datetime, timezone
+
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ def crear_traspaso(
         modulo_origen=current_user.modulo.nombre,
         modulo_destino=traspaso.modulo_destino,
         solicitado_por=current_user.id,
-        
+
         fecha=datetime.now(timezone.utc)  # ✅ UTC con hora
     )
 
