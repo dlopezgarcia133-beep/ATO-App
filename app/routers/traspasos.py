@@ -1,4 +1,5 @@
 
+from time import timezone
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -43,7 +44,7 @@ def crear_traspaso(
     modulo_destino=traspaso.modulo_destino,
     solicitado_por=current_user.id,
     
-    fecha=fecha_actual
+    fecha=fecha_actual.date(),
 )
     db.add(nuevo)
     db.commit()

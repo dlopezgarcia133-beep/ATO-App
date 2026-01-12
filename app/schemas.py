@@ -197,6 +197,9 @@ class TraspasoResponse(TraspasoBase):
     solicitado_por: int
     aprobado_por: Optional[int] = None
     visible_en_pendientes: bool 
+    clave: Optional[str] = None
+    precio: Optional[float] = None
+    tipo_producto: Optional[str] = None
 
     class Config:
         from_attributes = True
