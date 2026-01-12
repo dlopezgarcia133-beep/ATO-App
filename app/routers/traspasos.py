@@ -19,38 +19,31 @@ def crear_traspaso(
     traspaso: schemas.TraspasoCreate,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.encargado))
-): 
-    if current_user.rol != models.RolEnum.encargado:
-        raise HTTPException(status_code=403, detail="Solo encargados pueden solicitar traspasos")
-
+):
     inventario = db.query(models.InventarioModulo).filter(
-    models.InventarioModulo.producto == traspaso.producto,
-    models.InventarioModulo.modulo_id == current_user.modulo.id
-).first()
-
-
+        models.InventarioModulo.producto == traspaso.producto,
+        models.InventarioModulo.modulo_id == current_user.modulo.id
+    ).first()
 
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
-    
-    fecha_actual = datetime.now(zona_horaria)
+
     nuevo = models.Traspaso(
-    producto=inventario.producto,
-    clave=inventario.clave,
-    precio=inventario.precio,
-    tipo_producto=inventario.tipo_producto,
-    cantidad=traspaso.cantidad,
-    modulo_origen=current_user.modulo.nombre,
-    modulo_destino=traspaso.modulo_destino,
-    solicitado_por=current_user.id,
-    
-    fecha=fecha_actual.date(),
-)
+        producto=inventario.producto,
+        clave=inventario.clave,
+        precio=inventario.precio,
+        tipo_producto=inventario.tipo_producto,
+        cantidad=traspaso.cantidad,
+        modulo_origen=current_user.modulo.nombre,
+        modulo_destino=traspaso.modulo_destino,
+        solicitado_por=current_user.id,
+        fecha=datetime.now(timezone.utc)  # ✅ UTC con hora
+    )
+
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
     return nuevo
-
 
 # Aprobar o rechazar traspaso (admin)
 @router.put("/traspasos/{traspaso_id}", response_model=schemas.TraspasoResponse)

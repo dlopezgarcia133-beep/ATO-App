@@ -3,7 +3,7 @@ from sqlite3.dbapi2 import Timestamp
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -110,7 +110,7 @@ class Traspaso(Base):
     modulo_origen = Column(String, nullable=False)
     modulo_destino = Column(String, nullable=False)
     estado = Column(Enum(EstadoTraspasoEnum), default=EstadoTraspasoEnum.pendiente)
-    fecha = Column(DateTime, default=datetime.utcnow)
+    fecha = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),nullable=False)
     solicitado_por = Column(Integer, ForeignKey("usuarios.id"))
     aprobado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     visible_en_pendientes = Column(Boolean, default=True)
