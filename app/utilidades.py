@@ -81,11 +81,21 @@ def obtener_comisiones_por_empleado(db, inicio, fin):
         db.query(
             models.Venta.empleado_id,
             func.coalesce(
-                func.sum(models.Comision.cantidad * models.Venta.cantidad),
+                func.sum(
+                    case(
+                        # Accesorios y chips: comisión fija
+                        (
+                            models.Venta.comision_id.isnot(None),
+                            models.Comision.cantidad * models.Venta.cantidad
+                        ),
+                        # Teléfonos: comisión directa guardada en total
+                        else_=0
+                    )
+                ),
                 0
             ).label("total_comisiones")
         )
-        .join(
+        .outerjoin(
             models.Comision,
             models.Venta.comision_id == models.Comision.id
         )
