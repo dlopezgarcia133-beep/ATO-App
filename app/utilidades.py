@@ -80,7 +80,7 @@ def obtener_comisiones_por_empleado(db, inicio, fin):
     rows = (
         db.query(
             models.Venta.empleado_id,
-            func.coalesce(func.sum(models.Venta.total), 0).label("total_comisiones")
+            func.coalesce(func.sum(models.Comision.cantidad), 0).label("total_comisiones")
         )
         .filter(
             models.Venta.cancelada == False,
