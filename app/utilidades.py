@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from dotenv import load_dotenv
+from sqlalchemy import func, case as sql_case
 
 
 
@@ -83,13 +84,11 @@ def obtener_comisiones_por_empleado(db, inicio, fin):
             models.Venta.empleado_id,
             func.coalesce(
                 func.sum(
-                    case(
-                        # Accesorios y chips: comisión fija
+                    sql_case(
                         (
                             models.Venta.comision_id.isnot(None),
                             models.Comision.cantidad * models.Venta.cantidad
                         ),
-                        # Teléfonos: comisión directa guardada en total
                         else_=0
                     )
                 ),
