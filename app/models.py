@@ -27,6 +27,7 @@ class Usuario(Base):
     ventas_telefono = relationship("VentaTelefono", back_populates="empleado")
     ventas_chip = relationship("VentaChip", back_populates="empleado")
     modulo = relationship("Modulo", backref="usuarios")
+    sueldo_base = Column(Float, default=0)
 
 class Asistencia(Base):
     __tablename__ = "asistencias"

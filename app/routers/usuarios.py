@@ -170,3 +170,25 @@ def obtener_usuarios(
         )
         .all()
     )
+
+
+
+
+@router.put("/usuarios/{usuario_id}/sueldo")
+def actualizar_sueldo_base(
+    usuario_id: int,
+    sueldo_base: float,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    usuario = db.query(models.Usuario).get(usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    usuario.sueldo_base = sueldo_base
+    db.commit()
+
+    return {"ok": True, "sueldo_base": sueldo_base}
