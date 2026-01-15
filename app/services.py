@@ -6,27 +6,23 @@ from sqlalchemy import case, func
 
 
 
+from sqlalchemy import func, case
+
 def obtener_comisiones_por_empleado_optimizado(
     db: Session,
     inicio: date,
     fin: date
-) -> dict:
-
-    comisiones_por_tipo = {
-        "Contado": 10,
-        "Pajoy": 100,
-        "Paguitos": 110
-    }
+):
 
     rows = (
         db.query(
             models.Venta.empleado_id,
 
             func.sum(
-                # comisión por producto
+                # comisión por producto (si existe)
                 func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad +
 
-                # comisión extra por tipo de venta (solo teléfonos)
+                # comisión extra SOLO para teléfonos
                 case(
                     (
                         models.Venta.tipo_producto == "telefono",
@@ -40,7 +36,6 @@ def obtener_comisiones_por_empleado_optimizado(
                     else_=0
                 )
             ).label("total_comisiones")
-
         )
         .outerjoin(
             models.Comision,

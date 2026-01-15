@@ -93,6 +93,9 @@ def obtener_resumen_nomina(
 
     resultado = []
 
+    print("COMISIONES MAP:", nomina_map)
+
+
     for emp in empleados:
         if not emp.username:
             continue
