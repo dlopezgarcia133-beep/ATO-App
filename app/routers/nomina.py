@@ -91,12 +91,6 @@ def obtener_resumen_nomina(
 
     nomina_map = {n.usuario_id: n for n in nominas}
 
-    comisiones_map = obtener_comisiones_por_empleado(
-        db,
-        periodo.fecha_inicio,
-        periodo.fecha_fin
-    )
-
     resultado = []
 
     for emp in empleados:
@@ -109,7 +103,15 @@ def obtener_resumen_nomina(
 
         grupo = primera_letra
 
-        total_comisiones = comisiones_map.get(emp.id, 0)
+        # ✅ AQUÍ ESTÁ EL CAMBIO CLAVE
+        totales = calcular_totales_comisiones(
+            db=db,
+            empleado_id=emp.id,
+            inicio=periodo.fecha_inicio,
+            fin=periodo.fecha_fin
+        )
+
+        total_comisiones = totales["total_general"]
 
         nomina = nomina_map.get(emp.id)
         sueldo_base = nomina.sueldo_base if nomina else 0
@@ -122,8 +124,11 @@ def obtener_resumen_nomina(
             "usuario_id": emp.id,
             "username": emp.username,
             "grupo": grupo,
+
+            # 👇 ahora sí es real
             "comisiones": total_comisiones,
             "total_comisiones": total_comisiones,
+
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
             "pago_horas_extra": pago_horas_extra,
@@ -131,6 +136,7 @@ def obtener_resumen_nomina(
         })
 
     return resultado
+
 
 
 

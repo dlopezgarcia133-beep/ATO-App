@@ -12,21 +12,18 @@ def calcular_totales_comisiones(
     inicio: date,
     fin: date
 ) -> dict:
-    # 🔹 Obtener ventas normales
+
     ventas = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio,
-        models.Venta.fecha <= fin,
+        models.Venta.fecha.between(inicio, fin),
         models.Venta.cancelada == False
     ).all()
 
-    # 🔹 Obtener chips
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
-        models.VentaChip.fecha >= inicio,
-        models.VentaChip.fecha <= fin,
+        models.VentaChip.fecha.between(inicio, fin),
     ).all()
 
     total_accesorios = 0.0
@@ -40,16 +37,25 @@ def calcular_totales_comisiones(
     }
 
     for v in ventas:
-        comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
-        cantidad = getattr(v, "cantidad", 0) or 0
-        comision_total = comision_base * cantidad
+        cantidad = v.cantidad or 1
 
-        if v.tipo_producto == "telefono":
-            comision_total += comisiones_por_tipo.get(v.tipo_venta or "", 0)
+        # Comisión por producto (si existe)
+        comision_producto = (
+            getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
+        ) * cantidad
+
+        # Comisión por tipo de venta (solo teléfonos)
+        comision_tipo = comisiones_por_tipo.get(
+            v.tipo_venta or "", 0
+        ) if v.tipo_producto == "telefono" else 0
+
+        comision_total = comision_producto + comision_tipo
+
+        if v.tipo_producto == "accesorio":
+            total_accesorios += comision_producto
+
+        elif v.tipo_producto == "telefono":
             total_telefonos += comision_total
-
-        elif v.tipo_producto == "accesorio":
-            total_accesorios += comision_total
 
     for v in ventas_chips:
         total_chips += float(getattr(v, "comision", 0) or 0)
