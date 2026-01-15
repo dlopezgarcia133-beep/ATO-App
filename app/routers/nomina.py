@@ -6,8 +6,8 @@ from app.models import NominaEmpleado, NominaPeriodo
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
-from app.utilidades import obtener_comisiones_por_empleado
+from app.services import  obtener_comisiones_por_empleado_optimizado
+
 router = APIRouter()
 
 @router.get("/periodo/activo", response_model=NominaPeriodoResponse)
