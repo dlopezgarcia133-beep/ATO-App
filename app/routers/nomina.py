@@ -6,7 +6,7 @@ from app.models import NominaEmpleado, NominaPeriodo
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import calcular_totales_comisiones
+from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
 from app.utilidades import obtener_comisiones_por_empleado
 router = APIRouter()
 
@@ -104,7 +104,7 @@ def obtener_resumen_nomina(
         grupo = primera_letra
 
         # ✅ AQUÍ ESTÁ EL CAMBIO CLAVE
-        totales = calcular_totales_comisiones(
+        totales = obtener_comisiones_por_empleado_optimizado(
             db=db,
             empleado_id=emp.id,
             inicio=periodo.fecha_inicio,

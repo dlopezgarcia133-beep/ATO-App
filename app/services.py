@@ -2,69 +2,57 @@
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from app import models
+from sqlalchemy import case, func
 
 
 
-
-def calcular_totales_comisiones(
+def obtener_comisiones_por_empleado_optimizado(
     db: Session,
-    empleado_id: int,
     inicio: date,
     fin: date
 ) -> dict:
 
-    ventas = db.query(models.Venta).filter(
-        models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha.between(inicio, fin),
-        models.Venta.cancelada == False
-    ).all()
-
-    ventas_chips = db.query(models.VentaChip).filter(
-        models.VentaChip.empleado_id == empleado_id,
-        models.VentaChip.numero_telefono.isnot(None),
-        models.VentaChip.validado == True,
-        models.VentaChip.fecha.between(inicio, fin),
-    ).all()
-
-    total_accesorios = 0.0
-    total_telefonos = 0.0
-    total_chips = 0.0
-
     comisiones_por_tipo = {
         "Contado": 10,
-        "Paguitos": 110,
-        "Pajoy": 100
+        "Pajoy": 100,
+        "Paguitos": 110
     }
 
-    for v in ventas:
-        cantidad = v.cantidad or 1
+    rows = (
+        db.query(
+            models.Venta.empleado_id,
 
-        # Comisión por producto (si existe)
-        comision_producto = (
-            getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
-        ) * cantidad
+            func.sum(
+                # comisión por producto
+                func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad +
 
-        # Comisión por tipo de venta (solo teléfonos)
-        comision_tipo = comisiones_por_tipo.get(
-            v.tipo_venta or "", 0
-        ) if v.tipo_producto == "telefono" else 0
+                # comisión extra por tipo de venta (solo teléfonos)
+                case(
+                    (
+                        models.Venta.tipo_producto == "telefono",
+                        case(
+                            (models.Venta.tipo_venta == "Contado", 10),
+                            (models.Venta.tipo_venta == "Pajoy", 100),
+                            (models.Venta.tipo_venta == "Paguitos", 110),
+                            else_=0
+                        )
+                    ),
+                    else_=0
+                )
+            ).label("total_comisiones")
 
-        comision_total = comision_producto + comision_tipo
+        )
+        .outerjoin(
+            models.Comision,
+            models.Comision.id == models.Venta.comision_id
+        )
+        .filter(
+            models.Venta.cancelada == False,
+            models.Venta.fecha >= inicio,
+            models.Venta.fecha <= fin
+        )
+        .group_by(models.Venta.empleado_id)
+        .all()
+    )
 
-        if v.tipo_producto == "accesorio":
-            total_accesorios += comision_producto
-
-        elif v.tipo_producto == "telefono":
-            total_telefonos += comision_total
-
-    for v in ventas_chips:
-        total_chips += float(getattr(v, "comision", 0) or 0)
-
-    total_general = total_accesorios + total_telefonos + total_chips
-
-    return {
-        "total_accesorios": total_accesorios,
-        "total_telefonos": total_telefonos,
-        "total_chips": total_chips,
-        "total_general": total_general
-    }
+    return {r.empleado_id: float(r.total_comisiones or 0) for r in rows}
