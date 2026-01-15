@@ -78,24 +78,20 @@ def calcular_comision_telefono(v):
 
 from sqlalchemy import func
 
+from sqlalchemy import func
+
 def obtener_comisiones_por_empleado(db, inicio, fin):
     rows = (
         db.query(
             models.Venta.empleado_id,
             func.coalesce(
                 func.sum(
-                    sql_case(
-                        (
-                            models.Venta.comision_id.isnot(None),
-                            models.Comision.cantidad * models.Venta.cantidad
-                        ),
-                        else_=0
-                    )
+                    models.Comision.cantidad * models.Venta.cantidad
                 ),
                 0
             ).label("total_comisiones")
         )
-        .outerjoin(
+        .join(
             models.Comision,
             models.Venta.comision_id == models.Comision.id
         )
@@ -109,3 +105,4 @@ def obtener_comisiones_por_empleado(db, inicio, fin):
     )
 
     return {r.empleado_id: float(r.total_comisiones) for r in rows}
+
