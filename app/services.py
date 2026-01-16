@@ -51,3 +51,31 @@ def obtener_comisiones_por_empleado_optimizado(
     )
 
     return {r.empleado_id: float(r.total_comisiones or 0) for r in rows}
+
+
+
+
+
+
+
+def obtener_desglose_comisiones_empleado(db, empleado_id, inicio, fin):
+    fila = (
+        db.query(
+            func.coalesce(func.sum(case((models.Venta.tipo == "accesorio", models.Venta.comision), else_=0)), 0).label("accesorios"),
+            func.coalesce(func.sum(case((models.Venta.tipo == "telefono", models.Venta.comision), else_=0)), 0).label("telefonos"),
+            func.coalesce(func.sum(case((models.Venta.tipo == "chip", models.Venta.comision), else_=0)), 0).label("chips"),
+            func.coalesce(func.sum(models.Venta.comision), 0).label("total")
+        )
+        .filter(
+            models.Venta.usuario_id == empleado_id,
+            models.Venta.fecha.between(inicio, fin)
+        )
+        .one()
+    )
+
+    return {
+        "accesorios": float(fila.accesorios),
+        "telefonos": float(fila.telefonos),
+        "chips": float(fila.chips),
+        "total": float(fila.total)
+    }

@@ -6,7 +6,7 @@ from app.models import NominaEmpleado, NominaPeriodo
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import  obtener_comisiones_por_empleado_optimizado
+from app.services import  obtener_comisiones_por_empleado_optimizado, obtener_desglose_comisiones_empleado
 
 router = APIRouter()
 
@@ -152,8 +152,9 @@ def resumen_comisiones_empleado(
             "total_comisiones": 0
         }
 
-    comisiones_map = obtener_comisiones_por_empleado_optimizado(
+    comisiones_map = obtener_desglose_comisiones_empleado(
         db=db,
+        empleado_id=empleado_id,
         inicio=periodo.fecha_inicio,
         fin=periodo.fecha_fin
     )
