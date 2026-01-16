@@ -145,11 +145,11 @@ def resumen_comisiones_empleado(
 ):
     periodo = obtener_periodo_activo(db)
     if not periodo:
-        raise HTTPException(400, "No hay periodo activo")
+        raise HTTPException(status_code=400, detail="No hay periodo activo")
 
     usuario = db.query(Usuario).get(usuario_id)
     if not usuario:
-        raise HTTPException(404, "Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     grupo = usuario.username.upper()[0] if usuario.username else None
 
@@ -164,12 +164,11 @@ def resumen_comisiones_empleado(
         "usuario_id": usuario.id,
         "username": usuario.username,
         "grupo": grupo,
-        "accesorios": totales["total_accesorios"],
-        "telefonos": totales["total_telefonos"],
-        "chips": totales["total_chips"],
-        "total_comisiones": totales["total_general"]
+        "accesorios": totales["accesorios"],
+        "telefonos": totales["telefonos"],
+        "chips": totales["chips"],
+        "total_comisiones": totales["total"]
     }
-
 
 
 
