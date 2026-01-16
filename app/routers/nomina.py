@@ -153,7 +153,7 @@ def resumen_comisiones_empleado(
 
     grupo = usuario.username.upper()[0] if usuario.username else None
 
-    totales = calcular_totales_comisiones(
+    totales = obtener_comisiones_por_empleado_optimizado(
         db=db,
         empleado_id=usuario_id,
         inicio=periodo.fecha_inicio,
