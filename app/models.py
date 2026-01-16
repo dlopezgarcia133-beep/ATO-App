@@ -281,7 +281,6 @@ class NominaEmpleado(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     periodo_id = Column(Integer, ForeignKey("nomina_periodo.id"))
     total_comisiones = Column(Integer, default=0)
-    sueldo_base = Column(Float, default=0)
     horas_extra = Column(Float, default=0)
     pago_horas_extra = Column(Float, default=0)
     
