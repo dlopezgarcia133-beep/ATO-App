@@ -6,7 +6,7 @@ from app.models import NominaEmpleado, NominaPeriodo
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import  obtener_comisiones_por_empleado_optimizado, obtener_desglose_comisiones_empleado
+from app.services import  calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
 
 router = APIRouter()
 
@@ -137,41 +137,39 @@ def obtener_resumen_nomina(
 
 
 
-@router.get("/resumen/empleado/{empleado_id}")
+@router.get("/resumen/empleado/{usuario_id}")
 def resumen_comisiones_empleado(
-    empleado_id: int,
+    usuario_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     periodo = obtener_periodo_activo(db)
     if not periodo:
-        return {
-            "accesorios": 0,
-            "telefonos": 0,
-            "chips": 0,
-            "total_comisiones": 0
-        }
+        raise HTTPException(400, "No hay periodo activo")
 
-    comisiones_map = obtener_desglose_comisiones_empleado(
+    usuario = db.query(Usuario).get(usuario_id)
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    grupo = usuario.username.upper()[0] if usuario.username else None
+
+    totales = calcular_totales_comisiones(
         db=db,
-        empleado_id=empleado_id,
+        empleado_id=usuario_id,
         inicio=periodo.fecha_inicio,
         fin=periodo.fecha_fin
     )
 
-    totales = comisiones_map.get(empleado_id, {
-        "accesorios": 0,
-        "telefonos": 0,
-        "chips": 0,
-        "total": 0
-    })
-
     return {
-        "accesorios": totales.get("accesorios", 0),
-        "telefonos": totales.get("telefonos", 0),
-        "chips": totales.get("chips", 0),
-        "total_comisiones": totales.get("total", 0)
+        "usuario_id": usuario.id,
+        "username": usuario.username,
+        "grupo": grupo,
+        "accesorios": totales["total_accesorios"],
+        "telefonos": totales["total_telefonos"],
+        "chips": totales["total_chips"],
+        "total_comisiones": totales["total_general"]
     }
+
 
 
 
