@@ -137,39 +137,40 @@ def obtener_resumen_nomina(
 
 
 
-@router.get("/resumen/empleado/{usuario_id}")
+@router.get("/resumen/empleado/{empleado_id}")
 def resumen_comisiones_empleado(
-    usuario_id: int,
+    empleado_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     periodo = obtener_periodo_activo(db)
     if not periodo:
-        raise HTTPException(400, "No hay periodo activo")
+        return {
+            "accesorios": 0,
+            "telefonos": 0,
+            "chips": 0,
+            "total_comisiones": 0
+        }
 
-    usuario = db.query(Usuario).get(usuario_id)
-    if not usuario:
-        raise HTTPException(404, "Usuario no encontrado")
-
-    grupo = usuario.username.upper()[0] if usuario.username else None
-
-    totales = obtener_comisiones_por_empleado_optimizado(
+    comisiones_map = obtener_comisiones_por_empleado_optimizado(
         db=db,
-        empleado_id=usuario_id,
         inicio=periodo.fecha_inicio,
         fin=periodo.fecha_fin
     )
 
-    return {
-        "usuario_id": usuario.id,
-        "username": usuario.username,
-        "grupo": grupo,
-        "accesorios": totales["total_accesorios"],
-        "telefonos": totales["total_telefonos"],
-        "chips": totales["total_chips"],
-        "total_comisiones": totales["total_general"]
-    }
+    totales = comisiones_map.get(empleado_id, {
+        "accesorios": 0,
+        "telefonos": 0,
+        "chips": 0,
+        "total": 0
+    })
 
+    return {
+        "accesorios": totales.get("accesorios", 0),
+        "telefonos": totales.get("telefonos", 0),
+        "chips": totales.get("chips", 0),
+        "total_comisiones": totales.get("total", 0)
+    }
 
 
 
