@@ -113,11 +113,13 @@ def obtener_resumen_nomina(
         total_comisiones = comisiones_map.get(emp.id, 0)
 
         nomina = nomina_map.get(emp.id)
-        sueldo_base = nomina.sueldo_base if nomina else 0
+
+        sueldo_base = emp.sueldo_base or 0
         horas_extra = nomina.horas_extra if nomina else 0
         pago_horas_extra = nomina.pago_horas_extra if nomina else 0
 
         total = sueldo_base + total_comisiones + pago_horas_extra
+
 
         resultado.append({
             "usuario_id": emp.id,
