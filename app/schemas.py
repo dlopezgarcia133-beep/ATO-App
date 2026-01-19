@@ -31,6 +31,7 @@ class RolEnum(str, Enum):
 
 # 👉 Este es el que se usa para crear un usuario
 class UsuarioCreate(BaseModel):
+    nombre_completo: str
     username: str
     rol: RolEnum
     password: str
@@ -55,6 +56,7 @@ class ModuloOut(BaseModel):
 
 class UsuarioResponse(BaseModel):
     id: int
+    
     username: str
     rol: RolEnum
     is_admin: bool

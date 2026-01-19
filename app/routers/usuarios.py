@@ -47,6 +47,7 @@ def registrar_usuario(
                 raise HTTPException(status_code=404, detail="El módulo no existe")
 
         usuario_nuevo = models.Usuario(
+            nombre_completo=usuario.nombre_completo,
             username=usuario.username,
             rol=usuario.rol,
             password=hashear_contraseña(usuario.password),

@@ -17,6 +17,7 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
+    nombre_completo = Column(String, nullable=False)
     username = Column(String, unique=True, nullable=False)
     rol = Column(Enum(RolEnum), nullable=False, default=RolEnum.asesor)  
     password = Column(String, nullable=False)
