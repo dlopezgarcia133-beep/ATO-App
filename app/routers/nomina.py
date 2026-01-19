@@ -271,6 +271,13 @@ def obtener_mi_nomina(
         fin=periodo.fecha_fin
     )
 
+    total_comisiones = (
+    totales.get("total_accesorios", 0) +
+    totales.get("total_telefonos", 0) +
+    totales.get("total_chips", 0)
+    )
+
+
     # 4️⃣ Nómina del periodo (horas extra, etc)
     nomina = db.query(NominaEmpleado).filter(
         NominaEmpleado.usuario_id == empleado.id,
@@ -284,10 +291,11 @@ def obtener_mi_nomina(
 
     # 5️⃣ Total final
     total_pagar = (
-        sueldo_base +
-        totales["total_general"] +
-        pago_horas_extra
+    sueldo_base +
+    total_comisiones +
+    pago_horas_extra
     )
+
 
     return {
         "empleado": {
@@ -300,10 +308,10 @@ def obtener_mi_nomina(
             "fin": periodo.fecha_fin
         },
         "comisiones": {
-            "accesorios": totales["total_accesorios"],
-            "telefonos": totales["total_telefonos"],
-            "chips": totales["total_chips"],
-            "total": totales["total_general"]
+        "accesorios": totales.get("total_accesorios", 0),
+        "telefonos": totales.get("total_telefonos", 0),
+        "chips": totales.get("total_chips", 0),
+        "total": total_comisiones
         },
         "sueldo": {
             "base": sueldo_base,
