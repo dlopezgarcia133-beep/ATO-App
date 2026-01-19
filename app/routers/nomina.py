@@ -246,3 +246,69 @@ def descargar_nomina(
         raise HTTPException(400, "La nómina no está cerrada")
 
     # aquí generas el Excel como hicimos con inventario
+
+
+
+
+@router.get("/mi-resumen")
+def obtener_mi_nomina(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    # 1️⃣ Periodo activo
+    periodo = obtener_periodo_activo(db)
+    if not periodo:
+        raise HTTPException(status_code=400, detail="No hay periodo activo")
+
+    # 2️⃣ Usuario (empleado)
+    empleado = current_user
+
+    # 3️⃣ Totales de comisiones (YA CALCULADOS)
+    totales = calcular_totales_comisiones(
+        db=db,
+        empleado_id=empleado.id,
+        inicio=periodo.fecha_inicio,
+        fin=periodo.fecha_fin
+    )
+
+    # 4️⃣ Nómina del periodo (horas extra, etc)
+    nomina = db.query(NominaEmpleado).filter(
+        NominaEmpleado.usuario_id == empleado.id,
+        NominaEmpleado.periodo_id == periodo.id
+    ).first()
+
+    horas_extra = nomina.horas_extra if nomina else 0
+    pago_horas_extra = nomina.pago_horas_extra if nomina else 0
+
+    sueldo_base = empleado.sueldo_base or 0
+
+    # 5️⃣ Total final
+    total_pagar = (
+        sueldo_base +
+        totales["total_general"] +
+        pago_horas_extra
+    )
+
+    return {
+        "empleado": {
+            "id": empleado.id,
+            "username": empleado.username,
+            "modulo": empleado.modulo_id
+        },
+        "periodo": {
+            "inicio": periodo.fecha_inicio,
+            "fin": periodo.fecha_fin
+        },
+        "comisiones": {
+            "accesorios": totales["total_accesorios"],
+            "telefonos": totales["total_telefonos"],
+            "chips": totales["total_chips"],
+            "total": totales["total_general"]
+        },
+        "sueldo": {
+            "base": sueldo_base,
+            "horas_extra": horas_extra,
+            "pago_horas_extra": pago_horas_extra
+        },
+        "total_pagar": total_pagar
+    }
