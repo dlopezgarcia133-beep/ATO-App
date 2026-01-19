@@ -72,6 +72,11 @@ class VentaCreate(BaseModel):
     tipo_venta: str
     metodo_pago: str
     telefono_cliente: Optional[str] = None
+
+
+
+class SueldoBaseUpdate(BaseModel):
+    sueldo_base: float
      
 
 class VentaResponse(VentaCreate):
