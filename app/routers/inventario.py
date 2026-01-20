@@ -1313,17 +1313,17 @@ def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
 
 
 
-@router.get("/inventario/modulo/{modulo_id}/producto/{producto_id}")
-def obtener_existencia_producto(
+@router.get("/inventario/modulo/{modulo_id}/existencia")
+def obtener_existencia(
     modulo_id: int,
-    producto_id: int,
+    clave: str,
     db: Session = Depends(get_db)
 ):
-    inv = db.query(models.InventarioModulo).filter(
-        models.InventarioModulo.modulo_id == modulo_id,
-        models.InventarioModulo.id == producto_id
+    item = db.query(InventarioModulo).filter(
+        InventarioModulo.modulo_id == modulo_id,
+        InventarioModulo.clave == clave
     ).first()
 
     return {
-        "existencia": inv.cantidad if inv else 0
+        "existencia_actual": item.cantidad if item else 0
     }
