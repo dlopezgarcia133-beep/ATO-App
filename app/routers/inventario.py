@@ -1309,3 +1309,21 @@ def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
             "cantidad_actual": producto.cantidad
         }
     }
+
+
+
+
+@router.get("/inventario/modulo/{modulo_id}/producto/{producto_id}")
+def obtener_existencia_producto(
+    modulo_id: int,
+    producto_id: int,
+    db: Session = Depends(get_db)
+):
+    inv = db.query(models.InventarioModulo).filter(
+        models.InventarioModulo.modulo_id == modulo_id,
+        models.InventarioModulo.id == producto_id
+    ).first()
+
+    return {
+        "existencia": inv.cantidad if inv else 0
+    }
