@@ -206,7 +206,6 @@ def actualizar_nomina_empleado(
 
     pago_horas_extra = horas_extra * precio_hora_extra
 
-    nomina.sueldo_base = data.sueldo_base
     nomina.horas_extra = horas_extra
     nomina.precio_hora_extra = precio_hora_extra
     nomina.pago_horas_extra = pago_horas_extra
