@@ -200,17 +200,21 @@ def actualizar_nomina_empleado(
         )
         db.add(nomina)
 
-    # 🔢 CÁLCULO HORAS EXTRA
-    COSTO_HORA_EXTRA = 50  # ⚠️ AJUSTABLE
-    pago_horas_extra = data.horas_extra * COSTO_HORA_EXTRA
+    # 🧮 CÁLCULO CORRECTO
+    horas_extra = data.horas_extra or 0
+    precio_hora_extra = data.precio_hora_extra or 0
+
+    pago_horas_extra = horas_extra * precio_hora_extra
 
     nomina.sueldo_base = data.sueldo_base
-    nomina.horas_extra = data.horas_extra
+    nomina.horas_extra = horas_extra
+    nomina.precio_hora_extra = precio_hora_extra
     nomina.pago_horas_extra = pago_horas_extra
 
     db.commit()
 
     return {"ok": True}
+
 
 
 

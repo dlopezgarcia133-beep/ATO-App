@@ -476,4 +476,6 @@ class NominaEmpleadoResponse(BaseModel):
 
 class NominaEmpleadoUpdate(BaseModel):
     sueldo_base: float
-    horas_extra: float
+    horas_extra: int
+    precio_hora_extra: float
+

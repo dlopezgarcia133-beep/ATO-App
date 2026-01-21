@@ -284,4 +284,4 @@ class NominaEmpleado(Base):
     total_comisiones = Column(Integer, default=0)
     horas_extra = Column(Float, default=0)
     pago_horas_extra = Column(Float, default=0)
-    
+    precio_hora_extra = Column(Float, default=0)
