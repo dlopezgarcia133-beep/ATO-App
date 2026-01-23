@@ -259,12 +259,8 @@ def descargar_nomina(
     if not periodo:
         raise HTTPException(400, "No hay periodo activo")
 
-    # 🔹 JOIN NominaEmpleado + Usuario
     nominas = (
-        db.query(
-            NominaEmpleado,
-            Usuario
-        )
+        db.query(NominaEmpleado, Usuario)
         .join(Usuario, Usuario.id == NominaEmpleado.usuario_id)
         .filter(NominaEmpleado.periodo_id == periodo.id)
         .all()
@@ -273,12 +269,17 @@ def descargar_nomina(
     if not nominas:
         raise HTTPException(400, "No hay datos de nómina")
 
-    # 🟢 Crear Excel
+    # 🟢 CALCULAR COMISIONES REALES
+    comisiones_por_empleado = obtener_comisiones_por_empleado_optimizado(
+        db,
+        periodo.fecha_inicio,
+        periodo.fecha_fin
+    )
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Nómina"
 
-    # Encabezados
     ws.append([
         "Empleado",
         "Sueldo base",
@@ -289,32 +290,30 @@ def descargar_nomina(
         "Total a pagar"
     ])
 
-    # Filas
     for nomina, usuario in nominas:
         sueldo_base = usuario.sueldo_base or 0
         horas_extra = nomina.horas_extra or 0
         precio_hora = nomina.precio_hora_extra or 0
-        pago_horas_extra = nomina.pago_horas_extra or 0
-        comisiones = nomina.total_comisiones or 0
+        pago_horas = nomina.pago_horas_extra or 0
 
-        total = sueldo_base + pago_horas_extra + comisiones
+        comisiones = comisiones_por_empleado.get(usuario.id, 0)
+
+        total = sueldo_base + pago_horas + comisiones
 
         ws.append([
             usuario.username,
             sueldo_base,
             horas_extra,
             precio_hora,
-            pago_horas_extra,
+            pago_horas,
             comisiones,
             total
         ])
 
-    # 🟢 Guardar en memoria
     stream = BytesIO()
     wb.save(stream)
     stream.seek(0)
 
-    # 🟢 Nombre del archivo con fechas
     nombre_archivo = (
         f"nomina_{periodo.fecha_inicio:%Y-%m-%d}_"
         f"{periodo.fecha_fin:%Y-%m-%d}.xlsx"
@@ -327,6 +326,7 @@ def descargar_nomina(
             "Content-Disposition": f"attachment; filename={nombre_archivo}"
         }
     )
+
 
 
 @router.get("/mi-resumen")
