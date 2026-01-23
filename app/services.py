@@ -8,21 +8,13 @@ from sqlalchemy import case, func
 
 from sqlalchemy import func, case
 
-def obtener_comisiones_por_empleado_optimizado(
-    db: Session,
-    inicio: date,
-    fin: date
-):
+def obtener_comisiones_por_empleado_optimizado(db: Session, inicio: date, fin: date):
 
-    rows = (
+    ventas_rows = (
         db.query(
             models.Venta.empleado_id,
-
             func.sum(
-                # comisión por producto (si existe)
                 func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad +
-
-                # comisión extra SOLO para teléfonos
                 case(
                     (
                         models.Venta.tipo_producto == "telefono",
@@ -37,20 +29,38 @@ def obtener_comisiones_por_empleado_optimizado(
                 )
             ).label("total_comisiones")
         )
-        .outerjoin(
-            models.Comision,
-            models.Comision.id == models.Venta.comision_id
-        )
+        .outerjoin(models.Comision, models.Comision.id == models.Venta.comision_id)
         .filter(
             models.Venta.cancelada == False,
-            models.Venta.fecha >= inicio,
-            models.Venta.fecha <= fin
+            models.Venta.fecha.between(inicio, fin)
         )
         .group_by(models.Venta.empleado_id)
         .all()
     )
 
-    return {r.empleado_id: float(r.total_comisiones or 0) for r in rows}
+    chips_rows = (
+        db.query(
+            models.VentaChip.empleado_id,
+            func.sum(models.VentaChip.comision).label("total_chips")
+        )
+        .filter(
+            models.VentaChip.cancelada == False,
+            models.VentaChip.fecha.between(inicio, fin)
+        )
+        .group_by(models.VentaChip.empleado_id)
+        .all()
+    )
+
+    comisiones = {}
+
+    for r in ventas_rows:
+        comisiones[r.empleado_id] = float(r.total_comisiones or 0)
+
+    for r in chips_rows:
+        comisiones[r.empleado_id] = comisiones.get(r.empleado_id, 0) + float(r.total_chips or 0)
+
+    return comisiones
+
 
 
 
