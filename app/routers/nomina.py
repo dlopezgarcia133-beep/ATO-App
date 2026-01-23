@@ -259,10 +259,11 @@ def descargar_nomina(
     if not periodo:
         raise HTTPException(400, "No hay periodo activo")
 
+    # 🔹 JOIN NominaEmpleado + Usuario
     nominas = (
         db.query(
             NominaEmpleado,
-            Usuario.username
+            Usuario
         )
         .join(Usuario, Usuario.id == NominaEmpleado.usuario_id)
         .filter(NominaEmpleado.periodo_id == periodo.id)
@@ -289,31 +290,34 @@ def descargar_nomina(
     ])
 
     # Filas
-    for n, username in nominas:
-        total = (
-            (n.sueldo_base or 0) +
-            (n.pago_horas_extra or 0) +
-            (n.total_comisiones or 0)
-        )
+    for nomina, usuario in nominas:
+        sueldo_base = usuario.sueldo_base or 0
+        horas_extra = nomina.horas_extra or 0
+        precio_hora = nomina.precio_hora_extra or 0
+        pago_horas_extra = nomina.pago_horas_extra or 0
+        comisiones = nomina.total_comisiones or 0
+
+        total = sueldo_base + pago_horas_extra + comisiones
 
         ws.append([
-            username,
-            n.sueldo_base or 0,
-            n.horas_extra or 0,
-            n.precio_hora_extra or 0,
-            n.pago_horas_extra or 0,
-            n.total_comisiones or 0,
+            usuario.username,
+            sueldo_base,
+            horas_extra,
+            precio_hora,
+            pago_horas_extra,
+            comisiones,
             total
         ])
 
-    # 🟢 Guardar en memoria (ESTO ES CLAVE)
+    # 🟢 Guardar en memoria
     stream = BytesIO()
     wb.save(stream)
     stream.seek(0)
 
+    # 🟢 Nombre del archivo con fechas
     nombre_archivo = (
-        f"nomina_{periodo.fecha_inicio}_"
-        f"{periodo.fecha_fin}.xlsx"
+        f"nomina_{periodo.fecha_inicio:%Y-%m-%d}_"
+        f"{periodo.fecha_fin:%Y-%m-%d}.xlsx"
     )
 
     return StreamingResponse(
