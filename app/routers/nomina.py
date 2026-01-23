@@ -250,10 +250,15 @@ def descargar_nomina(
     current_user: Usuario = Depends(get_current_user)
 ):
     periodo = obtener_periodo_activo(db)
-    if not periodo or not periodo.cerrado:
-        raise HTTPException(400, "La nómina no está cerrada")
 
-    # aquí generas el Excel como hicimos con inventario
+    if not periodo:
+        raise HTTPException(
+            status_code=400,
+            detail="No hay periodo activo"
+        )
+
+    # ✅ SIEMPRE permitir descargar si hay periodo activo
+    # aquí generas el Excel
 
 
 
