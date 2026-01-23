@@ -8,6 +8,12 @@ from app.models import Usuario
 from app.config import get_current_user
 from app.services import  calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
 
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from io import BytesIO
+
+
+
 router = APIRouter()
 
 @router.get("/periodo/activo", response_model=NominaPeriodoResponse)
@@ -250,17 +256,73 @@ def descargar_nomina(
     current_user: Usuario = Depends(get_current_user)
 ):
     periodo = obtener_periodo_activo(db)
-
     if not periodo:
-        raise HTTPException(
-            status_code=400,
-            detail="No hay periodo activo"
+        raise HTTPException(400, "No hay periodo activo")
+
+    nominas = (
+        db.query(
+            NominaEmpleado,
+            Usuario.username
+        )
+        .join(Usuario, Usuario.id == NominaEmpleado.usuario_id)
+        .filter(NominaEmpleado.periodo_id == periodo.id)
+        .all()
+    )
+
+    if not nominas:
+        raise HTTPException(400, "No hay datos de nómina")
+
+    # 🟢 Crear Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Nómina"
+
+    # Encabezados
+    ws.append([
+        "Empleado",
+        "Sueldo base",
+        "Horas extra",
+        "Precio hora extra",
+        "Pago horas extra",
+        "Comisiones",
+        "Total a pagar"
+    ])
+
+    # Filas
+    for n, username in nominas:
+        total = (
+            (n.sueldo_base or 0) +
+            (n.pago_horas_extra or 0) +
+            (n.total_comisiones or 0)
         )
 
-    # ✅ SIEMPRE permitir descargar si hay periodo activo
-    # aquí generas el Excel
+        ws.append([
+            username,
+            n.sueldo_base or 0,
+            n.horas_extra or 0,
+            n.precio_hora_extra or 0,
+            n.pago_horas_extra or 0,
+            n.total_comisiones or 0,
+            total
+        ])
 
+    # 🟢 Guardar en memoria (ESTO ES CLAVE)
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
 
+    nombre_archivo = (
+        f"nomina_{periodo.fecha_inicio}_"
+        f"{periodo.fecha_fin}.xlsx"
+    )
+
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename={nombre_archivo}"
+        }
+    )
 
 
 @router.get("/mi-resumen")
