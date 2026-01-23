@@ -199,20 +199,25 @@ def actualizar_nomina_empleado(
             periodo_id=periodo.id
         )
         db.add(nomina)
+        db.flush()  # 👈 asegura que exista antes de calcular
 
-    # 🧮 CÁLCULO CORRECTO
-    horas_extra = data.horas_extra or 0
-    precio_hora_extra = data.precio_hora_extra or 0
+    # 🧮 HORAS (siempre se pueden actualizar)
+    if data.horas_extra is not None:
+        nomina.horas_extra = data.horas_extra
 
-    pago_horas_extra = horas_extra * precio_hora_extra
+    # 💰 PRECIO (solo si viene en el request)
+    if data.precio_hora_extra is not None:
+        nomina.precio_hora_extra = data.precio_hora_extra
 
-    nomina.horas_extra = horas_extra
-    nomina.precio_hora_extra = precio_hora_extra
-    nomina.pago_horas_extra = pago_horas_extra
+    # 🔁 RECÁLCULO FINAL
+    nomina.pago_horas_extra = (
+        (nomina.horas_extra or 0) * (nomina.precio_hora_extra or 0)
+    )
 
     db.commit()
 
     return {"ok": True}
+
 
 
 

@@ -476,6 +476,6 @@ class NominaEmpleadoResponse(BaseModel):
 
 class NominaEmpleadoUpdate(BaseModel):
 
-    horas_extra: int
-    precio_hora_extra: float
+    horas_extra: Optional[int] = None
+    precio_hora_extra: Optional[float] = None
 
