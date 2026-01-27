@@ -234,18 +234,19 @@ def cerrar_nomina(
     current_user: Usuario = Depends(get_current_user)
 ):
     if current_user.rol != "admin":
-        raise HTTPException(status_code=403, detail="No autorizado")
+        raise HTTPException(403, "No autorizado")
 
     periodo = obtener_periodo_activo(db)
     if not periodo:
-        raise HTTPException(status_code=400, detail="No hay periodo activo")
+        raise HTTPException(400, "No hay periodo activo")
 
-    periodo.activo = False
-    periodo.cerrado = True
+    # 🔒 CERRAR PERIODO
+    periodo.activa = False
+    periodo.estado = "cerrada"
 
     db.commit()
 
-    return {"ok": True, "mensaje": "Nómina cerrada correctamente"}
+    return {"ok": True}
 
 
 
