@@ -1,5 +1,6 @@
+from datetime import date
 from typing import Literal
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import NominaEmpleado, NominaPeriodo
@@ -148,12 +149,24 @@ def obtener_resumen_nomina(
 @router.get("/resumen/empleado/{usuario_id}")
 def resumen_comisiones_empleado(
     usuario_id: int,
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    periodo = obtener_periodo_activo(db)
-    if not periodo:
-        raise HTTPException(status_code=400, detail="No hay periodo activo")
+    # 🔹 Resolver fechas
+    if fecha_inicio and fecha_fin:
+        inicio = fecha_inicio
+        fin = fecha_fin
+    else:
+        periodo = obtener_periodo_activo(db)
+        if not periodo:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay periodo activo ni fechas proporcionadas"
+            )
+        inicio = periodo.fecha_inicio
+        fin = periodo.fecha_fin
 
     usuario = db.query(Usuario).get(usuario_id)
     if not usuario:
@@ -164,8 +177,8 @@ def resumen_comisiones_empleado(
     totales = calcular_totales_comisiones(
         db=db,
         empleado_id=usuario_id,
-        inicio=periodo.fecha_inicio,
-        fin=periodo.fecha_fin
+        inicio=inicio,
+        fin=fin
     )
 
     return {
