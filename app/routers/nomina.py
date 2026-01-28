@@ -154,25 +154,29 @@ def resumen_comisiones_empleado(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    # 🔹 Resolver fechas
+    usuario = db.query(Usuario).get(usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    grupo = usuario.username.upper()[0] if usuario.username else None
+
     if fecha_inicio and fecha_fin:
         inicio = fecha_inicio
         fin = fecha_fin
     else:
         periodo = obtener_periodo_activo(db)
         if not periodo:
-            raise HTTPException(
-                status_code=400,
-                detail="No hay periodo activo ni fechas proporcionadas"
-            )
+            return {
+                "usuario_id": usuario.id,
+                "username": usuario.username,
+                "grupo": grupo,
+                "accesorios": 0,
+                "telefonos": 0,
+                "chips": 0,
+                "total_comisiones": 0
+            }
         inicio = periodo.fecha_inicio
         fin = periodo.fecha_fin
-
-    usuario = db.query(Usuario).get(usuario_id)
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    grupo = usuario.username.upper()[0] if usuario.username else None
 
     totales = calcular_totales_comisiones(
         db=db,
