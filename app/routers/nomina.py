@@ -106,11 +106,11 @@ def obtener_resumen_nomina(
     fin=fin_a
 )
 
-comisiones_c = obtener_comisiones_por_empleado_optimizado(
+    comisiones_c = obtener_comisiones_por_empleado_optimizado(
     db=db,
     inicio=inicio_c,
     fin=fin_c
-)
+    )
 
     resultado = []
 
