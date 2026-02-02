@@ -174,8 +174,11 @@ def resumen_comisiones_empleado(
     current_user: Usuario = Depends(get_current_user)
 ):
     periodo = obtener_periodo_activo(db)
-    if not periodo:
-        raise HTTPException(status_code=400, detail="No hay periodo activo")
+    if not periodo and not (fecha_inicio and fecha_fin):
+        raise HTTPException(
+            status_code=400,
+            detail="No hay periodo activo ni rango de fechas"
+        )
 
     usuario = db.query(Usuario).get(usuario_id)
     if not usuario:
@@ -183,8 +186,8 @@ def resumen_comisiones_empleado(
 
     grupo = usuario.username.upper()[0] if usuario.username else None
 
-    # 🔑 LÓGICA CLAVE
-    if grupo == "C" and fecha_inicio and fecha_fin:
+    # ✅ LÓGICA CORRECTA
+    if fecha_inicio and fecha_fin:
         inicio = fecha_inicio
         fin = fecha_fin
     else:
@@ -206,10 +209,9 @@ def resumen_comisiones_empleado(
         "telefonos": totales["telefonos"],
         "chips": totales["chips"],
         "total_comisiones": totales["total"],
-        "inicio_usado": inicio,   # 👈 útil para debug
+        "inicio_usado": inicio,  # 👈 debug útil
         "fin_usado": fin
     }
-
 
 
 @router.put("/empleado/{usuario_id}")
