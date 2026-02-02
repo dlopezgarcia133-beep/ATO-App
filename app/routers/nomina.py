@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -83,34 +83,48 @@ def obtener_periodo_activo(db: Session):
 
 @router.get("/resumen", response_model=list[NominaEmpleadoResponse])
 def obtener_resumen_nomina(
-     inicio_a: date,
-    fin_a: date,
-    inicio_c: date,
-    fin_c: date,
+    inicio_a: Optional[date] = Query(None),
+    fin_a: Optional[date] = Query(None),
+    inicio_c: Optional[date] = Query(None),
+    fin_c: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    
+    # 🔹 Periodo activo (solo referencia / excel)
+    periodo = obtener_periodo_activo(db)
+    if not periodo:
+        return []
+
+    # 🔹 Empleados activos
     empleados = db.query(Usuario).filter(Usuario.activo == True).all()
 
+    # 🔹 Nómina guardada del periodo
     nominas = db.query(NominaEmpleado).filter(
         NominaEmpleado.periodo_id == periodo.id
     ).all()
 
     nomina_map = {n.usuario_id: n for n in nominas}
 
-    # 🔹 AQUÍ SE LLAMA UNA VEZ
-    comisiones_a = obtener_comisiones_por_empleado_optimizado(
-    db=db,
-    inicio=inicio_a,
-    fin=fin_a
-)
+    # 🔹 Rangos reales a usar
+    inicio_a_calc = inicio_a or periodo.fecha_inicio
+    fin_a_calc = fin_a or periodo.fecha_fin
 
-    comisiones_c = obtener_comisiones_por_empleado_optimizado(
-    db=db,
-    inicio=inicio_c,
-    fin=fin_c
+    usar_grupo_c = inicio_c is not None and fin_c is not None
+
+    # 🔹 Comisiones
+    comisiones_a = obtener_comisiones_por_empleado_optimizado(
+        db=db,
+        inicio=inicio_a_calc,
+        fin=fin_a_calc
     )
+
+    comisiones_c = {}
+    if usar_grupo_c:
+        comisiones_c = obtener_comisiones_por_empleado_optimizado(
+            db=db,
+            inicio=inicio_c,
+            fin=fin_c
+        )
 
     resultado = []
 
@@ -118,17 +132,14 @@ def obtener_resumen_nomina(
         if not emp.username:
             continue
 
-        primera_letra = emp.username.upper()[0]
-        if primera_letra not in ("A", "C"):
+        grupo = emp.username.upper()[0]
+        if grupo not in ("A", "C"):
             continue
-
-        grupo = primera_letra
 
         if grupo == "A":
             total_comisiones = comisiones_a.get(emp.id, 0)
         else:
-            total_comisiones = comisiones_c.get(emp.id, 0)
-
+            total_comisiones = comisiones_c.get(emp.id, 0) if usar_grupo_c else 0
 
         nomina = nomina_map.get(emp.id)
 
@@ -137,7 +148,6 @@ def obtener_resumen_nomina(
         pago_horas_extra = nomina.pago_horas_extra if nomina else 0
 
         total = sueldo_base + total_comisiones + pago_horas_extra
-
 
         resultado.append({
             "usuario_id": emp.id,
@@ -152,8 +162,6 @@ def obtener_resumen_nomina(
         })
 
     return resultado
-
-
 
 
 
