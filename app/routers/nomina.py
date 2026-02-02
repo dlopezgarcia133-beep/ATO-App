@@ -83,13 +83,14 @@ def obtener_periodo_activo(db: Session):
 
 @router.get("/resumen", response_model=list[NominaEmpleadoResponse])
 def obtener_resumen_nomina(
+     inicio_a: date,
+    fin_a: date,
+    inicio_c: date,
+    fin_c: date,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    periodo = obtener_periodo_activo(db)
-    if not periodo:
-        return []
-
+    
     empleados = db.query(Usuario).filter(Usuario.activo == True).all()
 
     nominas = db.query(NominaEmpleado).filter(
@@ -99,11 +100,17 @@ def obtener_resumen_nomina(
     nomina_map = {n.usuario_id: n for n in nominas}
 
     # 🔹 AQUÍ SE LLAMA UNA VEZ
-    comisiones_map = obtener_comisiones_por_empleado_optimizado(
-        db=db,
-        inicio=periodo.fecha_inicio,
-        fin=periodo.fecha_fin
-    )
+    comisiones_a = obtener_comisiones_por_empleado_optimizado(
+    db=db,
+    inicio=inicio_a,
+    fin=fin_a
+)
+
+comisiones_c = obtener_comisiones_por_empleado_optimizado(
+    db=db,
+    inicio=inicio_c,
+    fin=fin_c
+)
 
     resultado = []
 
@@ -117,7 +124,11 @@ def obtener_resumen_nomina(
 
         grupo = primera_letra
 
-        total_comisiones = comisiones_map.get(emp.id, 0)
+        if grupo == "A":
+            total_comisiones = comisiones_a.get(emp.id, 0)
+        else:
+            total_comisiones = comisiones_c.get(emp.id, 0)
+
 
         nomina = nomina_map.get(emp.id)
 

@@ -271,9 +271,7 @@ class NominaPeriodo(Base):
     fecha_fin = Column(Date, nullable=False)
     grupo = Column(String(1), nullable=False)
 
-    inicio_grupo_c = Column(Date, nullable=True)
-    fin_grupo_c = Column(Date, nullable=True)
-    
+
     activa = Column(Boolean, default=False)
     estado = Column(String(20), default="abierta")  # abierta | congelada | pagada
     creado = Column(DateTime, server_default=func.now())
@@ -289,3 +287,4 @@ class NominaEmpleado(Base):
     horas_extra = Column(Float, default=0)
     pago_horas_extra = Column(Float, default=0)
     precio_hora_extra = Column(Float, default=0)
+    total_pagar = Column(Float, default=0)
