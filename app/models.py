@@ -269,7 +269,6 @@ class NominaPeriodo(Base):
     id = Column(Integer, primary_key=True, index=True)
     fecha_inicio = Column(Date, nullable=False)
     fecha_fin = Column(Date, nullable=False)
-    grupo = Column(String(1), nullable=False)
 
 
     activa = Column(Boolean, default=False)
