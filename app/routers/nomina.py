@@ -200,7 +200,7 @@ def resumen_comisiones_empleado(
         inicio=inicio,
         fin=fin
     )
-
+    print(totales)
     return {
         "usuario_id": usuario.id,
         "username": usuario.username,
