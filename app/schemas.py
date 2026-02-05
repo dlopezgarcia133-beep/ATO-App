@@ -468,6 +468,8 @@ class NominaEmpleadoResponse(BaseModel):
     sueldo_base: float
     horas_extra: int
     pago_horas_extra: float
+    sanciones: float
+    comisiones_pendientes: float
     total_pagar: float
     total_comisiones: float
 
@@ -477,4 +479,5 @@ class NominaEmpleadoUpdate(BaseModel):
 
     horas_extra: Optional[int] = None
     precio_hora_extra: Optional[float] = None
-
+    sanciones: Optional[float] = None
+    comisiones_pendientes: Optional[float] = None

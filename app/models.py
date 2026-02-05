@@ -286,4 +286,6 @@ class NominaEmpleado(Base):
     horas_extra = Column(Float, default=0)
     pago_horas_extra = Column(Float, default=0)
     precio_hora_extra = Column(Float, default=0)
+    sanciones = Column(Float, default=0)
+    comisiones_pendientes = Column(Float, default=0)
     total_pagar = Column(Float, default=0)
