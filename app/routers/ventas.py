@@ -642,12 +642,12 @@ def validar_chip(
     else:
         # Comisiones usando rangos (min, max)
         comisiones_por_chip = {
-            "Chip Azul": [
+            "Chip Equipo": [
                 ((0,50), 15),
                 ((51, 100), 20),
                 ((101, 1000), 50)
             ],
-            "Chip ATO": [
+            "Chip Express": [
                 ((0, 50), 5),
                 ((51, 100), 10),
                 ((101, 150),25)
@@ -657,16 +657,29 @@ def validar_chip(
                 
             ],
             "Chip Cero/Libre": [
-                ((0, 500), 25),
+                ((0, 50), 25),
+                ((51, 100), 30),
+                ((101, 150),35)
                 
             ],
             "Chip Preactivado": [
                 ((0, 500), 35),
                 
             ],
-              "B63": [
-              ((0, 500), 25),
-            ]
+
+              "Chip Coppel": [
+              ((0, 50), 10),
+                ((51, 100), 15),
+            ],
+
+            "Portabilidad Coppel": [
+                ((0, 500), 25),
+            ],
+            
+            "Porta Otras cadenas": [
+                ((0, 500), 50), 
+            ]            
+
         }
 
         if tipo not in comisiones_por_chip:
