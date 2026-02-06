@@ -375,30 +375,39 @@ def obtener_mi_nomina(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    # 1️⃣ Periodo activo
     periodo = obtener_periodo_activo(db)
     if not periodo:
         raise HTTPException(status_code=400, detail="No hay periodo activo")
 
-    # 2️⃣ Usuario (empleado)
     empleado = current_user
 
-    # 3️⃣ Totales de comisiones (YA CALCULADOS)
+    # 🔹 Detectar grupo
+    if empleado.username.startswith("A"):
+        grupo = "A"
+        fecha_inicio_comisiones = periodo.inicio_a
+        fecha_fin_comisiones = periodo.fin_a
+    elif empleado.username.startswith("C"):
+        grupo = "C"
+        fecha_inicio_comisiones = periodo.inicio_c
+        fecha_fin_comisiones = periodo.fin_c
+    else:
+        raise HTTPException(status_code=400, detail="Grupo inválido")
+
+    # 🔹 Comisiones
     totales = calcular_totales_comisiones(
         db=db,
         empleado_id=empleado.id,
-        inicio=periodo.fecha_inicio,
-        fin=periodo.fecha_fin
+        inicio=fecha_inicio_comisiones,
+        fin=fecha_fin_comisiones
     )
 
     total_comisiones = (
-    totales.get("total_accesorios", 0) +
-    totales.get("total_telefonos", 0) +
-    totales.get("total_chips", 0)
+        totales.get("total_accesorios", 0) +
+        totales.get("total_telefonos", 0) +
+        totales.get("total_chips", 0)
     )
 
-
-    # 4️⃣ Nómina del periodo (horas extra, etc)
+    # 🔹 Nómina
     nomina = db.query(NominaEmpleado).filter(
         NominaEmpleado.usuario_id == empleado.id,
         NominaEmpleado.periodo_id == periodo.id
@@ -406,16 +415,9 @@ def obtener_mi_nomina(
 
     horas_extra = nomina.horas_extra if nomina else 0
     pago_horas_extra = nomina.pago_horas_extra if nomina else 0
-
     sueldo_base = empleado.sueldo_base or 0
 
-    # 5️⃣ Total final
-    total_pagar = (
-    sueldo_base +
-    total_comisiones +
-    pago_horas_extra
-    )
-
+    total_pagar = sueldo_base + total_comisiones + pago_horas_extra
 
     return {
         "empleado": {
@@ -427,11 +429,16 @@ def obtener_mi_nomina(
             "inicio": periodo.fecha_inicio,
             "fin": periodo.fecha_fin
         },
+        "rango_comisiones": {
+            "grupo": grupo,
+            "inicio": fecha_inicio_comisiones,
+            "fin": fecha_fin_comisiones
+        },
         "comisiones": {
-        "accesorios": totales.get("total_accesorios", 0),
-        "telefonos": totales.get("total_telefonos", 0),
-        "chips": totales.get("total_chips", 0),
-        "total": total_comisiones
+            "accesorios": totales.get("total_accesorios", 0),
+            "telefonos": totales.get("total_telefonos", 0),
+            "chips": totales.get("total_chips", 0),
+            "total": total_comisiones
         },
         "sueldo": {
             "base": sueldo_base,
