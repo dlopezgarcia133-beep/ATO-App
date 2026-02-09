@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import NominaEmpleado, NominaPeriodo
-from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoResponse
+from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
 from app.services import  calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
@@ -53,17 +53,26 @@ def activar_periodo_nomina(
     if current_user.rol != "admin":
         raise HTTPException(status_code=403, detail="No autorizado")
 
-    # 🔹 cerrar periodo activo del mismo grupo
+    # 🔹 Cerrar cualquier periodo activo anterior
     db.query(NominaPeriodo).filter(
-        NominaPeriodo.activa == True,
-        
-    ).update({"activa": False})
+        NominaPeriodo.activa == True
+    ).update(
+        {"activa": False},
+        synchronize_session=False
+    )
 
+    # 🔹 Crear nuevo periodo
     nuevo = NominaPeriodo(
         fecha_inicio=data.fecha_inicio,
         fecha_fin=data.fecha_fin,
-        activa=True,
-        
+
+        # 👉 Por defecto ambos grupos usan el mismo rango
+        inicio_a=data.fecha_inicio,
+        fin_a=data.fecha_fin,
+        inicio_c=data.fecha_inicio,
+        fin_c=data.fecha_fin,
+
+        activa=True
     )
 
     db.add(nuevo)
@@ -106,26 +115,26 @@ def obtener_resumen_nomina(
     nomina_map = {n.usuario_id: n for n in nominas}
 
     # 🔹 Rangos reales a usar
-    inicio_a_calc = inicio_a or periodo.fecha_inicio
-    fin_a_calc = fin_a or periodo.fecha_fin
+    inicio_a_calc = inicio_a or periodo.inicio_a
+    fin_a_calc = fin_a or periodo.fin_a
 
-    usar_grupo_c = inicio_c is not None and fin_c is not None
+
+    inicio_c_calc = inicio_c or periodo.inicio_c
+    fin_c_calc = fin_c or periodo.fin_c
+
 
     # 🔹 Comisiones
     comisiones_a = obtener_comisiones_por_empleado_optimizado(
-        db=db,
-        inicio=inicio_a_calc,
-        fin=fin_a_calc
+    db=db,
+    inicio=inicio_a_calc,
+    fin=fin_a_calc
     )
 
-    comisiones_c = {}
-    if usar_grupo_c:
-        comisiones_c = obtener_comisiones_por_empleado_optimizado(
-            db=db,
-            inicio=inicio_c,
-            fin=fin_c
-        )
-
+    comisiones_c = obtener_comisiones_por_empleado_optimizado(
+        db=db,
+        inicio=inicio_c_calc,
+        fin=fin_c_calc
+    )
     resultado = []
 
     for emp in empleados:
@@ -447,3 +456,35 @@ def obtener_mi_nomina(
         },
         "total_pagar": total_pagar
     }
+
+
+@router.put("/periodo/fechas", response_model=NominaPeriodoResponse)
+def actualizar_fechas_periodo(
+    data: NominaPeriodoFechasUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    periodo = obtener_periodo_activo(db)
+    if not periodo:
+        raise HTTPException(status_code=400, detail="No hay periodo activo")
+
+    # 🔹 Actualizar solo lo que venga
+    if data.inicio_a is not None:
+        periodo.inicio_a = data.inicio_a
+
+    if data.fin_a is not None:
+        periodo.fin_a = data.fin_a
+
+    if data.inicio_c is not None:
+        periodo.inicio_c = data.inicio_c
+
+    if data.fin_c is not None:
+        periodo.fin_c = data.fin_c
+
+    db.commit()
+    db.refresh(periodo)
+
+    return periodo

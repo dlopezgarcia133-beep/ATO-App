@@ -270,6 +270,11 @@ class NominaPeriodo(Base):
     fecha_inicio = Column(Date, nullable=False)
     fecha_fin = Column(Date, nullable=False)
 
+    inicio_a = Column(Date, nullable=True)
+    fin_a = Column(Date, nullable=True)
+
+    inicio_c = Column(Date, nullable=True)
+    fin_c = Column(Date, nullable=True)
 
     activa = Column(Boolean, default=False)
     estado = Column(String(20), default="abierta")  # abierta | congelada | pagada

@@ -481,3 +481,10 @@ class NominaEmpleadoUpdate(BaseModel):
     precio_hora_extra: Optional[float] = None
     sanciones: Optional[float] = None
     comisiones_pendientes: Optional[float] = None
+
+
+class NominaPeriodoFechasUpdate(BaseModel):
+    inicio_a: Optional[date] = None
+    fin_a: Optional[date] = None
+    inicio_c: Optional[date] = None
+    fin_c: Optional[date] = None
