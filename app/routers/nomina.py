@@ -148,7 +148,8 @@ def obtener_resumen_nomina(
         if grupo == "A":
             total_comisiones = comisiones_a.get(emp.id, 0)
         else:
-            total_comisiones = comisiones_c.get(emp.id, 0) if usar_grupo_c else 0
+            total_comisiones = comisiones_c.get(emp.id, 0)
+
 
         nomina = nomina_map.get(emp.id)
 
@@ -201,13 +202,16 @@ def resumen_comisiones_empleado(
 
     grupo = usuario.username.upper()[0] if usuario.username else None
 
-    # ✅ LÓGICA CORRECTA
     if fecha_inicio and fecha_fin:
         inicio = fecha_inicio
         fin = fecha_fin
     else:
-        inicio = periodo.fecha_inicio
-        fin = periodo.fecha_fin
+        if grupo == "A":
+            inicio = periodo.inicio_a
+            fin = periodo.fin_a
+        else:
+            inicio = periodo.inicio_c
+            fin = periodo.fin_c 
 
     totales = calcular_totales_comisiones(
         db=db,
@@ -256,20 +260,29 @@ def actualizar_nomina_empleado(
         db.add(nomina)
         db.flush()  # 👈 asegura que exista antes de calcular
 
-    # 🧮 HORAS (siempre se pueden actualizar)
+    # 🧮 HORAS
     if data.horas_extra is not None:
         nomina.horas_extra = data.horas_extra
 
-    # 💰 PRECIO (solo si viene en el request)
+    # 💰 PRECIO
     if data.precio_hora_extra is not None:
         nomina.precio_hora_extra = data.precio_hora_extra
 
-    # 🔁 RECÁLCULO FINAL
+    # ❗ SANCIONES
+    if data.sanciones is not None:
+        nomina.sanciones = data.sanciones
+
+    # ➕ COMISIONES PENDIENTES
+    if data.comisiones_pendientes is not None:
+        nomina.comisiones_pendientes = data.comisiones_pendientes
+
+    # 🔁 RECÁLCULO
     nomina.pago_horas_extra = (
         (nomina.horas_extra or 0) * (nomina.precio_hora_extra or 0)
     )
 
     db.commit()
+
 
     return {"ok": True}
 
