@@ -451,6 +451,7 @@ class NominaPeriodoResponse(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     estado: str
+    
 
     class Config:
         from_attributes = True
@@ -468,6 +469,7 @@ class NominaEmpleadoResponse(BaseModel):
     sueldo_base: float
     horas_extra: int
     pago_horas_extra: float
+    precio_horas_extra: float
     sanciones: float
     comisiones_pendientes: float
     total_pagar: float
