@@ -174,7 +174,7 @@ def obtener_resumen_nomina(
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
             "pago_horas_extra": pago_horas_extra,
-            "precio_hora_extra": precio_hora_extra 
+            "precio_hora_extra": precio_hora_extra, 
             "sanciones": sanciones,
             "comisiones_pendientes": comisiones_pendientes,
             "total_pagar": total
