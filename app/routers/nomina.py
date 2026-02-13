@@ -421,12 +421,12 @@ def obtener_mi_nomina(
     # 🔹 Detectar grupo
     if empleado.username.startswith("A"):
         grupo = "A"
-        fecha_inicio_comisiones = periodo.inicio_a
-        fecha_fin_comisiones = periodo.fin_a
+        fecha_inicio = periodo.inicio_a
+        fecha_fin = periodo.fin_a
     elif empleado.username.startswith("C"):
         grupo = "C"
-        fecha_inicio_comisiones = periodo.inicio_c
-        fecha_fin_comisiones = periodo.fin_c
+        fecha_inicio = periodo.inicio_c
+        fecha_fin = periodo.fin_c
     else:
         raise HTTPException(status_code=400, detail="Grupo inválido")
 
@@ -434,8 +434,8 @@ def obtener_mi_nomina(
     totales = calcular_totales_comisiones(
         db=db,
         empleado_id=empleado.id,
-        inicio=fecha_inicio_comisiones,
-        fin=fecha_fin_comisiones
+        inicio=fecha_inicio,
+        fin=fecha_fin
     )
 
     total_comisiones = (
@@ -444,17 +444,25 @@ def obtener_mi_nomina(
         totales.get("total_chips", 0)
     )
 
-    # 🔹 Nómina
+    # 🔹 Nómina guardada
     nomina = db.query(NominaEmpleado).filter(
         NominaEmpleado.usuario_id == empleado.id,
         NominaEmpleado.periodo_id == periodo.id
     ).first()
 
+    sueldo_base = empleado.sueldo_base or 0
     horas_extra = nomina.horas_extra if nomina else 0
     pago_horas_extra = nomina.pago_horas_extra if nomina else 0
-    sueldo_base = empleado.sueldo_base or 0
+    sanciones = nomina.sanciones if nomina and nomina.sanciones else 0
+    comisiones_pendientes = nomina.comisiones_pendientes if nomina and nomina.comisiones_pendientes else 0
 
-    total_pagar = sueldo_base + total_comisiones + pago_horas_extra
+    total_pagar = (
+        sueldo_base
+        + total_comisiones
+        + pago_horas_extra
+        + comisiones_pendientes
+        - sanciones
+    )
 
     return {
         "empleado": {
@@ -463,13 +471,8 @@ def obtener_mi_nomina(
             "modulo": empleado.modulo_id
         },
         "periodo": {
-            "inicio": periodo.fecha_inicio,
-            "fin": periodo.fecha_fin
-        },
-        "rango_comisiones": {
-            "grupo": grupo,
-            "inicio": fecha_inicio_comisiones,
-            "fin": fecha_fin_comisiones
+            "inicio": fecha_inicio,
+            "fin": fecha_fin
         },
         "comisiones": {
             "accesorios": totales.get("total_accesorios", 0),
@@ -480,7 +483,9 @@ def obtener_mi_nomina(
         "sueldo": {
             "base": sueldo_base,
             "horas_extra": horas_extra,
-            "pago_horas_extra": pago_horas_extra
+            "pago_horas_extra": pago_horas_extra,
+            "comisiones_pendientes": comisiones_pendientes,
+            "sanciones": sanciones
         },
         "total_pagar": total_pagar
     }
