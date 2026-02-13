@@ -353,6 +353,8 @@ def descargar_nomina(
         "Precio hora extra",
         "Pago horas extra",
         "Comisiones",
+        "Comisiones pendientes",
+        "Sanciones",
         "Total a pagar"
     ])
 
@@ -361,10 +363,18 @@ def descargar_nomina(
         horas_extra = nomina.horas_extra or 0
         precio_hora = nomina.precio_hora_extra or 0
         pago_horas = nomina.pago_horas_extra or 0
-
+        sanciones = nomina.sanciones or 0
+        comisiones_pendientes = nomina.comisiones_pendientes or 0
         comisiones = comisiones_por_empleado.get(usuario.id, 0)
 
-        total = sueldo_base + pago_horas + comisiones
+        total = (
+            sueldo_base
+            + pago_horas
+            + comisiones
+            + comisiones_pendientes
+            - sanciones
+        )
+
 
         ws.append([
             usuario.username,
@@ -373,6 +383,8 @@ def descargar_nomina(
             precio_hora,
             pago_horas,
             comisiones,
+            comisiones_pendientes,
+            sanciones,
             total
         ])
 
