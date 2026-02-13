@@ -155,7 +155,7 @@ def obtener_resumen_nomina(
 
         sueldo_base = emp.sueldo_base or 0
         horas_extra = nomina.horas_extra if nomina else 0
-        pago_horas_extra = nomina.pago_horas_extra if nomina else 0
+        pago_hora_extra = nomina.pago_horas_extra if nomina else 0
         precio_hora_extra = nomina.precio_hora_extra if nomina else 0
 
 
@@ -163,7 +163,7 @@ def obtener_resumen_nomina(
         comisiones_pendientes = (nomina.comisiones_pendientes or 0) if nomina else 0
 
 
-        total = sueldo_base + total_comisiones + pago_horas_extra + comisiones_pendientes - sanciones
+        total = sueldo_base + total_comisiones + pago_hora_extra + comisiones_pendientes - sanciones
 
         resultado.append({
             "usuario_id": emp.id,
@@ -173,7 +173,7 @@ def obtener_resumen_nomina(
             "total_comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
-            "pago_horas_extra": pago_horas_extra,
+            "pago_hora_extra": pago_hora_extra,
             "precio_hora_extra": precio_hora_extra, 
             "sanciones": sanciones,
             "comisiones_pendientes": comisiones_pendientes,
