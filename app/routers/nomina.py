@@ -420,11 +420,11 @@ def obtener_mi_nomina(
 
     # 🔹 Detectar grupo
     if empleado.username.startswith("A"):
-        grupo = "A"
+        
         fecha_inicio = periodo.inicio_a
         fecha_fin = periodo.fin_a
     elif empleado.username.startswith("C"):
-        grupo = "C"
+        
         fecha_inicio = periodo.inicio_c
         fecha_fin = periodo.fin_c
     else:
