@@ -439,9 +439,9 @@ def obtener_mi_nomina(
     )
 
     total_comisiones = (
-        totales.get("total_accesorios", 0) +
-        totales.get("total_telefonos", 0) +
-        totales.get("total_chips", 0)
+        totales.get("accesorios", 0) +
+        totales.get("telefonos", 0) +
+        totales.get("chips", 0)
     )
 
     # 🔹 Nómina guardada
@@ -475,9 +475,9 @@ def obtener_mi_nomina(
             "fin": fecha_fin
         },
         "comisiones": {
-            "accesorios": totales.get("total_accesorios", 0),
-            "telefonos": totales.get("total_telefonos", 0),
-            "chips": totales.get("total_chips", 0),
+            "accesorios": totales.get("accesorios", 0),
+            "telefonos": totales.get("telefonos", 0),
+            "chips": totales.get("chips", 0),
             "total": total_comisiones
         },
         "sueldo": {
