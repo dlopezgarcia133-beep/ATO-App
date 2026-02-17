@@ -8,6 +8,8 @@ from app.database import get_db
 from app.config import get_current_user
 from app.models import KardexMovimiento
 from sqlalchemy import func
+from sqlalchemy import text as sql_text
+
 
 from pyexpat import model
 
@@ -26,7 +28,7 @@ def registrar_kardex(
     modulo_destino_id=None,
     referencia_id=None
 ):
-    query = text("""
+    query = sql_text("""
         INSERT INTO kardex_movimientos (
             producto,
             tipo_producto,
