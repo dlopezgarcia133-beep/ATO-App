@@ -294,3 +294,37 @@ class NominaEmpleado(Base):
     sanciones = Column(Float, default=0)
     comisiones_pendientes = Column(Float, default=0)
     total_pagar = Column(Float, default=0)
+
+
+
+class TipoMovimientoEnum(str, enum.Enum):
+    VENTA = "VENTA"
+    AJUSTE_POSITIVO = "AJUSTE_POSITIVO"
+    AJUSTE_NEGATIVO = "AJUSTE_NEGATIVO"
+    TRASPASO_ENTRADA = "TRASPASO_ENTRADA"
+    TRASPASO_SALIDA = "TRASPASO_SALIDA"
+    ENTRADA_INICIAL = "ENTRADA_INICIAL"
+
+    
+
+class KardexMovimiento(Base):
+    __tablename__ = "kardex_movimientos"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    producto = Column(String, nullable=False)
+    tipo_producto = Column(String, nullable=False)
+
+    cantidad = Column(Integer, nullable=False)
+
+    tipo_movimiento = Column(Enum(TipoMovimientoEnum), nullable=False)
+
+    modulo_origen_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
+    modulo_destino_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
+
+    referencia_id = Column(Integer, nullable=True)
+    # id de venta o traspaso si aplica
+
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+
+    fecha = Column(DateTime(timezone=True), server_default=func.now())

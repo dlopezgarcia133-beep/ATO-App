@@ -121,3 +121,7 @@ def calcular_totales_comisiones(
         "chips": total_chips,
         "total": total_accesorios + total_telefonos + total_chips
     }
+
+
+
+

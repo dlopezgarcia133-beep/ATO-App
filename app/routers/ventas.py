@@ -10,6 +10,7 @@ from app.database import get_db
 from app.routers.usuarios import get_current_user
 from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_rol_requerido
 from datetime import date
+from app.routers.kardex import registrar_kardex
 
 
 router = APIRouter()
@@ -82,7 +83,21 @@ def crear_ventas(
 )
 
         db.add(nueva)
-        ventas_realizadas.append(nueva)
+        db.flush()  # 👈 importante para obtener nueva.id
+
+# Registrar Kardex
+    registrar_kardex(
+        db=db,
+        producto=nueva.producto,
+        tipo_producto=nueva.tipo_producto,
+        cantidad=nueva.cantidad,
+        tipo_movimiento="VENTA",
+        usuario_id=current_user.id,
+        modulo_origen_id=modulo_id,
+        referencia_id=nueva.id
+    )
+
+    ventas_realizadas.append(nueva)
 
     db.commit()
     for v in ventas_realizadas:
@@ -463,6 +478,19 @@ def crear_ventas_multiples(
         )
 
         db.add(nueva)
+        db.flush()
+
+        registrar_kardex(
+            db=db,
+            producto=nueva.producto,
+            tipo_producto=nueva.tipo_producto,
+            cantidad=nueva.cantidad,
+            tipo_movimiento="VENTA",
+            usuario_id=current_user.id,
+            modulo_origen_id=modulo_id,
+            referencia_id=nueva.id
+        )
+
         ventas_realizadas.append(nueva)
 
     # confirmar transacción de ventas e inventario
