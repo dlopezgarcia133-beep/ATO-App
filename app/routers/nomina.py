@@ -475,9 +475,23 @@ def obtener_mi_nomina(
 
     # 🔹 Nómina guardada
     nomina = db.query(NominaEmpleado).filter(
-        NominaEmpleado.usuario_id == empleado.id,
-        NominaEmpleado.periodo_id == periodo.id
+    NominaEmpleado.usuario_id == empleado.id,
+    NominaEmpleado.periodo_id == periodo.id
     ).first()
+
+    if not nomina:
+        nomina = NominaEmpleado(
+            usuario_id=empleado.id,
+            periodo_id=periodo.id,
+            horas_extra=0,
+            precio_hora_extra=0,
+            pago_horas_extra=0,
+            sanciones=0,
+            comisiones_pendientes=0
+        )
+        db.add(nomina)
+        db.commit()
+        db.refresh(nomina)
 
     sueldo_base = empleado.sueldo_base or 0
     horas_extra = nomina.horas_extra if nomina else 0
