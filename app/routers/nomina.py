@@ -3,12 +3,12 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import NominaEmpleado, NominaPeriodo
+from app.models import NominaEmpleado, NominaPeriodo, Venta
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
 from app.services import  calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
-
+import openpyxl
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from io import BytesIO
@@ -318,53 +318,88 @@ def cerrar_nomina(
 
 @router.get("/descargar")
 def descargar_nomina(
+    periodo_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    periodo = obtener_periodo_activo(db)
+    # 🔎 Buscar periodo
+    periodo = db.query(NominaPeriodo).filter(NominaPeriodo.id == periodo_id).first()
     if not periodo:
-        raise HTTPException(400, "No hay periodo activo")
+        raise HTTPException(status_code=404, detail="Periodo no encontrado")
 
+    # 👥 Traer TODOS los empleados activos (del mismo módulo si aplica)
+    empleados = (
+        db.query(Usuario)
+        .filter(
+            Usuario.activo == True,
+            Usuario.modulo_id == current_user.modulo_id  # elimina esta línea si no usas módulos
+        )
+        .all()
+    )
+
+    # 📄 Traer nóminas guardadas del periodo
     nominas = (
-        db.query(NominaEmpleado, Usuario)
-        .join(Usuario, Usuario.id == NominaEmpleado.usuario_id)
+        db.query(NominaEmpleado)
         .filter(NominaEmpleado.periodo_id == periodo.id)
         .all()
     )
 
-    if not nominas:
-        raise HTTPException(400, "No hay datos de nómina")
+    # 🔁 Crear mapa usuario_id → nomina
+    nomina_map = {n.usuario_id: n for n in nominas}
 
-    # 🟢 CALCULAR COMISIONES REALES
-    comisiones_por_empleado = obtener_comisiones_por_empleado_optimizado(
-        db,
-        periodo.fecha_inicio,
-        periodo.fecha_fin
+    # 💰 Calcular comisiones por empleado
+    ventas = (
+        db.query(Venta)
+        .filter(
+            Venta.periodo_id == periodo.id,
+            Venta.modulo_id == current_user.modulo_id  # elimina si no usas módulos
+        )
+        .all()
     )
 
-    wb = Workbook()
+    comisiones_por_empleado = {}
+    for venta in ventas:
+        if venta.usuario_id not in comisiones_por_empleado:
+            comisiones_por_empleado[venta.usuario_id] = 0
+        comisiones_por_empleado[venta.usuario_id] += venta.comision or 0
+
+    # 📊 Crear Excel
+    wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Nómina"
 
+    # 🧾 Encabezados
     ws.append([
         "Empleado",
-        "Sueldo base",
-        "Horas extra",
-        "Precio hora extra",
-        "Pago horas extra",
+        "Sueldo Base",
+        "Horas Extra",
+        "Precio Hora Extra",
+        "Pago Horas Extra",
         "Comisiones",
-        "Comisiones pendientes",
+        "Comisiones Pendientes",
         "Sanciones",
-        "Total a pagar"
+        "Total a Pagar"
     ])
 
-    for nomina, usuario in nominas:
+    # 🔄 Recorrer empleados
+    for usuario in empleados:
+
+        if not usuario.username:
+            continue
+
+        grupo = usuario.username.upper()[0]
+        if grupo not in ("A", "C"):
+            continue
+
+        nomina = nomina_map.get(usuario.id)
+
         sueldo_base = usuario.sueldo_base or 0
-        horas_extra = nomina.horas_extra or 0
-        precio_hora = nomina.precio_hora_extra or 0
-        pago_horas = nomina.pago_horas_extra or 0
-        sanciones = nomina.sanciones or 0
-        comisiones_pendientes = nomina.comisiones_pendientes or 0
+        horas_extra = nomina.horas_extra if nomina else 0
+        precio_hora = nomina.precio_hora_extra if nomina else 0
+        pago_horas = nomina.pago_horas_extra if nomina else 0
+        sanciones = nomina.sanciones if nomina else 0
+        comisiones_pendientes = nomina.comisiones_pendientes if nomina else 0
+
         comisiones = comisiones_por_empleado.get(usuario.id, 0)
 
         total = (
@@ -374,7 +409,6 @@ def descargar_nomina(
             + comisiones_pendientes
             - sanciones
         )
-
 
         ws.append([
             usuario.username,
@@ -388,23 +422,18 @@ def descargar_nomina(
             total
         ])
 
-    stream = BytesIO()
-    wb.save(stream)
-    stream.seek(0)
+    # 📦 Preparar archivo
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
 
-    nombre_archivo = (
-        f"nomina_{periodo.fecha_inicio:%Y-%m-%d}_"
-        f"{periodo.fecha_fin:%Y-%m-%d}.xlsx"
-    )
+    filename = f"nomina_{periodo.nombre}.xlsx"
 
     return StreamingResponse(
-        stream,
+        output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename={nombre_archivo}"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-
 
 
 @router.get("/mi-resumen")

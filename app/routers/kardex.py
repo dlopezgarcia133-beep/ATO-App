@@ -17,6 +17,8 @@ from pyexpat import model
 
 router = APIRouter()
 
+
+
 def registrar_kardex(
     db,
     producto,

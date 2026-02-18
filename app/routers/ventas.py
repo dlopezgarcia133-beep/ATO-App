@@ -13,6 +13,7 @@ from datetime import date
 from app.routers.kardex import registrar_kardex
 
 
+
 router = APIRouter()
 
 
