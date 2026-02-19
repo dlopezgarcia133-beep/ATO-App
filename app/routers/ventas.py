@@ -262,66 +262,52 @@ def cancelar_venta(
     if venta.cancelada:
         raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
 
+    # Validar permisos
     if current_user.rol != models.RolEnum.admin:
-        if current_user.rol != models.RolEnum.encargado or venta.modulo != current_user.modulo:
+        if current_user.rol != models.RolEnum.encargado or venta.modulo_id != current_user.modulo_id:
             raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
 
     # Reintegrar inventario
-        inventario = (
-    db.query(models.InventarioModulo)
-    .filter(
-        models.InventarioModulo.producto == venta.producto,
-        models.InventarioModulo.modulo_id == venta.modulo_id
+    inventario = (
+        db.query(models.InventarioModulo)
+        .filter(
+            models.InventarioModulo.producto == venta.producto,
+            models.InventarioModulo.modulo_id == venta.modulo_id
+        )
+        .first()
     )
-    .first()
-)
-        if not inventario:
-            inventario = models.InventarioModulo(
-                producto=venta.producto, cantidad=venta.cantidad, modulo=venta.modulo
-            )
-            db.add(inventario)
-        else:
-            inventario.cantidad += venta.cantidad
 
-        venta.cancelada = True
-        db.commit()
-        return {"mensaje": f"Venta ID {venta_id} cancelada correctamente y producto reintegrado al inventario."}
+    if not inventario:
+        inventario = models.InventarioModulo(
+            producto=venta.producto,
+            cantidad=venta.cantidad,
+            modulo_id=venta.modulo_id
+        )
+        db.add(inventario)
+    else:
+        inventario.cantidad += venta.cantidad
 
-    # 2. Buscar en VentaTelefono
-    venta_tel = db.query(models.VentaTelefono).filter_by(id=venta_id).first()
-    if venta_tel:
-        if venta_tel.cancelada:
-            raise HTTPException(status_code=400, detail="La venta ya fue cancelada")
-
-        if current_user.rol != models.RolEnum.admin:
-            if current_user.rol != models.RolEnum.encargado or venta_tel.modulo != current_user.modulo:
-                raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
-
-        # Reintegrar teléfono al inventario
-        inventario_tel = db.query(models.InventarioTelefono).filter_by(
-            modulo=venta_tel.modulo_id,
-            marca=venta_tel.marca,
-            modelo=venta_tel.modelo
-        ).first()
-
-        if not inventario_tel:
-            inventario_tel = models.InventarioTelefono(
-                marca=venta_tel.marca,
-                modelo=venta_tel.modelo,
-                cantidad=1,
-                modulo=venta_tel.modulo
-            )
-            db.add(inventario_tel)
-        else:
-            inventario_tel.cantidad += 1
-
-        venta_tel.cancelada = True
-
+    # Marcar cancelada
     venta.cancelada = True
+
+    # 🔥 Registrar Kardex (ENTRADA por cancelación)
+    registrar_kardex(
+        db=db,
+        producto=venta.producto,
+        tipo_producto=venta.tipo_producto,
+        cantidad=venta.cantidad,
+        tipo_movimiento="CANCELACION_VENTA",
+        usuario_id=current_user.id,
+        modulo_origen_id=None,
+        modulo_destino_id=venta.modulo_id,
+        referencia_id=venta.id
+    )
+
     db.commit()
-    db.refresh(venta)   # 🔥 refresca la instancia para devolver la versión actualizada
+    db.refresh(venta)
+
     return venta
-    
+
 
 
 

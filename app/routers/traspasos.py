@@ -9,6 +9,7 @@ from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
 from app.utilidades import verificar_rol_requerido
+from app.routers.kardex import registrar_kardex
 
 
 router = APIRouter()
@@ -99,6 +100,7 @@ def actualizar_estado_traspaso(
         # Restar origen
         inv_origen.cantidad -= traspaso.cantidad
 
+
         if inv_destino:
             inv_destino.cantidad += traspaso.cantidad
         else:
@@ -110,6 +112,31 @@ def actualizar_estado_traspaso(
                 modulo_id=modulo_destino.id
             )
             db.add(nuevo)
+            # 🔥 Registrar Kardex - SALIDA
+        registrar_kardex(
+            db=db,
+            producto=traspaso.producto,
+            tipo_producto=traspaso.tipo_producto,
+            cantidad=traspaso.cantidad,
+            tipo_movimiento="TRASPASO_SALIDA",
+            usuario_id=current_user.id,
+            modulo_origen_id=modulo_origen.id,
+            modulo_destino_id=modulo_destino.id,
+            referencia_id=traspaso.id
+        )
+
+        # 🔥 Registrar Kardex - ENTRADA
+        registrar_kardex(
+            db=db,
+            producto=traspaso.producto,
+            tipo_producto=traspaso.tipo_producto,
+            cantidad=traspaso.cantidad,
+            tipo_movimiento="TRASPASO_ENTRADA",
+            usuario_id=current_user.id,
+            modulo_origen_id=modulo_origen.id,
+            modulo_destino_id=modulo_destino.id,
+            referencia_id=traspaso.id
+        )
 
         traspaso.aprobado_por = current_user.id
 
