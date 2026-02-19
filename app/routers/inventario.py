@@ -257,7 +257,8 @@ def entrada_mercancia(
             )
             db.add(nuevo)
 
-            registrar_kardex(
+        # 🔥 SIEMPRE registrar kardex
+        registrar_kardex(
             db=db,
             producto=producto_base.producto,
             tipo_producto=producto_base.tipo_producto,
@@ -271,7 +272,6 @@ def entrada_mercancia(
 
     db.commit()
     return {"ok": True, "message": "Entrada registrada correctamente"}
-
 
 
 
