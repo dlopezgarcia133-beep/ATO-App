@@ -16,7 +16,7 @@ from datetime import datetime
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-
+from app.routers.kardex import registrar_kardex
 
 
 router = APIRouter()
@@ -256,6 +256,18 @@ def entrada_mercancia(
                 modulo_id=data.modulo_id
             )
             db.add(nuevo)
+
+            registrar_kardex(
+            db=db,
+            producto=producto_base.producto,
+            tipo_producto=producto_base.tipo_producto,
+            cantidad=item.cantidad,
+            tipo_movimiento="ENTRADA",
+            usuario_id=current_user.id,
+            modulo_origen_id=None,
+            modulo_destino_id=data.modulo_id,
+            referencia_id=None
+        )
 
     db.commit()
     return {"ok": True, "message": "Entrada registrada correctamente"}
