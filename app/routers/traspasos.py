@@ -112,7 +112,8 @@ def actualizar_estado_traspaso(
                 modulo_id=modulo_destino.id
             )
             db.add(nuevo)
-            # 🔥 Registrar Kardex - SALIDA
+
+        # 🔥 Registrar Kardex - SALIDA
         registrar_kardex(
             db=db,
             producto=traspaso.producto,
@@ -137,6 +138,7 @@ def actualizar_estado_traspaso(
             modulo_destino_id=modulo_destino.id,
             referencia_id=traspaso.id
         )
+
 
         traspaso.aprobado_por = current_user.id
 
