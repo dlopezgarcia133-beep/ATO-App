@@ -299,11 +299,12 @@ class NominaEmpleado(Base):
 
 class TipoMovimientoEnum(str, enum.Enum):
     VENTA = "VENTA"
-    AJUSTE_POSITIVO = "AJUSTE_POSITIVO"
-    AJUSTE_NEGATIVO = "AJUSTE_NEGATIVO"
+    ENTRADA = "ENTRADA"
     TRASPASO_ENTRADA = "TRASPASO_ENTRADA"
     TRASPASO_SALIDA = "TRASPASO_SALIDA"
-    ENTRADA = "ENTRADA"
+    AJUSTE_POSITIVO = "AJUSTE_POSITIVO"
+    AJUSTE_NEGATIVO = "AJUSTE_NEGATIVO"
+    CANCELACION_VENTA = "CANCELACION_VENTA"
 
     
 
@@ -317,7 +318,7 @@ class KardexMovimiento(Base):
 
     cantidad = Column(Integer, nullable=False)
 
-    tipo_movimiento = Column(Enum(TipoMovimientoEnum), nullable=False)
+    tipo_movimiento = Column(Enum(TipoMovimientoEnum, name="tipo_movimiento_enum"), nullable=False)
 
     modulo_origen_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
     modulo_destino_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
