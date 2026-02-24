@@ -68,12 +68,18 @@ def registrar_kardex(
 def obtener_kardex(
     producto: str = None,
     modulo_id: int = None,
+    tipo_movimiento: str = None,
     fecha_inicio: date = None,
     fecha_fin: date = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     query = db.query(KardexMovimiento)
+
+    if tipo_movimiento:
+        query = query.filter(
+            KardexMovimiento.tipo_movimiento == tipo_movimiento
+    )
 
     if producto:
         query = query.filter(KardexMovimiento.producto == producto)
