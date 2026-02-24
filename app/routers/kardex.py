@@ -2,7 +2,7 @@
 from datetime import date
 from pydoc import text
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from app import models
 from app.database import get_db
 from app.config import get_current_user
@@ -74,15 +74,33 @@ def obtener_kardex(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(KardexMovimiento)
+
+    modulo_origen = aliased(models.Modulo)
+    modulo_destino = aliased(models.Modulo)
+
+    query = db.query(
+        KardexMovimiento,
+        modulo_origen.nombre.label("modulo_origen_nombre"),
+        modulo_destino.nombre.label("modulo_destino_nombre")
+    ).outerjoin(
+        modulo_origen,
+        KardexMovimiento.modulo_origen_id == modulo_origen.id
+    ).outerjoin(
+        modulo_destino,
+        KardexMovimiento.modulo_destino_id == modulo_destino.id
+    )
+
+    # ---------------- filtros ----------------
 
     if tipo_movimiento:
         query = query.filter(
             KardexMovimiento.tipo_movimiento == tipo_movimiento
-    )
+        )
 
     if producto:
-        query = query.filter(KardexMovimiento.producto == producto)
+        query = query.filter(
+            KardexMovimiento.producto == producto
+        )
 
     if modulo_id:
         query = query.filter(
@@ -95,4 +113,21 @@ def obtener_kardex(
             func.date(KardexMovimiento.fecha).between(fecha_inicio, fecha_fin)
         )
 
-    return query.order_by(KardexMovimiento.fecha.desc()).all()
+    resultados = query.order_by(KardexMovimiento.fecha.desc()).all()
+
+    # ---------------- formateo respuesta ----------------
+
+    data = []
+    for kardex, origen_nombre, destino_nombre in resultados:
+
+        item = kardex.__dict__.copy()
+
+        item["modulo_origen"] = origen_nombre
+        item["modulo_destino"] = destino_nombre
+
+        # opcional: eliminar estado interno de SQLAlchemy
+        item.pop("_sa_instance_state", None)
+
+        data.append(item)
+
+    return data
