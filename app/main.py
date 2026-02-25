@@ -4,6 +4,7 @@ from app.database import Base, SessionLocal, engine
 from app import models
 from app.models import Asistencia
 from app.routers import asistencias, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
+from app.routers import dashboard
 from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +23,7 @@ app.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 app.include_router(inventarioTelefonos.router, prefix="/inventario_telefonos", tags=["Inventario Telefonos"])
 app.include_router(nomina.router, prefix="/nomina", tags=["Nomina"])
 app.include_router(kardex.router, prefix="/kardex", tags=["Kardex"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
 app.add_middleware(
     CORSMiddleware,
