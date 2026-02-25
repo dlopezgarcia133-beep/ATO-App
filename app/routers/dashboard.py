@@ -89,7 +89,18 @@ def traspasos(db: Session = Depends(get_db)):
         models.Traspaso.fecha
     ).all()
 
-    return data
+    resultado = []
+
+    for row in data:
+        resultado.append({
+            "producto": row.producto,
+            "modulo_origen": row.modulo_origen,
+            "modulo_destino": row.modulo_destino,
+            "estado": row.estado,
+            "fecha": row.fecha
+        })
+
+    return resultado
 
 
 @router.get("/nomina")
