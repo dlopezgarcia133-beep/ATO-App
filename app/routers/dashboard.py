@@ -64,7 +64,7 @@ def inventario(db: Session = Depends(get_db)):
     data = db.query(
         models.InventarioModulo.modulo_id,
         models.InventarioModulo.producto,
-        models.InventarioModulo.stock
+        models.InventarioModulo.cantidad
     ).all()
 
     return [
