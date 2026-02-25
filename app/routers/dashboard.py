@@ -107,13 +107,20 @@ def traspasos(db: Session = Depends(get_db)):
 def nomina(db: Session = Depends(get_db)):
 
     data = db.query(
-        models.Usuario.nombre_completo,
+        models.NominaEmpleado.usuario_id,
         models.NominaEmpleado.total_comisiones,
+        models.NominaEmpleado.horas_extra,
         models.NominaEmpleado.sanciones,
-        models.NominaEmpleado.total_pagar
+        models.NominaEmpleado.total_pagar,
+        models.NominaPeriodo.fecha_inicio,
+        models.NominaPeriodo.fecha_fin,
+        models.Usuario.nombre_completo
+    ).join(
+        models.NominaPeriodo,
+        models.NominaPeriodo.id == models.NominaEmpleado.periodo_id
     ).join(
         models.Usuario,
         models.Usuario.id == models.NominaEmpleado.usuario_id
     ).all()
 
-    return data
+    return [dict(row._mapping) for row in data]
