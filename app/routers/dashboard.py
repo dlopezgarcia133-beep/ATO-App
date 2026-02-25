@@ -71,7 +71,7 @@ def inventario(db: Session = Depends(get_db)):
         {
             "modulo_id": d.modulo_id,
             "producto": d.producto,
-            "stock": d.stock
+            "cantidad": d.cantidad
         }
         for d in data
     ]
