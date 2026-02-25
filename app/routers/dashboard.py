@@ -75,3 +75,34 @@ def inventario(db: Session = Depends(get_db)):
         }
         for d in data
     ]
+
+
+
+@router.get("/traspasos")
+def traspasos(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Traspaso.producto,
+        models.Traspaso.modulo_origen,
+        models.Traspaso.modulo_destino,
+        models.Traspaso.estado,
+        models.Traspaso.fecha
+    ).all()
+
+    return data
+
+
+@router.get("/nomina")
+def nomina(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Usuario.nombre_completo,
+        models.NominaEmpleado.total_comisiones,
+        models.NominaEmpleado.sanciones,
+        models.NominaEmpleado.total_pagar
+    ).join(
+        models.Usuario,
+        models.Usuario.id == models.NominaEmpleado.usuario_id
+    ).all()
+
+    return data
