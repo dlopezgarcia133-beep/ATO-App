@@ -124,3 +124,75 @@ def nomina(db: Session = Depends(get_db)):
     ).all()
 
     return [dict(row._mapping) for row in data]
+
+
+
+
+@router.get("/ventas-empleado")
+def ventas_empleado(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Usuario.nombre_completo,
+        models.Modulo.nombre.label("modulo"),
+        func.sum(models.Venta.total).label("total_ventas"),
+        func.count(models.Venta.id).label("cantidad_ventas")
+    ).join(
+        models.Usuario,
+        models.Usuario.id == models.Venta.empleado_id
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Venta.modulo_id
+    ).filter(
+        models.Venta.cancelada == False
+    ).group_by(
+        models.Usuario.nombre_completo,
+        models.Modulo.nombre
+    ).all()
+
+    return [dict(row._mapping) for row in data]
+
+
+@router.get("/empleados")
+def empleados(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Usuario.id,
+        models.Usuario.nombre_completo,
+        models.Usuario.rol,
+        models.Modulo.nombre.label("modulo")
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Usuario.modulo_id,
+        isouter=True
+    ).filter(
+        models.Usuario.activo == True
+    ).all()
+
+    return [dict(row._mapping) for row in data]
+
+
+@router.get("/modulos")
+def modulos(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Modulo.id,
+        models.Modulo.nombre
+    ).all()
+
+    return [dict(row._mapping) for row in data]
+
+
+@router.get("/ventas-modulo")
+def ventas_modulo(db: Session = Depends(get_db)):
+
+    data = db.query(
+        models.Modulo.nombre,
+        func.sum(models.Venta.total).label("total")
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Venta.modulo_id
+    ).group_by(
+        models.Modulo.nombre
+    ).all()
+
+    return [dict(row._mapping) for row in data]
