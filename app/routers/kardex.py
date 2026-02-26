@@ -74,7 +74,6 @@ def obtener_kardex(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-
     modulo_origen = aliased(models.Modulo)
     modulo_destino = aliased(models.Modulo)
 
@@ -90,7 +89,22 @@ def obtener_kardex(
         KardexMovimiento.modulo_destino_id == modulo_destino.id
     )
 
-    # ---------------- filtros ----------------
+    # ---------------- SEGURIDAD ----------------
+    # Si es encargado, forzar módulo
+    if current_user.rol == "encargado":
+        query = query.filter(
+            (KardexMovimiento.modulo_origen_id == current_user.modulo_id) |
+            (KardexMovimiento.modulo_destino_id == current_user.modulo_id)
+        )
+    else:
+        # Admin puede filtrar manualmente
+        if modulo_id:
+            query = query.filter(
+                (KardexMovimiento.modulo_origen_id == modulo_id) |
+                (KardexMovimiento.modulo_destino_id == modulo_id)
+            )
+
+    # ---------------- filtros normales ----------------
 
     if tipo_movimiento:
         query = query.filter(
@@ -102,12 +116,6 @@ def obtener_kardex(
             KardexMovimiento.producto == producto
         )
 
-    if modulo_id:
-        query = query.filter(
-            (KardexMovimiento.modulo_origen_id == modulo_id) |
-            (KardexMovimiento.modulo_destino_id == modulo_id)
-        )
-
     if fecha_inicio and fecha_fin:
         query = query.filter(
             func.date(KardexMovimiento.fecha).between(fecha_inicio, fecha_fin)
@@ -115,17 +123,12 @@ def obtener_kardex(
 
     resultados = query.order_by(KardexMovimiento.fecha.desc()).all()
 
-    # ---------------- formateo respuesta ----------------
-
     data = []
     for kardex, origen_nombre, destino_nombre in resultados:
 
         item = kardex.__dict__.copy()
-
         item["modulo_origen"] = origen_nombre
         item["modulo_destino"] = destino_nombre
-
-        # opcional: eliminar estado interno de SQLAlchemy
         item.pop("_sa_instance_state", None)
 
         data.append(item)
