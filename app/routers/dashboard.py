@@ -145,7 +145,7 @@ def ventas_empleado(db: Session = Depends(get_db)):
     ).filter(
         models.Venta.cancelada == False
     ).group_by(
-        models.Usuario.nombre_completo,
+        models.Usuario.username,
         models.Modulo.nombre
     ).all()
 
