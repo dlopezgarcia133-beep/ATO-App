@@ -215,7 +215,7 @@ def ventas_detalle(
         models.Venta.id,
         models.Venta.fecha,
         models.Venta.hora,
-        models.Usuario.nombre_completo.label("empleado"),
+        models.Usuario.username.label("empleado"),
         models.Modulo.nombre.label("modulo"),
         models.Venta.producto,
         models.Venta.tipo_producto,
