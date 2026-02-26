@@ -196,3 +196,50 @@ def ventas_modulo(db: Session = Depends(get_db)):
     ).all()
 
     return [dict(row._mapping) for row in data]
+
+
+
+from datetime import date
+from fastapi import Query
+from sqlalchemy.orm import aliased
+
+
+@router.get("/ventas-detalle")
+def ventas_detalle(
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    db: Session = Depends(get_db)
+):
+
+    query = db.query(
+        models.Venta.id,
+        models.Venta.fecha,
+        models.Venta.hora,
+        models.Usuario.nombre_completo.label("empleado"),
+        models.Modulo.nombre.label("modulo"),
+        models.Venta.producto,
+        models.Venta.tipo_producto,
+        models.Venta.cantidad,
+        models.Venta.precio_unitario,
+        models.Venta.total,
+        models.Venta.metodo_pago
+    ).join(
+        models.Usuario,
+        models.Usuario.id == models.Venta.empleado_id
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Venta.modulo_id
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    # filtros opcionales
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    data = query.order_by(models.Venta.fecha.desc()).all()
+
+    return [dict(row._mapping) for row in data]
