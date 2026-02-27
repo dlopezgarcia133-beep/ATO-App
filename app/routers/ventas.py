@@ -872,6 +872,10 @@ def corte_general(
     total_tarjeta = tarjeta_productos + tarjeta_tel
     total_sistema = total_efectivo + total_tarjeta
 
+    print("TOTAL VENTAS:", len(ventas))
+    print("TELEFONOS:", len([v for v in ventas if v.tipo_producto == "telefono"]))
+    print("TIPOS:", list(set([v.tipo_producto for v in ventas])))
+
     return {
         "ventas_telefonos": {
             "efectivo": round(efectivo_tel, 2),
