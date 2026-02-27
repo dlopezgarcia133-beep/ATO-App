@@ -838,29 +838,39 @@ def corte_general(
 ):
     hoy = date.today()
 
-    # 🔹 Obtiene todas las ventas del día del módulo actual
     ventas = db.query(models.Venta).filter(
         func.date(models.Venta.fecha) == hoy,
         models.Venta.modulo_id == current_user.modulo_id
     ).all()
 
-    # 🔹 Separa accesorios y teléfonos usando tipo_producto
     ventas_productos = [v for v in ventas if v.tipo_producto == "accesorio"]
     ventas_telefonos = [v for v in ventas if v.tipo_producto == "telefono"]
 
-    # Totales productos (solo ventas activas)
-    efectivo_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "efectivo" and not v.cancelada)
-    tarjeta_productos = sum(v.total for v in ventas_productos if v.metodo_pago == "tarjeta" and not v.cancelada)
+    # ACCESORIOS
+    efectivo_productos = sum(
+        v.total for v in ventas_productos
+        if v.metodo_pago == "efectivo" and not v.cancelada
+    )
 
-    # Totales teléfonos (solo ventas activas)
-    efectivo_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "efectivo" and not v.cancelada)
-    tarjeta_tel = sum(v.precio_unitario for v in ventas_telefonos if v.metodo_pago == "tarjeta" and not v.cancelada)
+    tarjeta_productos = sum(
+        v.total for v in ventas_productos
+        if v.metodo_pago == "tarjeta" and not v.cancelada
+    )
 
-    # Totales generales
+    # TELEFONOS (CORREGIDO)
+    efectivo_tel = sum(
+        v.total for v in ventas_telefonos
+        if v.metodo_pago == "efectivo" and not v.cancelada
+    )
+
+    tarjeta_tel = sum(
+        v.total for v in ventas_telefonos
+        if v.metodo_pago == "tarjeta" and not v.cancelada
+    )
+
     total_efectivo = efectivo_productos + efectivo_tel
     total_tarjeta = tarjeta_productos + tarjeta_tel
     total_sistema = total_efectivo + total_tarjeta
-    total_general = total_efectivo + total_tarjeta
 
     return {
         "ventas_telefonos": {
@@ -876,10 +886,9 @@ def corte_general(
             "efectivo": round(total_efectivo, 2),
             "tarjeta": round(total_tarjeta, 2),
             "sistema": round(total_sistema, 2),
-            "general": round(total_general, 2)
+            "general": round(total_sistema, 2)
         }
     }
-
 
 
 @router.get("/ventas/cortes")
