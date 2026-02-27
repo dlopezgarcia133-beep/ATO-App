@@ -67,6 +67,8 @@ def crear_ventas(
         fecha_actual = datetime.now(zona_horaria)
         tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO") else "accesorio"
 
+        total = item.precio_unitario * item.cantidad
+
         nueva = models.Venta(
     empleado_id=current_user.id,
     modulo_id=modulo_id,
@@ -76,6 +78,7 @@ def crear_ventas(
     tipo_producto=tipo_producto,  
     tipo_venta=item.tipo_venta,
     metodo_pago=venta.metodo_pago,
+    total=total,
     cancelada=False,
     comision_id=comision_id,
     fecha=fecha_actual.date(),
