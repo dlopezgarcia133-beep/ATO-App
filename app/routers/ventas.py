@@ -857,14 +857,18 @@ def corte_general(
         if v.metodo_pago == "tarjeta" and not v.cancelada
     )
 
-    # TELEFONOS (CORREGIDO)
+    def total_tel(v):
+        return (v.precio_unitario or 0) * (v.cantidad or 1)
+
     efectivo_tel = sum(
-        v.total for v in ventas_telefonos
+        total_tel(v)
+        for v in ventas_telefonos
         if v.metodo_pago == "efectivo" and not v.cancelada
     )
 
     tarjeta_tel = sum(
-        v.total for v in ventas_telefonos
+        total_tel(v)
+        for v in ventas_telefonos
         if v.metodo_pago == "tarjeta" and not v.cancelada
     )
 
