@@ -837,13 +837,16 @@ def obtener_ventas_telefonos(
 @router.get("/corte-general")
 def corte_general(
     db: Session = Depends(get_db),
+    modulo_id: int | None = Query(None),    
     current_user: models.Usuario = Depends(get_current_user)
 ):
     hoy = date.today()
 
+    modulo_final = modulo_id or current_user.modulo_id
+
     ventas = db.query(models.Venta).filter(
         func.date(models.Venta.fecha) == hoy,
-        models.Venta.modulo_id == current_user.modulo_id
+        models.Venta.modulo_id == modulo_final
     ).all()
 
     ventas_productos = [v for v in ventas if v.tipo_producto == "accesorio"]
@@ -913,6 +916,8 @@ def obtener_cortes(
     current_user: models.Usuario = Depends(get_current_user)
 ):
 
+
+    
     # Query base
     query = db.query(models.CorteDia)
 
