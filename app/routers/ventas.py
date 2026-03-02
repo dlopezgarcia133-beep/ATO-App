@@ -907,49 +907,61 @@ def corte_general(
 
 @router.get("/ventas/cortes")
 def obtener_cortes(
-    fecha: date = Query(None),
-    modulo_id: int = Query(None),
+    fecha: Optional[date] = Query(None),
+    modulo_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
+
+    # Query base
     query = db.query(models.CorteDia)
 
     if fecha:
         query = query.filter(models.CorteDia.fecha == fecha)
+
     if modulo_id:
         query = query.filter(models.CorteDia.modulo_id == modulo_id)
 
-    cortes = query.order_by(models.CorteDia.fecha.desc().joinedload(models.Venta.empleado)).all()
+    # 🔹 ORDEN CORRECTO (sin joinedload mal usado)
+    cortes = query.order_by(models.CorteDia.fecha.desc()).all()
 
     cortes_completos = []
 
     for corte in cortes:
-        # 🔍 Obtener ventas por fecha y módulo, y que no estén canceladas
+
+        # 🔹 Obtener ventas del día por módulo
         ventas = db.query(models.Venta).filter(
             func.date(models.Venta.fecha) == corte.fecha,
             models.Venta.modulo_id == corte.modulo_id,
             models.Venta.cancelada == False
         ).all()
 
-        # 🔄 Convertir a dict y agregar las ventas
         cortes_completos.append({
             "fecha": corte.fecha,
+            "modulo_id": corte.modulo_id,
+
+            # Totales generales
             "total_efectivo": corte.total_efectivo,
             "total_tarjeta": corte.total_tarjeta,
+            "total_sistema": corte.total_sistema,
+            "total_general": corte.total_general,
+
+            # Adicionales
             "adicional_recargas": corte.adicional_recargas,
             "adicional_transporte": corte.adicional_transporte,
             "adicional_otros": corte.adicional_otros,
-            "total_sistema": corte.total_sistema,
-            "total_general": corte.total_general,
-            "modulo_id": corte.modulo_id,
+
+            # Accesorios
             "accesorios_efectivo": corte.accesorios_efectivo,
             "accesorios_tarjeta": corte.accesorios_tarjeta,
             "accesorios_total": corte.accesorios_total,
+
+            # Teléfonos
             "telefonos_efectivo": corte.telefonos_efectivo,
             "telefonos_tarjeta": corte.telefonos_tarjeta,
             "telefonos_total": corte.telefonos_total,
 
-            # 👇 Aquí incluyes las ventas (ya sea accesorio o teléfono)
+            # 🔹 Ventas detalladas
             "ventas": [
                 {
                     "id": v.id,
@@ -959,16 +971,21 @@ def obtener_cortes(
                     "precio_unitario": v.precio_unitario,
                     "cantidad": v.cantidad,
                     "total": v.total,
-                    "fecha": v.fecha,
-                   
+
+                    # 🔹 Fecha con hora real (evita bug timezone)
+                    "fecha": f"{v.fecha} {v.hora}" if v.hora else str(v.fecha),
+
+                    # 🔹 Nombre del empleado
+                    "empleado": {
+                        "id": v.empleado.id if v.empleado else None,
+                        "username": v.empleado.username if v.empleado else "Sin nombre"
+                    }
                 }
                 for v in ventas
             ]
         })
 
     return cortes_completos
-
-
 
     
 @router.post("/cortes")
