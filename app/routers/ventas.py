@@ -919,7 +919,7 @@ def obtener_cortes(
     if modulo_id:
         query = query.filter(models.CorteDia.modulo_id == modulo_id)
 
-    cortes = query.order_by(models.CorteDia.fecha.desc()).all()
+    cortes = query.order_by(models.CorteDia.fecha.desc().joinedload(models.Venta.empleado)).all()
 
     cortes_completos = []
 
