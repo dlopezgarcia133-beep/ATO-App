@@ -884,22 +884,25 @@ def corte_general(
     print("TIPOS:", list(set([v.tipo_producto for v in ventas])))
 
     return {
-        "ventas_telefonos": {
-            "efectivo": round(efectivo_tel, 2),
-            "tarjeta": round(tarjeta_tel, 2)
-        },
-        "ventas_productos": {
-            "efectivo": round(efectivo_productos, 2),
-            "tarjeta": round(tarjeta_productos, 2)
-        },
-        "total_sistema": round(total_sistema, 2),
-        "totales": {
-            "efectivo": round(total_efectivo, 2),
-            "tarjeta": round(total_tarjeta, 2),
-            "sistema": round(total_sistema, 2),
-            "general": round(total_sistema, 2)
-        }
+    "ventas_telefonos": {
+        "efectivo": round(efectivo_tel, 2),
+        "tarjeta": round(tarjeta_tel, 2),
+        "total": round(efectivo_tel + tarjeta_tel, 2)
+    },
+    "ventas_productos": {
+        "efectivo": round(efectivo_productos, 2),
+        "tarjeta": round(tarjeta_productos, 2),
+        "total": round(efectivo_productos + tarjeta_productos, 2)
+    },
+    "total_sistema": round(total_sistema, 2),
+    "totales": {
+        "efectivo": round(total_efectivo, 2),
+        "tarjeta": round(total_tarjeta, 2),
+        "sistema": round(total_sistema, 2),
+        "general": round(total_sistema, 2)
     }
+}
+    
 
 
 @router.get("/ventas/cortes")
