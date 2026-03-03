@@ -739,15 +739,27 @@ def motivo_rechazo_chip(
 
 @router.get("/ventas/chips_rechazados", response_model=List[schemas.VentaChipResponse])
 def obtener_chips_rechazados(
-    empleado_id: Optional[int] = Query(None),
-    db: Session = Depends(get_db)
+    empleado_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
 ):
+
     query = db.query(models.VentaChip).filter(
-        models.VentaChip.descripcion_rechazo.isnot(None),
+        models.VentaChip.descripcion_rechazo != None,
         models.VentaChip.validado == False
     )
-    if empleado_id is not None:
-        query = query.filter(models.VentaChip.empleado_id == empleado_id)
+
+    # 🔹 Si NO es admin → solo ve sus chips
+    if current_user.rol != "admin":
+        query = query.filter(
+            models.VentaChip.empleado_id == current_user.id
+        )
+
+    # 🔹 Si es admin y selecciona empleado
+    elif empleado_id:
+        query = query.filter(
+            models.VentaChip.empleado_id == empleado_id
+        )
 
     return query.all()
 
