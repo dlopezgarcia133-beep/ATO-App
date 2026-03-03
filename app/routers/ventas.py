@@ -751,15 +751,28 @@ def obtener_chips_rechazados(
 
     return query.all()
 
-@router.put("/revertir_rechazo/{chip_id}", response_model=schemas.VentaChipResponse)
-def revertir_rechazo(chip_id: int, db: Session = Depends(get_db)):
-    chip = db.query(models.VentaChip).filter(models.VentaChip.id == chip_id).first()
+@router.put("/validar_chip_incubadora/{chip_id}", response_model=schemas.VentaChipResponse)
+def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
+    chip = db.query(models.VentaChip).filter(
+        models.VentaChip.id == chip_id
+    ).first()
+
     if not chip:
         raise HTTPException(status_code=404, detail="Chip no encontrado")
 
+    # 🔹 Limpiamos el motivo de rechazo
     chip.descripcion_rechazo = None
+
+    # 🔹 Cambiamos estado a validado
+       # si usas campo estado
+    chip.validado = True      # si usas booleano
+
+    # 🔹 Guardamos fecha de validación
+    chip.fecha_validacion = datetime.now()
+
     db.commit()
     db.refresh(chip)
+
     return chip
 
 @router.delete("/eliminar_chip/{chip_id}", status_code=status.HTTP_200_OK)
