@@ -1130,18 +1130,24 @@ def obtener_comisiones_ciclo(
     ]
 
     # 🔹 Procesar CHIPS
-    chips = [
-        {
-            "tipo_chip": v.tipo_chip,
-            "numero_telefono": v.numero_telefono,
-            "comision": v.comision or 0,
-            "comision_manual": v.comision_manual or 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_chips
-        if (v.comision or 0) > 0 or (v.comision_manual or 0) > 0
-    ]
+    # 🔹 Procesar CHIPS
+    chips = []
+
+    for v in ventas_chips:
+        comision = getattr(v, "comision", 0) or 0
+        comision_manual = getattr(v, "comision_manual", 0) or 0
+        total_comision = comision + comision_manual
+
+        if total_comision > 0:
+            chips.append({
+                "tipo_chip": v.tipo_chip,
+                "numero_telefono": v.numero_telefono,
+                "comision": comision,
+                "comision_manual": comision_manual,
+                "comision_total": total_comision,
+                "fecha": v.fecha,
+                "hora": getattr(v, "hora", None)
+            })
 
     # 🔹 Totales
     total_accesorios = sum(v["comision_total"] for v in accesorios)
