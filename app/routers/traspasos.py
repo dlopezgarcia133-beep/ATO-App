@@ -154,14 +154,19 @@ def actualizar_estado_traspaso(
     response_model=list[schemas.TraspasoResponse]
 )
 def listar_traspasos(
+    folio: str | None = None,
     db: Session = Depends(get_db)
 ):
-    return db.query(models.Traspaso)\
-        .filter(models.Traspaso.visible_en_pendientes == True)\
-        .order_by(models.Traspaso.fecha.desc())\
-        .all()
+    query = db.query(models.Traspaso)
 
+    # 🔎 Buscar por folio
+    if folio and folio.strip() != "":
+        query = query.filter(models.Traspaso.folio.ilike(f"%{folio}%"))
+    else:
+        # Solo mostrar pendientes si no se busca
+        query = query.filter(models.Traspaso.visible_en_pendientes == True)
 
+    return query.order_by(models.Traspaso.fecha.desc()).all()
 
 
 
