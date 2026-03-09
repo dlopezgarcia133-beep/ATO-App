@@ -734,6 +734,7 @@ def motivo_rechazo_chip(
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     
     venta.descripcion_rechazo = descripcion
+    venta.es_incubadora = True
     db.commit()
     return {"mensaje": "Motivo de rechazo registrado"}
 
@@ -830,7 +831,7 @@ def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
     chip.comision = comision_asignada
 
     # 🔹 Marcar como incubadora
-    chip.es_incubadora = True
+    
 
     # 🔹 Limpiar rechazo
     chip.descripcion_rechazo = None
