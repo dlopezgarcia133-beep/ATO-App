@@ -80,6 +80,7 @@ class VentaChip(Base):
     cancelada = Column(Boolean, default=False)
     validado = Column(Boolean, default=False)
     descripcion_rechazo = Column(String, nullable=True)
+    es_incubadora = Column(Boolean, default=False)
 
 
     empleado = relationship("Usuario")

@@ -777,7 +777,8 @@ def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
 
     # 🔹 Cambiamos estado a validado
        # si usas campo estado
-    chip.validado = True      # si usas booleano
+    chip.validado = True    
+    chip.es_incubadora = True  # si usas booleano
 
     # 🔹 Guardamos fecha de validación
     chip.fecha_validacion = datetime.now()
