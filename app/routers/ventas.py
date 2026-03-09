@@ -765,6 +765,7 @@ def obtener_chips_rechazados(
 
 @router.put("/validar_chip_incubadora/{chip_id}", response_model=schemas.VentaChipResponse)
 def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
+
     chip = db.query(models.VentaChip).filter(
         models.VentaChip.id == chip_id
     ).first()
@@ -772,16 +773,70 @@ def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
     if not chip:
         raise HTTPException(status_code=404, detail="Chip no encontrado")
 
-    # 🔹 Limpiamos el motivo de rechazo
+    if chip.validado:
+        raise HTTPException(status_code=400, detail="El chip ya está validado")
+
+    tipo = chip.tipo_chip
+    monto = int(chip.monto_recarga)
+
+    comisiones_por_chip = {
+        "Chip Equipo": [
+            ((0,50), 15),
+            ((51, 100), 20),
+            ((101, 1000), 30)
+        ],
+        "Chip Express": [
+            ((0, 50), 5),
+            ((51, 100), 10),
+            ((101, 150),30)
+        ],
+        "Portabilidad": [
+            ((0, 500), 50),
+        ],
+        "Chip Cero/Libre": [
+            ((0, 50), 25),
+            ((51, 100), 30),
+            ((101, 150),35)
+        ],
+        "Chip Preactivado": [
+            ((0, 500), 35),
+        ],
+        "Chip Coppel": [
+            ((0, 50), 10),
+            ((51, 100), 15),
+        ],
+        "Portabilidad Coppel": [
+            ((0, 500), 25),
+        ],
+        "Porta Otras cadenas": [
+            ((0, 500), 50), 
+        ]
+    }
+
+    if tipo not in comisiones_por_chip:
+        raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip")
+
+    comision_asignada = None
+
+    for (min_monto, max_monto), comision in comisiones_por_chip[tipo]:
+        if min_monto <= monto <= max_monto:
+            comision_asignada = comision
+            break
+
+    if comision_asignada is None:
+        raise HTTPException(status_code=404, detail="Monto de recarga fuera de rango")
+
+    # 🔹 Asignar comisión
+    chip.comision = comision_asignada
+
+    # 🔹 Marcar como incubadora
+    chip.es_incubadora = True
+
+    # 🔹 Limpiar rechazo
     chip.descripcion_rechazo = None
 
-    # 🔹 Cambiamos estado a validado
-       # si usas campo estado
-    chip.validado = True    
-    chip.es_incubadora = True  # si usas booleano
-
-    # 🔹 Guardamos fecha de validación
-    chip.fecha_validacion = datetime.now()
+    # 🔹 Validar
+    chip.validado = True
 
     db.commit()
     db.refresh(chip)
