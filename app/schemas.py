@@ -358,6 +358,7 @@ class VentaChipConComision(BaseModel):
     tipo_chip: str
     numero_telefono: str
     comision: float
+    es_incubadora: bool
     fecha: date
     hora: time
 
