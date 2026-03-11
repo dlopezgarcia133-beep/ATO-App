@@ -195,7 +195,7 @@ def obtener_comisiones_por_fechas(
             "tipo_chip": getattr(v, "tipo_chip", ""),
             "numero_telefono": getattr(v, "numero_telefono", ""),
             "comision": float(comision_val),
-            "es_incubadora": getattr(v, "es_incubadora", False),
+            "es_incubadora": bool(getattr(v, "es_incubadora", False)),
             "fecha": getattr(v, "fecha"),
             "hora": getattr(v, "hora")
         })
