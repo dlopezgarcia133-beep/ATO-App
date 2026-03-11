@@ -9,7 +9,7 @@ from app.config import get_current_user
 from app.models import KardexMovimiento
 from sqlalchemy import func
 from sqlalchemy import text as sql_text
-
+from datetime import date, timedelta
 
 from pyexpat import model
 
