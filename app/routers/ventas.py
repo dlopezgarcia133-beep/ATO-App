@@ -1124,6 +1124,8 @@ def obtener_comisiones_ciclo(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
+
+    # 🔹 Calcular ciclo actual (lunes a domingo)
     hoy = date.today()
     dias_desde_lunes = hoy.weekday()
     inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
@@ -1132,85 +1134,99 @@ def obtener_comisiones_ciclo(
 
     empleado_id = empleado_id or current_user.id
 
-    # 🔹 CHIPS
+    # 🔹 Obtener todas las ventas
+    ventas = db.query(models.Venta).filter(
+        models.Venta.empleado_id == empleado_id,
+        models.Venta.fecha >= inicio_ciclo,
+        models.Venta.fecha <= fin_ciclo,
+        models.Venta.cancelada == False
+    ).all()
+
+    # 🔹 Obtener ventas de chips
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
+        models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio_ciclo,
         models.VentaChip.fecha <= fin_ciclo,
     ).all()
 
-    # 🔹 ACCESORIOS
-    ventas_accesorios = db.query(models.Venta).filter(
-        models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio_ciclo,
-        models.Venta.fecha <= fin_ciclo,
-        models.Venta.cancelada == False,
-        models.Venta.tipo_producto == "accesorio"
-    ).all()
-
-    # 🔹 TELÉFONOS
-    ventas_telefonos = db.query(models.Venta).filter(
-        models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio_ciclo,
-        models.Venta.fecha <= fin_ciclo,
-        models.Venta.cancelada == False,
-        models.Venta.tipo_producto == "telefono"
-    ).all()
-
-    # 🔹 Procesar ACCESORIOS
-    accesorios = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "comision": v.comision_obj.cantidad if v.comision_obj else 0,
-            "tipo_venta": v.tipo_venta,
-           "comision_total": (v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_accesorios
-        if v.comision_obj and v.comision_obj.cantidad > 0
-    ]
-
-    # 🔹 Procesar TELÉFONOS
-    telefonos = [
-        {
-            "producto": v.producto,
-            "cantidad": v.cantidad,
-            "tipo_venta": v.tipo_venta,
-            "comision_total": (v.comision_obj.cantidad * v.cantidad) if v.comision_obj else 0,
-            "fecha": v.fecha,
-            "hora": v.hora
-        }
-        for v in ventas_telefonos
-    ]
-
-    # 🔹 Procesar CHIPS
-    # 🔹 Procesar CHIPS
+    accesorios = []
+    telefonos = []
     chips = []
 
-    for v in ventas_chips:
-        comision = getattr(v, "comision", 0) or 0
-        comision_manual = getattr(v, "comision_manual", 0) or 0
-        total_comision = comision + comision_manual
+    total_accesorios = 0.0
+    total_telefonos = 0.0
+    total_chips = 0.0
 
-        if total_comision > 0:
-            chips.append({
-                "tipo_chip": v.tipo_chip,
-                "numero_telefono": v.numero_telefono,
-                "comision": total_comision,
-                "es_incubadora": bool(getattr(v, "es_incubadora", False)),
+    # 🔹 Comisión extra para teléfonos
+    comisiones_por_tipo = {
+        "Contado": 10,
+        "Paguitos": 110,
+        "Pajoy": 100
+    }
+
+    # 🔹 Procesar ventas
+    for v in ventas:
+
+        comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
+        cantidad = getattr(v, "cantidad", 0) or 0
+        tipo_venta = getattr(v, "tipo_venta", "") or ""
+        comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
+
+        comision_total = comision_base * cantidad
+
+        # 📱 Teléfonos
+        if getattr(v, "tipo_producto", "") == "telefono":
+
+            comision_total += comision_extra
+            total_telefonos += comision_total
+
+            telefonos.append({
+                "producto": getattr(v, "producto", ""),
+                "cantidad": int(cantidad),
+                "comision": float(comision_base),
+                "comision_total": float(comision_total),
+                "tipo_venta": tipo_venta,
                 "fecha": v.fecha,
-                "hora": getattr(v, "hora", None)
+                "hora": v.hora
             })
 
-    # 🔹 Totales
-    total_accesorios = sum(v["comision_total"] for v in accesorios)
-    total_telefonos = sum(v["comision_total"] for v in telefonos)
-    total_chips = sum(v["comision"] for v in chips)
+        # 🎧 Accesorios
+        elif getattr(v, "tipo_producto", "") == "accesorio":
 
-    # 🔹 Respuesta final
+            total_accesorios += comision_total
+
+            accesorios.append({
+                "producto": getattr(v, "producto", ""),
+                "cantidad": int(cantidad),
+                "comision": float(comision_base),
+                "tipo_venta": tipo_venta,
+                "comision_total": float(comision_total),
+                "fecha": v.fecha,
+                "hora": v.hora
+            })
+
+    # 🔹 Procesar chips
+    for v in ventas_chips:
+
+        comision = getattr(v, "comision", 0) or 0
+        comision_manual = getattr(v, "comision_manual", 0) or 0
+        total = comision + comision_manual
+
+        total_chips += total
+
+        chips.append({
+            "tipo_chip": getattr(v, "tipo_chip", ""),
+            "numero_telefono": getattr(v, "numero_telefono", ""),
+            "comision": float(total),
+            "es_incubadora": bool(getattr(v, "es_incubadora", False)),
+            "fecha": v.fecha,
+            "hora": getattr(v, "hora", None)
+        })
+
+    total_general = total_accesorios + total_telefonos + total_chips
+
     return {
         "inicio_ciclo": inicio_ciclo,
         "fin_ciclo": fin_ciclo,
@@ -1218,7 +1234,7 @@ def obtener_comisiones_ciclo(
         "total_chips": total_chips,
         "total_accesorios": total_accesorios,
         "total_telefonos": total_telefonos,
-        "total_general": total_chips + total_accesorios + total_telefonos,
+        "total_general": total_general,
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
         "ventas_chips": chips
