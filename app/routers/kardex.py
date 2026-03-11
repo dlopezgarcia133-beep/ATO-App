@@ -72,7 +72,7 @@ def obtener_kardex(
     fecha_inicio: date = None,
     fecha_fin: date = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 200,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
