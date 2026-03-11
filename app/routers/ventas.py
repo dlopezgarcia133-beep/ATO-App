@@ -1202,6 +1202,7 @@ def obtener_comisiones_ciclo(
                 "comision": comision,
                 "comision_manual": comision_manual,
                 "comision_total": total_comision,
+                "es_incubadora": bool(getattr(v, "es_incubadora", False)),
                 "fecha": v.fecha,
                 "hora": getattr(v, "hora", None)
             })
