@@ -71,6 +71,8 @@ def obtener_kardex(
     tipo_movimiento: str = None,
     fecha_inicio: date = None,
     fecha_fin: date = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
@@ -90,21 +92,19 @@ def obtener_kardex(
     )
 
     # ---------------- SEGURIDAD ----------------
-    # Si es encargado, forzar módulo
     if current_user.rol == "encargado":
         query = query.filter(
             (KardexMovimiento.modulo_origen_id == current_user.modulo_id) |
             (KardexMovimiento.modulo_destino_id == current_user.modulo_id)
         )
     else:
-        # Admin puede filtrar manualmente
         if modulo_id:
             query = query.filter(
                 (KardexMovimiento.modulo_origen_id == modulo_id) |
                 (KardexMovimiento.modulo_destino_id == modulo_id)
             )
 
-    # ---------------- filtros normales ----------------
+    # ---------------- FILTROS ----------------
 
     if tipo_movimiento:
         query = query.filter(
@@ -116,14 +116,22 @@ def obtener_kardex(
             KardexMovimiento.producto == producto
         )
 
+    # 🔹 si no mandan fechas, usar últimos 7 días
+    if not fecha_inicio and not fecha_fin:
+        fecha_inicio = date.today() - timedelta(days=7)
+        fecha_fin = date.today()
+
     if fecha_inicio and fecha_fin:
         query = query.filter(
             func.date(KardexMovimiento.fecha).between(fecha_inicio, fecha_fin)
         )
 
-    resultados = query.order_by(KardexMovimiento.fecha.desc()).all()
+    resultados = query.order_by(
+        KardexMovimiento.fecha.desc()
+    ).offset(skip).limit(limit).all()
 
     data = []
+
     for kardex, origen_nombre, destino_nombre in resultados:
 
         item = kardex.__dict__.copy()
