@@ -1199,9 +1199,7 @@ def obtener_comisiones_ciclo(
             chips.append({
                 "tipo_chip": v.tipo_chip,
                 "numero_telefono": v.numero_telefono,
-                "comision": comision,
-                "comision_manual": comision_manual,
-                "comision_total": total_comision,
+                "comision": total_comision,
                 "es_incubadora": bool(getattr(v, "es_incubadora", False)),
                 "fecha": v.fecha,
                 "hora": getattr(v, "hora", None)
@@ -1210,7 +1208,7 @@ def obtener_comisiones_ciclo(
     # 🔹 Totales
     total_accesorios = sum(v["comision_total"] for v in accesorios)
     total_telefonos = sum(v["comision_total"] for v in telefonos)
-    total_chips = sum((v["comision"] + (v["comision_manual"] or 0)) for v in chips)
+    total_chips = sum(v["comision"] for v in chips)
 
     # 🔹 Respuesta final
     return {
