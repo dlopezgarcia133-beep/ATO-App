@@ -1118,7 +1118,22 @@ def crear_corte(
 
     
     
+@router.get("/comisiones/ciclo", response_model=schemas.ComisionesCicloResponse)
+def obtener_comisiones_ciclo(
+    empleado_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
 
+    hoy = datetime.now()
+    dias_desde_lunes = hoy.weekday()
+
+    inicio = (hoy - timedelta(days=dias_desde_lunes)).date()
+    fin = inicio + timedelta(days=6)
+
+    empleado = empleado_id or current_user.id
+
+    return calcular_comisiones(db, empleado, inicio, fin)
 
 
 # vamos a modificar ya no se que es 
