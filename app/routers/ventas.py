@@ -1143,7 +1143,7 @@ def obtener_comisiones_ciclo(
     ventas = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
         models.Venta.fecha >= inicio_ciclo,
-        models.Venta.fecha <= fin_ciclo,
+        models.Venta.fecha < fin_ciclo,
         models.Venta.cancelada == False
     ).all()
 
@@ -1153,7 +1153,7 @@ def obtener_comisiones_ciclo(
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
         models.VentaChip.fecha >= inicio_ciclo,
-        models.VentaChip.fecha <= fin_ciclo,
+        models.VentaChip.fecha < fin_ciclo,
     ).all()
 
     accesorios = []
@@ -1165,7 +1165,11 @@ def obtener_comisiones_ciclo(
     total_chips = 0.0
 
     # 🔹 Comisión extra para teléfonos
-    
+    comisiones_por_tipo = {
+            "contado": 10,
+            "paguitos": 110,
+            "pajoy": 100
+        }
 
     # 🔹 Procesar ventas
     for v in ventas:
@@ -1173,12 +1177,6 @@ def obtener_comisiones_ciclo(
         comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
         cantidad = getattr(v, "cantidad", 0) or 0
         tipo_venta = (getattr(v, "tipo_venta", "") or "").strip().lower()
-
-        comisiones_por_tipo = {
-            "contado": 10,
-            "paguitos": 110,
-            "pajoy": 100
-        }
 
         comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
 
