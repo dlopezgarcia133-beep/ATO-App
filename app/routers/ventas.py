@@ -1165,18 +1165,21 @@ def obtener_comisiones_ciclo(
     total_chips = 0.0
 
     # 🔹 Comisión extra para teléfonos
-    comisiones_por_tipo = {
-        "Contado": 10,
-        "Paguitos": 110,
-        "Pajoy": 100
-    }
+    
 
     # 🔹 Procesar ventas
     for v in ventas:
 
         comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
         cantidad = getattr(v, "cantidad", 0) or 0
-        tipo_venta = getattr(v, "tipo_venta", "") or ""
+        tipo_venta = (getattr(v, "tipo_venta", "") or "").strip().lower()
+
+        comisiones_por_tipo = {
+            "contado": 10,
+            "paguitos": 110,
+            "pajoy": 100
+        }
+
         comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
 
         comision_total = comision_base * cantidad
