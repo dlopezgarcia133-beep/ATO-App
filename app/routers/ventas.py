@@ -1126,11 +1126,16 @@ def obtener_comisiones_ciclo(
 ):
 
     # 🔹 Calcular ciclo actual (lunes a domingo)
-    hoy = date.today()
+    hoy = datetime.now()
+
     dias_desde_lunes = hoy.weekday()
+
     inicio_ciclo = hoy - timedelta(days=dias_desde_lunes)
-    fin_ciclo = inicio_ciclo + timedelta(days=6)
-    fecha_pago = fin_ciclo + timedelta(days=3)
+    inicio_ciclo = inicio_ciclo.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    fin_ciclo = inicio_ciclo + timedelta(days=7)
+
+    fecha_pago = (fin_ciclo - timedelta(days=1)).date() + timedelta(days=3)
 
     empleado_id = empleado_id or current_user.id
 
