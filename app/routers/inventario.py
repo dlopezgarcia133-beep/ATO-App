@@ -1339,3 +1339,32 @@ def obtener_existencia(
     return {
         "existencia_actual": item.cantidad if item else 0
     }
+
+
+
+@router.get("/inventario/buscar-modulos")
+def buscar_producto_en_modulos(
+    producto: str,
+    db: Session = Depends(get_db)
+):
+
+    resultados = (
+        db.query(
+            models.InventarioModulo.producto,
+            models.InventarioModulo.cantidad,
+            models.Modulo.nombre.label("modulo")
+        )
+        .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
+        .filter(models.InventarioModulo.producto.ilike(f"%{producto}%"))
+        .order_by(models.InventarioModulo.producto)
+        .all()
+    )
+
+    return [
+        {
+            "producto": r.producto,
+            "modulo": r.modulo,
+            "cantidad": r.cantidad
+        }
+        for r in resultados
+    ]
