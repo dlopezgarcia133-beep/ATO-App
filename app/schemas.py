@@ -360,7 +360,7 @@ class VentaChipConComision(BaseModel):
     comision: float
     es_incubadora: Optional[bool] = False
     fecha: date
-    hora: time
+    hora: Optional[time] = None
 
 class ComisionesCicloResponse(BaseModel):
     inicio_ciclo: date
