@@ -72,13 +72,9 @@ def obtener_comisiones(db: Session = Depends(get_db), user: models.Usuario = Dep
     
     return db.query(models.Comision).all()
 
-@router.get("/comisiones/{producto}", response_model=schemas.ComisionCreate)
+@router.get("/comisiones/{producto}", response_model=schemas.ComisionCreate | None)
 def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user: models.Usuario = Depends(get_current_user)):
-    comision = db.query(models.Comision).filter_by(producto=producto).first()
-    if not comision:
-        raise HTTPException(status_code=404, detail="No se encontró comisión para ese producto")
-    return comision
-
+    return db.query(models.Comision).filter_by(producto=producto).first()
 
 
 
@@ -88,8 +84,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
 
     ventas = db.query(models.Venta).filter(
         models.Venta.empleado_id == empleado_id,
-        models.Venta.fecha >= inicio,
-        models.Venta.fecha <= fin,
+        models.Venta.fecha >= datetime.combine(inicio, datetime.min.time()),
+        models.Venta.fecha <= datetime.combine(fin, datetime.max.time()),
         models.Venta.cancelada == False
     ).all()
 
@@ -97,8 +93,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
         models.VentaChip.empleado_id == empleado_id,
         models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.validado == True,
-        models.VentaChip.fecha >= inicio,
-        models.VentaChip.fecha <= fin,
+        models.VentaChip.fecha >= datetime.combine(inicio, datetime.min.time()),
+        models.VentaChip.fecha <= datetime.combine(fin, datetime.max.time()),
     ).all()
 
     accesorios = []
