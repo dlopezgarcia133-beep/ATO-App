@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -131,8 +131,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "comision_total": comision_total,
                 "tipo_venta": tipo_venta,
-                "fecha": v.fecha,
-                "hora": v.hora
+                "fecha": v.fecha if isinstance(v.fecha, date) else None,
+                "hora": v.hora if isinstance(v.hora, time) else None
             })
 
         elif getattr(v, "tipo_producto", "") == "accesorio":
@@ -145,8 +145,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "tipo_venta": tipo_venta,
                 "comision_total": comision_total,
-                "fecha": v.fecha,
-                "hora": v.hora
+                "fecha": v.fecha if isinstance(v.fecha, date) else None,
+                "hora": v.hora if isinstance(v.hora, time) else None
             })
 
     for v in ventas_chips:
@@ -162,8 +162,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
             "numero_telefono": v.numero_telefono,
             "comision": total,
             "es_incubadora": bool(v.es_incubadora),
-            "fecha": v.fecha,
-            "hora": v.hora
+            "fecha": v.fecha if isinstance(v.fecha, date) else None,
+            "hora": v.hora if isinstance(v.hora, time) else None
         })
 
     total_general = total_accesorios + total_telefonos + total_chips
