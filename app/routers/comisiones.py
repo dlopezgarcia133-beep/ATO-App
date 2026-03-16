@@ -209,7 +209,10 @@ def obtener_comisiones_ciclo(
     inicio = (hoy - timedelta(days=dias_desde_lunes)).date()
     fin = inicio + timedelta(days=6)
 
-    empleado = empleado_id or current_user.id
+    # 🔹 Lógica de roles
+    if current_user.rol == models.RolEnum.admin:
+        empleado = empleado_id if empleado_id else current_user.id
+    else:
+        empleado = current_user.id
 
     return calcular_comisiones(db, empleado, inicio, fin)
-
