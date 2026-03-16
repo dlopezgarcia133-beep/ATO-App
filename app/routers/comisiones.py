@@ -131,7 +131,7 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "comision_total": comision_total,
                 "tipo_venta": tipo_venta,
-                "fecha": v.fecha if v.fecha else None
+                "fecha": v.fecha if v.fecha else None,
                 "hora": v.hora if v.hora else None
             })
 
@@ -145,7 +145,7 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "tipo_venta": tipo_venta,
                 "comision_total": comision_total,
-                "fecha": v.fecha if v.fecha else None
+                "fecha": v.fecha if v.fecha else None,
                 "hora": v.hora if v.hora else None
             })
 
@@ -162,7 +162,7 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
             "numero_telefono": v.numero_telefono,
             "comision": total,
             "es_incubadora": bool(v.es_incubadora),
-            "fecha": v.fecha if v.fecha else None
+            "fecha": v.fecha if v.fecha else None,
             "hora": v.hora if v.hora else None
         })
 
