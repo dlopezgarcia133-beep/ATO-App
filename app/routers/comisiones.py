@@ -131,8 +131,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "comision_total": comision_total,
                 "tipo_venta": tipo_venta,
-                "fecha": v.fecha if isinstance(v.fecha, date) else None,
-                "hora": v.hora if isinstance(v.hora, time) else None
+                "fecha": v.fecha.date() if v.fecha else None,
+                "hora": v.hora if v.hora else None
             })
 
         elif getattr(v, "tipo_producto", "") == "accesorio":
@@ -145,8 +145,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision": comision_base,
                 "tipo_venta": tipo_venta,
                 "comision_total": comision_total,
-                "fecha": v.fecha if isinstance(v.fecha, date) else None,
-                "hora": v.hora if isinstance(v.hora, time) else None
+                "fecha": v.fecha.date() if v.fecha else None,
+                "hora": v.hora if v.hora else None
             })
 
     for v in ventas_chips:
@@ -162,12 +162,13 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
             "numero_telefono": v.numero_telefono,
             "comision": total,
             "es_incubadora": bool(v.es_incubadora),
-            "fecha": v.fecha if isinstance(v.fecha, date) else None,
-            "hora": v.hora if isinstance(v.hora, time) else None
+            "fecha": v.fecha.date() if v.fecha else None,
+            "hora": v.hora if v.hora else None
         })
 
     total_general = total_accesorios + total_telefonos + total_chips
 
+    print("RESULTADO FINAL:", total_general)
     return {
         "inicio_ciclo": inicio,
         "fin_ciclo": fin,
