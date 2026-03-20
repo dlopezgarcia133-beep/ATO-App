@@ -259,7 +259,7 @@ def metricas_empleados(
 
     ventas = db.query(
         models.Venta.empleado_id,
-        models.Usuario.nombre,
+        models.Usuario.username,
 
         # Accesorios
         func.sum(
@@ -300,7 +300,7 @@ def metricas_empleados(
         func.date(models.Venta.fecha) <= fin
     ).group_by(
         models.Venta.empleado_id,
-        models.Usuario.nombre
+        models.Usuario.username
     ).all()
 
     return {
