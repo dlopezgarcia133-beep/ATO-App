@@ -257,45 +257,60 @@ def metricas_empleados(db: Session = Depends(get_db)):
         models.Venta.empleado_id,
         models.Usuario.username,
 
+        # ACCESORIOS
         func.sum(
             case(
-                (models.Venta.tipo_producto == "accesorio",
-                 models.Venta.precio_unitario * models.Venta.cantidad),
+                (
+                    func.lower(func.trim(models.Venta.tipo_producto)) == "accesorio",
+                    models.Venta.precio_unitario * models.Venta.cantidad
+                ),
                 else_=0
             )
         ).label("total_accesorios"),
 
+        # TELEFONOS
         func.sum(
             case(
-                (models.Venta.tipo_producto == "telefono",
-                 models.Venta.precio_unitario * models.Venta.cantidad),
+                (
+                    func.lower(func.trim(models.Venta.tipo_producto)) == "telefono",
+                    models.Venta.precio_unitario * models.Venta.cantidad
+                ),
                 else_=0
             )
         ).label("total_telefonos"),
 
-        # Contado
-    func.sum(
-        case(
-            (func.lower(models.Venta.tipo_venta) == "Contado", 1),
-            else_=0
-        )
-    ).label("contado"),
+        # CONTADO
+        func.sum(
+            case(
+                (
+                    func.lower(func.trim(models.Venta.tipo_venta)) == "contado",
+                    1
+                ),
+                else_=0
+            )
+        ).label("contado"),
 
-    # Paguitos
-    func.sum(
-        case(
-            (func.lower(models.Venta.tipo_venta).like("Paguitos"), 1),
-            else_=0
-        )
-    ).label("paguitos"),
+        # PAGUITOS
+        func.sum(
+            case(
+                (
+                    func.lower(func.trim(models.Venta.tipo_venta)) == "paguitos",
+                    1
+                ),
+                else_=0
+            )
+        ).label("paguitos"),
 
-    func.sum(
-        case(
-            (func.lower(models.Venta.tipo_venta).like("Pajoy"), 1),
-            else_=0
-        )
-    ).label("pajoy")
-
+        # PAJOY
+        func.sum(
+            case(
+                (
+                    func.lower(func.trim(models.Venta.tipo_venta)) == "pajoy",
+                    1
+                ),
+                else_=0
+            )
+        ).label("pajoy"),
 
     ).join(models.Usuario).filter(
         models.Venta.fecha >= inicio,
@@ -305,7 +320,6 @@ def metricas_empleados(db: Session = Depends(get_db)):
         models.Usuario.username
     ).all()
 
-    # 🔥 CONVERSIÓN A JSON
     resultado = [dict(row._mapping) for row in ventas]
 
     return {
