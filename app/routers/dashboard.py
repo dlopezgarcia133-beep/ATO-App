@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, timedelta
-
+from sqlalchemy import  case
 from app.database import get_db
 from app import models
 
@@ -263,7 +263,7 @@ def metricas_empleados(
 
         # Accesorios
         func.sum(
-            func.case(
+            case(
                 (models.Venta.tipo_producto == "accesorio",
                  models.Venta.precio_unitario * models.Venta.cantidad),
                 else_=0
@@ -272,7 +272,7 @@ def metricas_empleados(
 
         # Teléfonos
         func.sum(
-            func.case(
+            case(
                 (models.Venta.tipo_producto == "telefono",
                  models.Venta.precio_unitario * models.Venta.cantidad),
                 else_=0
@@ -281,7 +281,7 @@ def metricas_empleados(
 
         # Contado
         func.sum(
-            func.case(
+            case(
                 (models.Venta.tipo_venta == "contado", 1),
                 else_=0
             )
@@ -289,7 +289,7 @@ def metricas_empleados(
 
         # Paguitos
         func.sum(
-            func.case(
+            case(
                 (models.Venta.tipo_venta == "paguitos", 1),
                 else_=0
             )
