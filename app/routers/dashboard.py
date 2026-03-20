@@ -245,23 +245,18 @@ def ventas_detalle(
     return [dict(row._mapping) for row in data]
 
 
+from sqlalchemy import func, case
+
 @router.get("/metricas/empleados")
-def metricas_empleados(
-    db: Session = Depends(get_db)
-):
+def metricas_empleados(db: Session = Depends(get_db)):
     hoy = date.today()
-
-    # 🔹 Primer día del mes
     inicio = hoy.replace(day=1)
-
-    # 🔹 Fin = hoy (no fin de mes)
     fin = hoy
 
     ventas = db.query(
         models.Venta.empleado_id,
-        models.Usuario.username,
+        models.Usuario.nombre,
 
-        # Accesorios
         func.sum(
             case(
                 (models.Venta.tipo_producto == "accesorio",
@@ -270,7 +265,6 @@ def metricas_empleados(
             )
         ).label("total_accesorios"),
 
-        # Teléfonos
         func.sum(
             case(
                 (models.Venta.tipo_producto == "telefono",
@@ -279,7 +273,6 @@ def metricas_empleados(
             )
         ).label("total_telefonos"),
 
-        # Contado
         func.sum(
             case(
                 (models.Venta.tipo_venta == "contado", 1),
@@ -287,7 +280,6 @@ def metricas_empleados(
             )
         ).label("contado"),
 
-        # Paguitos
         func.sum(
             case(
                 (models.Venta.tipo_venta == "paguitos", 1),
@@ -296,15 +288,18 @@ def metricas_empleados(
         ).label("paguitos"),
 
     ).join(models.Usuario).filter(
-        func.date(models.Venta.fecha) >= inicio,
-        func.date(models.Venta.fecha) <= fin
+        models.Venta.fecha >= inicio,
+        models.Venta.fecha <= fin
     ).group_by(
         models.Venta.empleado_id,
-        models.Usuario.username
+        models.Usuario.nombre
     ).all()
+
+    # 🔥 CONVERSIÓN A JSON
+    resultado = [dict(row._mapping) for row in ventas]
 
     return {
         "inicio": inicio,
         "fin": fin,
-        "data": ventas
+        "data": resultado
     }
