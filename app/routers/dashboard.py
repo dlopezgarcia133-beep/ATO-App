@@ -243,3 +243,68 @@ def ventas_detalle(
     data = query.order_by(models.Venta.fecha.desc()).all()
 
     return [dict(row._mapping) for row in data]
+
+
+@router.get("/metricas/empleados")
+def metricas_empleados(
+    db: Session = Depends(get_db)
+):
+    hoy = date.today()
+
+    # 🔹 Primer día del mes
+    inicio = hoy.replace(day=1)
+
+    # 🔹 Fin = hoy (no fin de mes)
+    fin = hoy
+
+    ventas = db.query(
+        models.Venta.empleado_id,
+        models.Usuario.nombre,
+
+        # Accesorios
+        func.sum(
+            func.case(
+                (models.Venta.tipo_producto == "accesorio",
+                 models.Venta.precio_unitario * models.Venta.cantidad),
+                else_=0
+            )
+        ).label("total_accesorios"),
+
+        # Teléfonos
+        func.sum(
+            func.case(
+                (models.Venta.tipo_producto == "telefono",
+                 models.Venta.precio_unitario * models.Venta.cantidad),
+                else_=0
+            )
+        ).label("total_telefonos"),
+
+        # Contado
+        func.sum(
+            func.case(
+                (models.Venta.tipo_venta == "contado", 1),
+                else_=0
+            )
+        ).label("contado"),
+
+        # Paguitos
+        func.sum(
+            func.case(
+                (models.Venta.tipo_venta == "paguitos", 1),
+                else_=0
+            )
+        ).label("paguitos"),
+
+    ).join(models.Usuario).filter(
+        func.date(models.Venta.fecha) >= inicio,
+        func.date(models.Venta.fecha) <= fin
+    ).group_by(
+        models.Venta.empleado_id,
+        models.Usuario.nombre
+    ).all()
+
+    return {
+        "inicio": inicio,
+        "fin": fin,
+        "data": ventas
+    }
