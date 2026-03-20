@@ -273,19 +273,29 @@ def metricas_empleados(db: Session = Depends(get_db)):
             )
         ).label("total_telefonos"),
 
-        func.sum(
-            case(
-                (models.Venta.tipo_venta == "contado", 1),
-                else_=0
-            )
-        ).label("contado"),
+        # Contado
+    func.sum(
+        case(
+            (func.lower(models.Venta.tipo_venta) == "Contado", 1),
+            else_=0
+        )
+    ).label("contado"),
 
-        func.sum(
-            case(
-                (models.Venta.tipo_venta == "paguitos", 1),
-                else_=0
-            )
-        ).label("paguitos"),
+    # Paguitos
+    func.sum(
+        case(
+            (func.lower(models.Venta.tipo_venta).like("Paguitos"), 1),
+            else_=0
+        )
+    ).label("paguitos"),
+
+    func.sum(
+        case(
+            (func.lower(models.Venta.tipo_venta).like("Pajoy"), 1),
+            else_=0
+        )
+    ).label("pajoy")
+
 
     ).join(models.Usuario).filter(
         models.Venta.fecha >= inicio,
