@@ -255,7 +255,7 @@ def metricas_empleados(db: Session = Depends(get_db)):
 
     ventas = db.query(
         models.Venta.empleado_id,
-        models.Usuario.nombre,
+        models.Usuario.username,
 
         func.sum(
             case(
@@ -292,7 +292,7 @@ def metricas_empleados(db: Session = Depends(get_db)):
         models.Venta.fecha <= fin
     ).group_by(
         models.Venta.empleado_id,
-        models.Usuario.nombre
+        models.Usuario.username
     ).all()
 
     # 🔥 CONVERSIÓN A JSON
