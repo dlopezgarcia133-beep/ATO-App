@@ -16,21 +16,18 @@ def ventas_dia(db: Session = Depends(get_db)):
     hoy = date.today()
 
     data = db.query(
-        models.Venta.modulo_id,
+        models.Modulo.nombre.label("modulo"),
         func.sum(models.Venta.total).label("total")
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Venta.modulo_id
     ).filter(
-        func.date(models.Venta.fecha) == hoy
+        models.Venta.fecha == hoy
     ).group_by(
-        models.Venta.modulo_id
+        models.Modulo.nombre
     ).all()
 
-    return [
-        {
-            "modulo_id": d.modulo_id,
-            "total": float(d.total)
-        }
-        for d in data
-    ]
+    return [dict(row._mapping) for row in data]
 
 
 @router.get("/comisiones-semana")
@@ -41,8 +38,8 @@ def comisiones_semana(db: Session = Depends(get_db)):
 
     data = db.query(
         models.Venta.empleado_id,
-        func.sum(models.Venta.comision).label("total")
-    ).filter(
+            func.sum(models.Comision.cantidad).label("total")
+        ).filter(
         func.date(models.Venta.fecha) >= inicio
     ).group_by(
         models.Venta.empleado_id
@@ -96,7 +93,7 @@ def traspasos(db: Session = Depends(get_db)):
             "producto": row.producto,
             "modulo_origen": row.modulo_origen,
             "modulo_destino": row.modulo_destino,
-            "estado": row.estado,
+            "estado": row.estado.value,
             "fecha": row.fecha
         })
 
@@ -114,7 +111,7 @@ def nomina(db: Session = Depends(get_db)):
         models.NominaEmpleado.total_pagar,
         models.NominaPeriodo.fecha_inicio,
         models.NominaPeriodo.fecha_fin,
-        models.Usuario.nombre_completo
+        models.Usuario.username
     ).join(
         models.NominaPeriodo,
         models.NominaPeriodo.id == models.NominaEmpleado.periodo_id
