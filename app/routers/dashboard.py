@@ -149,6 +149,8 @@ def ventas_empleado(db: Session = Depends(get_db)):
     return [dict(row._mapping) for row in data]
 
 
+
+
 @router.get("/empleados")
 def empleados(db: Session = Depends(get_db)):
 
