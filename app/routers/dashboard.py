@@ -129,10 +129,10 @@ def nomina(db: Session = Depends(get_db)):
 def ventas_empleado(db: Session = Depends(get_db)):
 
     data = db.query(
+        models.Usuario.id.label("empleado_id"),
         models.Usuario.username.label("empleado"),
+        models.Modulo.id.label("modulo_id"),
         models.Modulo.nombre.label("modulo"),
-        func.sum(models.Venta.total).label("total_ventas"),
-        func.count(models.Venta.id).label("cantidad_ventas")
     ).join(
         models.Usuario,
         models.Usuario.id == models.Venta.empleado_id
