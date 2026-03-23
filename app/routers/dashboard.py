@@ -157,7 +157,7 @@ def empleados(db: Session = Depends(get_db)):
     data = db.query(
         models.Usuario.id,
         models.Usuario.username.label("nombre_usuario"),
-        models.Usuario.rol,
+        models.Modulo.id.label("modulo_id"),
         models.Modulo.nombre.label("modulo")
     ).join(
         models.Modulo,
@@ -185,18 +185,16 @@ def modulos(db: Session = Depends(get_db)):
 def ventas_modulo(db: Session = Depends(get_db)):
 
     data = db.query(
-
         models.Usuario.id,
         models.Usuario.username.label("nombre_usuario"),
-        models.Usuario.rol,
-        models.Modulo.nombre.label("modulo")
-    ).join(
-        models.Modulo,
+        models.Modulo.id.label("modulo_id"),
+        models.Modulo.nombre.label("modulo"),
         func.sum(models.Venta.total).label("total")
     ).join(
         models.Modulo,
         models.Modulo.id == models.Venta.modulo_id
     ).group_by(
+        models.Modulo.id,
         models.Modulo.nombre
     ).all()
 
@@ -220,9 +218,13 @@ def ventas_detalle(
         models.Venta.id,
         models.Venta.fecha,
         models.Venta.hora,
-        models.Usuario.id,
+        models.Usuario.id.label("empleado_id"),
+        models.Modulo.id.label("modulo_id"),
+
+        # 🔹 Datos visuales
         models.Usuario.username.label("nombre_usuario"),
         models.Usuario.rol,
+        models.Modulo.id.label("modulo_id"),
         models.Modulo.nombre.label("modulo"),
         models.Venta.producto,
         models.Venta.tipo_producto,
