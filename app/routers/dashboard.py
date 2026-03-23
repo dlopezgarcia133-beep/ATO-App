@@ -185,7 +185,13 @@ def modulos(db: Session = Depends(get_db)):
 def ventas_modulo(db: Session = Depends(get_db)):
 
     data = db.query(
-        models.Modulo.nombre,
+
+        models.Usuario.id,
+        models.Usuario.username.label("nombre_usuario"),
+        models.Usuario.rol,
+        models.Modulo.nombre.label("modulo")
+    ).join(
+        models.Modulo,
         func.sum(models.Venta.total).label("total")
     ).join(
         models.Modulo,
@@ -214,7 +220,9 @@ def ventas_detalle(
         models.Venta.id,
         models.Venta.fecha,
         models.Venta.hora,
-        models.Usuario.username.label("empleado"),
+        models.Usuario.id,
+        models.Usuario.username.label("nombre_usuario"),
+        models.Usuario.rol,
         models.Modulo.nombre.label("modulo"),
         models.Venta.producto,
         models.Venta.tipo_producto,
