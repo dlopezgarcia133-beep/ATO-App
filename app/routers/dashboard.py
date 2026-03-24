@@ -305,10 +305,38 @@ def metricas_empleados(
             )
         ).label("total_telefonos"),
 
-        func.sum(case((models.Venta.tipo_venta == "contado", 1), else_=0)).label("contado"),
-        func.sum(case((models.Venta.tipo_venta == "paguitos", 1), else_=0)).label("paguitos"),
-        func.sum(case((models.Venta.tipo_venta == "pajoy", 1), else_=0)).label("pajoy"),
+        # CONTADO
+func.sum(
+    case(
+        (
+            func.lower(models.Venta.tipo_venta).like("%contado%"),
+            1
+        ),
+        else_=0
+    )
+).label("contado"),
 
+# PAGUITOS
+func.sum(
+    case(
+        (
+            func.lower(models.Venta.tipo_venta).like("%paguitos%"),
+            1
+        ),
+        else_=0
+    )
+).label("paguitos"),
+
+# PAJOY
+func.sum(
+    case(
+        (
+            func.lower(models.Venta.tipo_venta).like("%pajoy%"),
+            1
+        ),
+        else_=0
+    )
+).label("pajoy"),
     ).join(models.Usuario).filter(
         models.Venta.fecha >= inicio,
         models.Venta.fecha <= fin,
