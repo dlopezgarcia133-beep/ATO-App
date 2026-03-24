@@ -262,6 +262,7 @@ def metricas_empleados(
     fecha_fin: date | None = None,
     mes: int | None = None,
     anio: int | None = None,
+    modulo: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
     hoy = date.today()
@@ -358,6 +359,7 @@ func.sum(
 def ventas_por_dia(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
+    modulo: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(
@@ -386,6 +388,7 @@ def ventas_por_dia(
 def top_productos(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
+    modulo: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(
@@ -417,12 +420,13 @@ def top_productos(
 def ventas_por_modulo(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
+    modulo: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
 
     query = db.query(
         models.Modulo.nombre.label("modulo"),
-        func.sum(models.Venta.total).label("total")
+        (models.Venta.precio_unitario * models.Venta.cantidad).label("total")
     ).join(
         models.Modulo,
         models.Modulo.id == models.Venta.modulo_id
