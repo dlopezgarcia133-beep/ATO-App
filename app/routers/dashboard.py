@@ -257,82 +257,127 @@ def ventas_detalle(
 from sqlalchemy import func, case
 
 @router.get("/metricas/empleados")
-def metricas_empleados(db: Session = Depends(get_db)):
+def metricas_empleados(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    mes: int | None = None,
+    anio: int | None = None,
+    db: Session = Depends(get_db)
+):
     hoy = date.today()
-    inicio = hoy.replace(day=1)
-    fin = hoy
+
+    # 🔥 prioridad: rango personalizado
+    if fecha_inicio and fecha_fin:
+        inicio = fecha_inicio
+        fin = fecha_fin
+
+    # 🔥 filtro por mes
+    elif mes and anio:
+        inicio = date(anio, mes, 1)
+
+        if mes == 12:
+            fin = date(anio + 1, 1, 1) - timedelta(days=1)
+        else:
+            fin = date(anio, mes + 1, 1) - timedelta(days=1)
+
+    # 🔥 default: mes actual
+    else:
+        inicio = hoy.replace(day=1)
+        fin = hoy
 
     ventas = db.query(
         models.Venta.empleado_id,
         models.Usuario.username,
 
-        # ACCESORIOS
         func.sum(
             case(
-                (
-                    func.lower(func.trim(models.Venta.tipo_producto)) == "accesorio",
-                    models.Venta.precio_unitario * models.Venta.cantidad
-                ),
+                (models.Venta.tipo_producto == "accesorio",
+                 models.Venta.precio_unitario * models.Venta.cantidad),
                 else_=0
             )
         ).label("total_accesorios"),
 
-        # TELEFONOS
         func.sum(
             case(
-                (
-                    func.lower(func.trim(models.Venta.tipo_producto)) == "telefono",
-                    models.Venta.precio_unitario * models.Venta.cantidad
-                ),
+                (models.Venta.tipo_producto == "telefono",
+                 models.Venta.precio_unitario * models.Venta.cantidad),
                 else_=0
             )
         ).label("total_telefonos"),
 
-        # CONTADO
-        func.sum(
-            case(
-                (
-                    func.lower(func.trim(models.Venta.tipo_venta)) == "contado",
-                    1
-                ),
-                else_=0
-            )
-        ).label("contado"),
-
-        # PAGUITOS
-        func.sum(
-            case(
-                (
-                    func.lower(func.trim(models.Venta.tipo_venta)) == "paguitos",
-                    1
-                ),
-                else_=0
-            )
-        ).label("paguitos"),
-
-        # PAJOY
-        func.sum(
-            case(
-                (
-                    func.lower(func.trim(models.Venta.tipo_venta)) == "pajoy",
-                    1
-                ),
-                else_=0
-            )
-        ).label("pajoy"),
+        func.sum(case((models.Venta.tipo_venta == "contado", 1), else_=0)).label("contado"),
+        func.sum(case((models.Venta.tipo_venta == "paguitos", 1), else_=0)).label("paguitos"),
+        func.sum(case((models.Venta.tipo_venta == "pajoy", 1), else_=0)).label("pajoy"),
 
     ).join(models.Usuario).filter(
         models.Venta.fecha >= inicio,
-        models.Venta.fecha <= fin
+        models.Venta.fecha <= fin,
+        models.Venta.cancelada == False
     ).group_by(
         models.Venta.empleado_id,
         models.Usuario.username
     ).all()
 
-    resultado = [dict(row._mapping) for row in ventas]
-
     return {
         "inicio": inicio,
         "fin": fin,
-        "data": resultado
+        "data": [dict(row._mapping) for row in ventas]
     }
+
+
+
+@router.get("/ventas-por-dia")
+def ventas_por_dia(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Venta.fecha,
+        func.sum(models.Venta.total).label("total")
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    data = query.group_by(
+        models.Venta.fecha
+    ).order_by(
+        models.Venta.fecha
+    ).all()
+
+    return [dict(row._mapping) for row in data]
+
+
+@router.get("/top-productos")
+def top_productos(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Venta.producto,
+        func.sum(models.Venta.cantidad).label("total_vendidos"),
+        func.sum(models.Venta.total).label("total_dinero")
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    data = query.group_by(
+        models.Venta.producto
+    ).order_by(
+        func.sum(models.Venta.cantidad).desc()
+    ).limit(10).all()
+
+    return [dict(row._mapping) for row in data]
