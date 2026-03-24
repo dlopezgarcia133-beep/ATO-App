@@ -409,3 +409,33 @@ def top_productos(
     ).limit(10).all()
 
     return [dict(row._mapping) for row in data]
+
+
+
+
+@router.get("/ventas-por-modulo")
+def ventas_por_modulo(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    db: Session = Depends(get_db)
+):
+
+    query = db.query(
+        models.Modulo.nombre.label("modulo"),
+        func.sum(models.Venta.total).label("total")
+    ).join(
+        models.Modulo,
+        models.Modulo.id == models.Venta.modulo_id
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    data = query.group_by(models.Modulo.nombre).all()
+
+    return [dict(row._mapping) for row in data]
