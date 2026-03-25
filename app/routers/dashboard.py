@@ -1,4 +1,5 @@
 
+from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -262,31 +263,22 @@ def metricas_empleados(
     fecha_fin: date | None = None,
     mes: int | None = None,
     anio: int | None = None,
-    modulo: str | None = Query(None),
+    modulo_id: int | None = Query(None),
     db: Session = Depends(get_db)
 ):
     hoy = date.today()
 
-    # 🔥 prioridad: rango personalizado
     if fecha_inicio and fecha_fin:
         inicio = fecha_inicio
         fin = fecha_fin
-
-    # 🔥 filtro por mes
     elif mes and anio:
         inicio = date(anio, mes, 1)
-
-        if mes == 12:
-            fin = date(anio + 1, 1, 1) - timedelta(days=1)
-        else:
-            fin = date(anio, mes + 1, 1) - timedelta(days=1)
-
-    # 🔥 default: mes actual
+        fin = date(anio, mes + 1, 1) - timedelta(days=1) if mes < 12 else date(anio, 12, 31)
     else:
         inicio = hoy.replace(day=1)
         fin = hoy
 
-    ventas = db.query(
+    query = db.query(
         models.Venta.empleado_id,
         models.Usuario.username,
 
@@ -306,43 +298,29 @@ def metricas_empleados(
             )
         ).label("total_telefonos"),
 
-        # CONTADO
-func.sum(
-    case(
-        (
-            func.lower(models.Venta.tipo_venta).like("%contado%"),
-            1
-        ),
-        else_=0
-    )
-).label("contado"),
+        func.sum(
+            case((func.lower(models.Venta.tipo_venta).like("%contado%"), 1), else_=0)
+        ).label("contado"),
 
-# PAGUITOS
-func.sum(
-    case(
-        (
-            func.lower(models.Venta.tipo_venta).like("%paguitos%"),
-            1
-        ),
-        else_=0
-    )
-).label("paguitos"),
+        func.sum(
+            case((func.lower(models.Venta.tipo_venta).like("%paguitos%"), 1), else_=0)
+        ).label("paguitos"),
 
-# PAJOY
-func.sum(
-    case(
-        (
-            func.lower(models.Venta.tipo_venta).like("%pajoy%"),
-            1
-        ),
-        else_=0
-    )
-).label("pajoy"),
+        func.sum(
+            case((func.lower(models.Venta.tipo_venta).like("%pajoy%"), 1), else_=0)
+        ).label("pajoy"),
+
     ).join(models.Usuario).filter(
         models.Venta.fecha >= inicio,
         models.Venta.fecha <= fin,
         models.Venta.cancelada == False
-    ).group_by(
+    )
+
+    # 🔥 FILTRO POR MÓDULO
+    if modulo_id:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+
+    ventas = query.group_by(
         models.Venta.empleado_id,
         models.Usuario.username
     ).all()
@@ -354,12 +332,11 @@ func.sum(
     }
 
 
-
 @router.get("/ventas-por-dia")
 def ventas_por_dia(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
-    modulo: str | None = Query(None),
+    modulo_id: int | None = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(
@@ -375,6 +352,10 @@ def ventas_por_dia(
     if fecha_fin:
         query = query.filter(models.Venta.fecha <= fecha_fin)
 
+    # 🔥 FILTRO
+    if modulo_id:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+
     data = query.group_by(
         models.Venta.fecha
     ).order_by(
@@ -384,11 +365,12 @@ def ventas_por_dia(
     return [dict(row._mapping) for row in data]
 
 
+
 @router.get("/top-productos")
 def top_productos(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
-    modulo: str | None = Query(None),
+    modulo_id: int | None = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(
@@ -405,6 +387,10 @@ def top_productos(
     if fecha_fin:
         query = query.filter(models.Venta.fecha <= fecha_fin)
 
+    # 🔥 FILTRO
+    if modulo_id:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+
     data = query.group_by(
         models.Venta.producto
     ).order_by(
@@ -415,33 +401,37 @@ def top_productos(
 
 
 
-
 @router.get("/ventas-por-modulo")
 def ventas_por_modulo(
-    fecha_inicio: date | None = Query(None),
-    fecha_fin: date | None = Query(None),
-    modulo: str | None = Query(None),
+    fecha_inicio: date,
+    fecha_fin: date,
+    modulo_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
+
     query = db.query(
+        models.Modulo.id.label("modulo_id"),
         models.Modulo.nombre.label("modulo"),
-        func.sum(models.Venta.total).label("total")  # 👈 CAMBIO CLAVE
+
+        func.sum(
+            models.Venta.precio_unitario * models.Venta.cantidad
+        ).label("total")
+
     ).join(
-        models.Modulo,
-        models.Modulo.id == models.Venta.modulo_id
+        models.Modulo, models.Modulo.id == models.Venta.modulo_id
     ).filter(
-        models.Venta.cancelada == False
+        models.Venta.cancelada == False,
+        models.Venta.fecha >= fecha_inicio,
+        models.Venta.fecha <= fecha_fin
     )
 
-    if fecha_inicio:
-        query = query.filter(models.Venta.fecha >= fecha_inicio)
+    # 🔥 FILTRO POR MÓDULO
+    if modulo_id:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
 
-    if fecha_fin:
-        query = query.filter(models.Venta.fecha <= fecha_fin)
-
-    if modulo:
-        query = query.filter(models.Modulo.nombre == modulo)
-
-    data = query.group_by(models.Modulo.nombre).all()
+    data = query.group_by(
+        models.Modulo.id,
+        models.Modulo.nombre
+    ).all()
 
     return [dict(row._mapping) for row in data]
