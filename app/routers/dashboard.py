@@ -418,15 +418,14 @@ def top_productos(
 
 @router.get("/ventas-por-modulo")
 def ventas_por_modulo(
-    fecha_inicio: date | None = None,
-    fecha_fin: date | None = None,
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
     modulo: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
-
     query = db.query(
         models.Modulo.nombre.label("modulo"),
-        (models.Venta.precio_unitario * models.Venta.cantidad).label("total")
+        func.sum(models.Venta.total).label("total")  # 👈 CAMBIO CLAVE
     ).join(
         models.Modulo,
         models.Modulo.id == models.Venta.modulo_id
@@ -439,6 +438,9 @@ def ventas_por_modulo(
 
     if fecha_fin:
         query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    if modulo:
+        query = query.filter(models.Modulo.nombre == modulo)
 
     data = query.group_by(models.Modulo.nombre).all()
 
