@@ -435,3 +435,92 @@ def ventas_por_modulo(
     ).all()
 
     return [dict(row._mapping) for row in data]
+
+
+
+@router.get("/resumen-por-modulo")
+def resumen_por_modulo(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Modulo.nombre.label("modulo"),
+
+        # 💰 ACCESORIOS
+        func.sum(
+            case(
+                (
+                    func.lower(models.Venta.tipo_producto) == "accesorio",
+                    models.Venta.total
+                ),
+                else_=0
+            )
+        ).label("total_accesorios"),
+
+        # 📱 TELEFONOS
+        func.sum(
+            case(
+                (
+                    func.lower(models.Venta.tipo_producto) == "telefono",
+                    models.Venta.total
+                ),
+                else_=0
+            )
+        ).label("total_telefonos"),
+
+        # 💵 CONTADO
+        func.sum(
+            case(
+                (
+                    func.lower(models.Venta.tipo_venta).like("%contado%"),
+                    1
+                ),
+                else_=0
+            )
+        ).label("contado"),
+
+        # 📲 PAGUITOS
+        func.sum(
+            case(
+                (
+                    func.lower(models.Venta.tipo_venta).like("%paguitos%"),
+                    1
+                ),
+                else_=0
+            )
+        ).label("paguitos"),
+
+        # 🧾 PAJOY
+        func.sum(
+            case(
+                (
+                    func.lower(models.Venta.tipo_venta).like("%pajoy%"),
+                    1
+                ),
+                else_=0
+            )
+        ).label("pajoy"),
+
+        # 🔥 TOTAL GENERAL
+        func.sum(models.Venta.total).label("total_general")
+
+    ).join(
+        models.Modulo, models.Modulo.id == models.Venta.modulo_id
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    data = query.group_by(
+        models.Modulo.nombre
+    ).order_by(
+        func.sum(models.Venta.total).desc()
+    ).all()
+
+    return [dict(row._mapping) for row in data]
