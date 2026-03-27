@@ -65,7 +65,10 @@ def crear_ventas(
         inventario.cantidad -= item.cantidad
 
         fecha_actual = datetime.now(zona_horaria)
-        tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO") else "accesorio"
+        tipo_producto = "telefono" if item.producto.strip().upper().startswith("TELEFONO")  raise HTTPException(
+        status_code=400,
+        detail=f"chip_casado es obligatorio para teléfonos: {item.producto}"
+    ) else "accesorio"
 
         total = item.precio_unitario * item.cantidad
 
