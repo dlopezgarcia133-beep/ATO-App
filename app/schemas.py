@@ -73,6 +73,7 @@ class VentaCreate(BaseModel):
     tipo_producto: str 
     tipo_venta: str
     metodo_pago: str
+    chip_casado: str
     telefono_cliente: Optional[str] = None
 
 

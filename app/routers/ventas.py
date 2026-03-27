@@ -81,6 +81,7 @@ def crear_ventas(
     total=total,
     cancelada=False,
     comision_id=comision_id,
+    chip_casado=item.chip_casado,  # se puede actualizar después si es un teléfono con chip casado
     fecha=fecha_actual.date(),
     hora=fecha_actual.time(),
     telefono_cliente=venta.telefono_cliente,

@@ -56,6 +56,7 @@ class Venta(Base):
     comision_id = Column(Integer, ForeignKey("comisions.id"), nullable=True)
     metodo_pago = Column(String)
     cancelada = Column(Boolean, default=False)
+    chip_casado = Column(String, nullable=True)  # Para relacionar venta de teléfono con venta de chip
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     telefono_cliente = Column(String, nullable=True)
