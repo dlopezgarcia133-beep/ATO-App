@@ -96,7 +96,7 @@ class VentaResponse(VentaCreate):
     metodo_pago: Optional[str] = None
     cancelada : Optional[bool] = None
     telefono_cliente: Optional[str] = None
-    chip_casado: str
+    chip_casado: str | None = None
     fecha: date
     hora: time
 
