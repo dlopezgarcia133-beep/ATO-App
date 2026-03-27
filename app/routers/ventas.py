@@ -29,7 +29,6 @@ def crear_ventas(
     ventas_realizadas = []
 
     for item in venta.productos:
-        # Buscar comisión por producto (si aplica)
         com = (
             db.query(models.Comision)
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
@@ -38,7 +37,6 @@ def crear_ventas(
         comision_id = com.id if com else None
         modulo_id = current_user.modulo_id
 
-        # 🔎 Buscar en inventario unificado
         inventario = (
             db.query(models.InventarioModulo)
             .filter(
@@ -50,67 +48,59 @@ def crear_ventas(
         )
 
         if not inventario:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No hay inventario para el producto: {item.producto}"
-            )
+            raise HTTPException(400, f"No hay inventario para {item.producto}")
 
         if inventario.cantidad < item.cantidad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Inventario insuficiente para el producto: {item.producto}"
-            )
+            raise HTTPException(400, f"Inventario insuficiente para {item.producto}")
 
-        # Actualizar inventario
         inventario.cantidad -= item.cantidad
 
         fecha_actual = datetime.now(zona_horaria)
-    if item.producto.strip().upper().startswith("TELEFONO"):
-        if not item.chip_casado:
-            raise HTTPException(
-                status_code=400,
-                detail=f"chip_casado es obligatorio para teléfonos: {item.producto}"
-            )
-        tipo_producto = "telefono"
-    else:
-        tipo_producto = "accesorio"
+
+        # ✅ VALIDACIÓN CORRECTA
+        if item.tipo_producto == "telefono":
+            if not item.chip_casado:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"chip_casado es obligatorio para teléfonos: {item.producto}"
+                )
 
         total = item.precio_unitario * item.cantidad
 
         nueva = models.Venta(
-    empleado_id=current_user.id,
-    modulo_id=modulo_id,
-    producto=item.producto,
-    cantidad=item.cantidad,
-    precio_unitario=item.precio_unitario,
-    tipo_producto=tipo_producto,  
-    tipo_venta=item.tipo_venta,
-    metodo_pago=venta.metodo_pago,
-    total=total,
-    cancelada=False,
-    comision_id=comision_id,
-    chip_casado=item.chip_casado,  # se puede actualizar después si es un teléfono con chip casado
-    fecha=fecha_actual.date(),
-    hora=fecha_actual.time(),
-    telefono_cliente=venta.telefono_cliente,
-)
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=item.producto,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            tipo_producto=item.tipo_producto,
+            tipo_venta=item.tipo_venta,
+            metodo_pago=venta.metodo_pago,
+            total=total,
+            cancelada=False,
+            comision_id=comision_id,
+            chip_casado=item.chip_casado,
+            fecha=fecha_actual.date(),
+            hora=fecha_actual.time(),
+            telefono_cliente=venta.telefono_cliente,
+        )
 
         db.add(nueva)
-        db.flush()  # 👈 importante para obtener nueva.id
+        db.flush()
 
-# Registrar Kardex
-    registrar_kardex(
-        db=db,
-        producto=nueva.producto,
-        tipo_producto=nueva.tipo_producto,
-        cantidad=nueva.cantidad,
-        tipo_movimiento="VENTA",
-        usuario_id=current_user.id,
-        modulo_origen_id=modulo_id,
-        referencia_id=nueva.id
-    )
+        # ✅ YA NO TRUENA
+        registrar_kardex(
+            db=db,
+            producto=nueva.producto,
+            tipo_producto=nueva.tipo_producto,
+            cantidad=nueva.cantidad,
+            tipo_movimiento="VENTA",
+            usuario_id=current_user.id,
+            modulo_origen_id=modulo_id,
+            referencia_id=nueva.id
+        )
 
-    ventas_realizadas.append(nueva)
+        ventas_realizadas.append(nueva)
 
     db.commit()
     for v in ventas_realizadas:
