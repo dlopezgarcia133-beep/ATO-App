@@ -96,7 +96,7 @@ class VentaResponse(VentaCreate):
     metodo_pago: Optional[str] = None
     cancelada : Optional[bool] = None
     telefono_cliente: Optional[str] = None
-    chip_casado: str | None = None
+    chip_casado: str 
     fecha: date
     hora: time
 
@@ -119,7 +119,7 @@ class ProductoEnVenta(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
-    chip_casado: Optional[str] = None
+    chip_casado: str 
     tipo_producto: Optional[str] = None
     tipo_venta: Optional[str] = None
     metodo_pago: Optional[str] = None
