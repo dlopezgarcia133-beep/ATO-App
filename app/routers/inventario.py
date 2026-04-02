@@ -1096,17 +1096,16 @@ def guardar_conteo(
         registro = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.id == item.producto_id,
+                models.InventarioModulo.producto_id == item.producto_id,  # ✅ FIX
                 models.InventarioModulo.modulo_id == data.modulo_id
             )
             .first()
         )
 
         if not registro:
-            continue  # si no existe, lo ignoramos
+            continue
 
-        # ✅ Aquí se guarda el conteo físico REAL
-        registro.cantidad = item.cantidad
+    registro.cantidad = item.cantidad
 
     db.commit()
 
