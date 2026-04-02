@@ -1096,16 +1096,17 @@ def guardar_conteo(
         registro = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.producto_id == item.producto_id,  # ✅ FIX
+                models.InventarioModulo.clave == item.clave,  # ✅ FIX REAL
                 models.InventarioModulo.modulo_id == data.modulo_id
             )
             .first()
         )
 
         if not registro:
+            print("NO ENCONTRADO:", item.clave)
             continue
 
-    registro.cantidad = item.cantidad
+        registro.cantidad = item.cantidad
 
     db.commit()
 
