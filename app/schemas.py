@@ -433,7 +433,7 @@ class ConteoRequest(BaseModel):
 
 
 class ProductoConteo(BaseModel):
-    producto_id: int
+    clave: str
     cantidad: int
 
 class ConteoInventarioRequest(BaseModel):
