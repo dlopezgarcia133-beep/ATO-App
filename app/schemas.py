@@ -404,7 +404,8 @@ class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None
     
     
-
+class ValidarChipIncubadoraRequest(BaseModel):
+    comision_manual: Optional[float] = None
 
 class InventarioFisicoBase(BaseModel):
     producto: str

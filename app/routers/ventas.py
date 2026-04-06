@@ -764,7 +764,10 @@ def obtener_chips_rechazados(
     return query.all()
 
 @router.put("/validar_chip_incubadora/{chip_id}", response_model=schemas.VentaChipResponse)
-def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
+def validar_chip_incubadora(
+    chip_id: int,
+    data: schemas.ValidarChipIncubadoraRequest,
+    db: Session = Depends(get_db)):
 
     chip = db.query(models.VentaChip).filter(
         models.VentaChip.id == chip_id
@@ -813,22 +816,32 @@ def validar_chip_incubadora(chip_id: int, db: Session = Depends(get_db)):
         ]
     }
 
-    if tipo not in comisiones_por_chip:
-        raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip")
+    # 🔥 CASO ESPECIAL: ACTIVACION
+    if tipo == "Activacion":
+        if not data.comision_manual or data.comision_manual <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="La comisión manual es obligatoria para chips de Activación"
+            )
 
-    comision_asignada = None
+        chip.comision = data.comision_manual
 
-    for (min_monto, max_monto), comision in comisiones_por_chip[tipo]:
-        if min_monto <= monto <= max_monto:
-            comision_asignada = comision
-            break
+    # 🔹 RESTO DE CHIPS (automático)
+    else:
+        if tipo not in comisiones_por_chip:
+            raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip")
 
-    if comision_asignada is None:
-        raise HTTPException(status_code=404, detail="Monto de recarga fuera de rango")
+        comision_asignada = None
 
-    # 🔹 Asignar comisión
-    chip.comision = comision_asignada
+        for (min_monto, max_monto), comision in comisiones_por_chip[tipo]:
+            if min_monto <= monto <= max_monto:
+                comision_asignada = comision
+                break
 
+        if comision_asignada is None:
+            raise HTTPException(status_code=404, detail="Monto de recarga fuera de rango")
+
+        chip.comision = comision_asignada
     # 🔹 Marcar como incubadora
     
 
