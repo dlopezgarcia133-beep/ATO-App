@@ -528,7 +528,7 @@ def resumen_por_modulo(
 
 from sqlalchemy import text
 
-@router.get("/dashboard/chips")
+@router.get("/chips")
 def get_chips(
     fecha_inicio: str = None,
     fecha_fin: str = None,
