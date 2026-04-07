@@ -526,7 +526,7 @@ def resumen_por_modulo(
     return [dict(row._mapping) for row in data]
 
 
-@router.get("/dashboard/chips")
+@router.get("/chips")
 def get_chips(db: Session = Depends(get_db)):
     result = db.execute("""
         SELECT tipo_chip as tipo, COUNT(*) as total
