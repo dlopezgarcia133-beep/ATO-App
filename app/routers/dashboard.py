@@ -524,3 +524,18 @@ def resumen_por_modulo(
     ).all()
 
     return [dict(row._mapping) for row in data]
+
+
+@router.get("/dashboard/chips")
+def get_chips(db: Session = Depends(get_db)):
+    result = db.execute("""
+        SELECT tipo_chip as tipo, COUNT(*) as total
+        FROM chips
+        GROUP BY tipo_chip
+        ORDER BY total DESC
+    """).fetchall()
+
+    return [
+        {"tipo": row.tipo, "total": row.total}
+        for row in result
+    ]
