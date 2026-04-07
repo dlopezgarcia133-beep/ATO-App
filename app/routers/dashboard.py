@@ -526,14 +526,30 @@ def resumen_por_modulo(
     return [dict(row._mapping) for row in data]
 
 
-@router.get("/chips")
-def get_chips(db: Session = Depends(get_db)):
-    result = db.execute("""
+from sqlalchemy import text
+
+@router.get("/dashboard/chips")
+def get_chips(
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    db: Session = Depends(get_db)
+):
+    query = """
         SELECT tipo_chip as tipo, COUNT(*) as total
-        FROM chips
-        GROUP BY tipo_chip
-        ORDER BY total DESC
-    """).fetchall()
+        FROM venta_chips
+        WHERE 1=1
+    """
+
+    params = {}
+
+    if fecha_inicio and fecha_fin:
+        query += " AND fecha BETWEEN :inicio AND :fin"
+        params["inicio"] = fecha_inicio
+        params["fin"] = fecha_fin
+
+    query += " GROUP BY tipo_chip ORDER BY total DESC"
+
+    result = db.execute(text(query), params).fetchall()
 
     return [
         {"tipo": row.tipo, "total": row.total}
