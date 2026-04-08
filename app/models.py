@@ -342,5 +342,5 @@ class Plan(Base):
 
     empleado_id = Column(Integer, ForeignKey("usuarios.id"))
     modulo_id = Column(Integer, ForeignKey("modulos.id"))
-
+    fecha_inicio = Column(Date, default=date.today)
     fecha = Column(DateTime, default=datetime.utcnow)
