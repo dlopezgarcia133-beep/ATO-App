@@ -1,4 +1,5 @@
 
+from http.client import HTTPException
 from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from datetime import date, timedelta
 from sqlalchemy import  case
 from app.database import get_db
 from app import models
+from app import schemas
 
 router = APIRouter()
 
@@ -554,4 +556,71 @@ def get_chips(
     return [
         {"tipo": row.tipo, "total": row.total}
         for row in result
+    ]
+
+
+@router.post("/planes")
+def crear_plan(data: schemas.PlanCreate, db: Session = Depends(get_db)):
+     # Validar que el empleado exista
+    empleado = db.query(models.Usuario).filter_by(id=data.empleado_id).first()
+    if not empleado:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    # Validar que el módulo exista
+    modulo = db.query(models.Modulo).filter_by(id=data.modulo_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+
+    nuevo_plan = models.Plan(
+        tipo_tramite=data.tipo_tramite,
+        tipo_plan=data.tipo_plan,
+        empleado_id=data.empleado_id,
+        modulo_id=data.modulo_id,
+        fecha_inicio=date.today(),
+        fecha_fin=None
+    )
+
+    db.add(nuevo_plan)
+    db.commit()
+    db.refresh(nuevo_plan)
+
+    return nuevo_plan
+
+
+@router.get("/resumen_planes")
+def resumen_planes(
+    fecha_inicio: str = Query(...),
+    fecha_fin: str = Query(...),
+    modulo_id: int = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Plan.tipo_tramite,
+        models.Plan.tipo_plan,
+        func.count(models.Plan.id).label("total")
+    )
+
+    # 🔥 FILTRO POR FECHA
+    query = query.filter(
+        func.date(models.Plan.fecha_inicio) >= fecha_inicio,
+        func.date(models.Plan.fecha_inicio) <= fecha_fin
+    )
+
+    # 🔥 FILTRO POR MODULO
+    if modulo_id:
+        query = query.filter(models.Plan.modulo_id == modulo_id)
+
+    # 🔥 GROUP BY
+    data = query.group_by(
+        models.Plan.tipo_tramite,
+        models.Plan.tipo_plan
+    ).all()
+
+    # 🔥 FORMATO PARA FRONTEND
+    return [
+        {
+            "nombre": f"{row.tipo_tramite} - {row.tipo_plan}",
+            "total": row.total
+        }
+        for row in data
     ]
