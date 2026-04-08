@@ -577,7 +577,7 @@ def crear_plan(data: schemas.PlanCreate, db: Session = Depends(get_db)):
         empleado_id=data.empleado_id,
         modulo_id=data.modulo_id,
         fecha_inicio=date.today(),
-        fecha_fin=None
+
     )
 
     db.add(nuevo_plan)
