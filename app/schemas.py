@@ -497,3 +497,9 @@ class NominaPeriodoFechasUpdate(BaseModel):
     fin_a: Optional[date] = None
     inicio_c: Optional[date] = None
     fin_c: Optional[date] = None
+
+class PlanCreate(BaseModel):
+    tipo_tramite: str
+    tipo_plan: str
+    empleado_id: int
+    modulo_id: int

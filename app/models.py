@@ -331,3 +331,16 @@ class KardexMovimiento(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
 
     fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Plan(Base):
+    __tablename__ = "planes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_tramite = Column(String, nullable=False)
+    tipo_plan = Column(String, nullable=False)
+
+    empleado_id = Column(Integer, ForeignKey("usuarios.id"))
+    modulo_id = Column(Integer, ForeignKey("modulos.id"))
+
+    fecha = Column(DateTime, default=datetime.utcnow)
