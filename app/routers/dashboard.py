@@ -587,40 +587,26 @@ def crear_plan(data: schemas.PlanCreate, db: Session = Depends(get_db)):
     return nuevo_plan
 
 
-@router.get("/resumen_planes")
-def resumen_planes(
-    fecha_inicio: str = Query(...),
-    fecha_fin: str = Query(...),
-    modulo_id: int = None,
+@router.get("/planes")
+def get_planes(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
     db: Session = Depends(get_db)
 ):
-    query = db.query(
+    data = db.query(
+        models.Plan.id,
         models.Plan.tipo_tramite,
         models.Plan.tipo_plan,
-        func.count(models.Plan.id).label("total")
-    )
+        models.Usuario.username.label("empleado"),
+        models.Modulo.nombre.label("modulo"),
+        models.Plan.fecha_inicio
+    ).join(models.Usuario, models.Plan.empleado_id == models.Usuario.id)\
+     .join(models.Modulo, models.Plan.modulo_id == models.Modulo.id)\
+     .filter(
+        models.Plan.fecha_inicio >= fecha_inicio,
+        models.Plan.fecha_inicio <= fecha_fin
+     )\
+     .order_by(models.Plan.fecha_inicio.desc())\
+     .all()
 
-    # 🔥 FILTRO POR FECHA
-    query = query.filter(
-        func.date(models.Plan.fecha_inicio) >= fecha_inicio,
-        func.date(models.Plan.fecha_inicio) <= fecha_fin
-    )
-
-    # 🔥 FILTRO POR MODULO
-    if modulo_id:
-        query = query.filter(models.Plan.modulo_id == modulo_id)
-
-    # 🔥 GROUP BY
-    data = query.group_by(
-        models.Plan.tipo_tramite,
-        models.Plan.tipo_plan
-    ).all()
-
-    # 🔥 FORMATO PARA FRONTEND
-    return [
-        {
-            "nombre": f"{row.tipo_tramite} - {row.tipo_plan}",
-            "total": row.total
-        }
-        for row in data
-    ]
+    return [dict(row._mapping) for row in data]
