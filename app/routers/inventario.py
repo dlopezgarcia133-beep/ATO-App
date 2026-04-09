@@ -949,7 +949,7 @@ def actualizar_inventario_excel_general(
 
     for _, fila in df.iterrows():
         clave = str(fila["CLAVE"]).strip()
-        producto = str(fila["DESCRIPCION"]).strip()
+        producto = str(fila["PRODUCTO"]).strip()
         cantidad = int(fila["CANTIDAD"])
         precio = int(float(str(fila["PRECIO"]).replace("$","").replace(",","")))
 
