@@ -610,3 +610,50 @@ def get_planes(
      .all()
 
     return [dict(row._mapping) for row in data]
+
+@router.get("/ventas-por-dia-detalle")
+def ventas_por_dia_detalle(
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+    modulo_id: int | None = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Venta.fecha,
+
+        # 🔥 ACCESORIOS
+        func.sum(
+            case(
+                (models.Venta.tipo_producto == "accesorio", models.Venta.total),
+                else_=0
+            )
+        ).label("accesorios"),
+
+        # 🔥 TELEFONOS
+        func.sum(
+            case(
+                (models.Venta.tipo_producto == "telefono", models.Venta.total),
+                else_=0
+            )
+        ).label("telefonos")
+
+    ).filter(
+        models.Venta.cancelada == False
+    )
+
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+
+    if modulo_id:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+
+    data = query.group_by(
+        models.Venta.fecha
+    ).order_by(
+        models.Venta.fecha
+    ).all()
+
+    return [dict(row._mapping) for row in data]
