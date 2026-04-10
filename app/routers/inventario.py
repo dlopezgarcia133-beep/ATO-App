@@ -144,22 +144,22 @@ def descargar_inventario_modulo(
 )
 def obtener_productos_nombres(
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
+        current_user: models.Usuario = Depends(get_current_user)
 ):
     productos = (
-        db.query(models.InventarioModulo)
-        .filter(models.InventarioModulo.modulo_id == current_user.modulo_id)
+        db.query(
+            models.InventarioModulo.producto,
+            func.min(models.InventarioModulo.precio).label("precio_min")
+        )
+        .filter(
+            models.InventarioModulo.modulo_id == current_user.modulo_id
+        )
+        .group_by(models.InventarioModulo.producto)
+        .order_by(func.min(models.InventarioModulo.precio).asc())
         .all()
     )
 
-    return [
-        {
-            "producto": p.producto,
-            "precio": p.precio,
-            "stock": p.cantidad
-        }
-        for p in productos
-    ]
+    return [p.producto for p in productos]
 
 @router.get("/buscar", response_model=List[str])
 def autocomplete_telefonos(
