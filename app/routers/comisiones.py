@@ -78,6 +78,10 @@ def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user
 
 
 
+
+
+
+
 def calcular_comisiones(db, empleado_id, inicio, fin):
 
     fecha_pago = fin + timedelta(days=3)
