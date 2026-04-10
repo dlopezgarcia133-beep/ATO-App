@@ -94,6 +94,8 @@ class Comision(Base):
     producto = Column(String, unique=True, nullable=False)
     cantidad = Column(Float, nullable=False)  
 
+    activo = Column(Boolean, default=True)
+
 
 
 

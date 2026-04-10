@@ -421,6 +421,7 @@ def crear_ventas_multiples(
         com = (
             db.query(models.Comision)
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
+            .filter(models.Comision.activo == True)
             .first()
         )
         comision_id = com.id if com else None

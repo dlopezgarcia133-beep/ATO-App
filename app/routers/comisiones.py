@@ -61,7 +61,7 @@ def eliminar_comision(
     if not com_db:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    db.delete(com_db)
+    com_db.activo = False
     db.commit()
     return {"mensaje": f"Comisión para producto '{producto}' eliminada"}
 
@@ -70,7 +70,7 @@ def eliminar_comision(
 @router.get("/comisiones", response_model=list[schemas.ComisionCreate])
 def obtener_comisiones(db: Session = Depends(get_db), user: models.Usuario = Depends(get_current_user)):
     
-    return db.query(models.Comision).all()
+    return db.query(models.Comision).filter(models.Comision.activo == True).all()
 
 @router.get("/comisiones/{producto}", response_model=schemas.ComisionCreate | None)
 def obtener_comision_producto(producto: str, db: Session = Depends(get_db), user: models.Usuario = Depends(get_current_user)):
