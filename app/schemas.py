@@ -134,7 +134,7 @@ class VentaChipCreate(BaseModel):
     tipo_chip: str
     numero_telefono: str
     monto_recarga: float
-    CVIP: bool
+    cvip: bool
   
 
 class VentaChipResponse(VentaChipCreate):
