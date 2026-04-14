@@ -134,7 +134,7 @@ class VentaChipCreate(BaseModel):
     tipo_chip: str
     numero_telefono: str
     monto_recarga: float
-    clave: Optional[str] = None
+    CVIP: bool
   
 
 class VentaChipResponse(VentaChipCreate):

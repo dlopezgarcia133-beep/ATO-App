@@ -75,7 +75,7 @@ class VentaChip(Base):
     numero_telefono = Column(String, nullable=False)
     monto_recarga = Column(Float, nullable=False)
     comision = Column(Float, nullable=True)
-    clave = Column(String(10), nullable=True)
+    CVIP = Column(Boolean, default=False, nullable=False)
     fecha = Column(Date, nullable=False)
     hora = Column(Time, nullable=False)
     cancelada = Column(Boolean, default=False)
