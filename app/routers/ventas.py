@@ -605,9 +605,12 @@ def crear_venta_chip(
     current_user: models.Usuario = Depends(get_current_user)
 ):
     
-    if venta.cvip :
-        raise HTTPException(status_code=400, detail="Debes seleccionar una opcion (Si o No) )")
-
+    if venta.cvip is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes seleccionar una opcion (Si o No)"
+        )
+    
     fecha_actual = datetime.now(zona_horaria)
     nueva_venta = models.VentaChip(
         empleado_id=current_user.id,
