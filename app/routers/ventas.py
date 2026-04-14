@@ -605,7 +605,7 @@ def crear_venta_chip(
     current_user: models.Usuario = Depends(get_current_user)
 ):
     
-    if venta.CVIP :
+    if venta.cvip :
         raise HTTPException(status_code=400, detail="Debes seleccionar una opcion (Si o No) )")
 
     fecha_actual = datetime.now(zona_horaria)
@@ -614,7 +614,7 @@ def crear_venta_chip(
         tipo_chip=venta.tipo_chip,
         numero_telefono=venta.numero_telefono,
         monto_recarga=venta.monto_recarga,
-        CVIP=venta.CVIP,
+        cvip=venta.cvip,
         fecha=fecha_actual.date(),
         hora=fecha_actual.time(),
     )
