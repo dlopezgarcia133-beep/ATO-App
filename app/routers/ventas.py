@@ -449,7 +449,7 @@ def crear_ventas_multiples(
         tipo_producto = (
             "telefono"
             if "TELEFONO" in item.producto.strip().upper()
-            else "accesorio"
+            else "accesorios"
         )
 
         nueva = models.Venta(
@@ -531,20 +531,20 @@ def crear_ventas_multiples(
 
             if es_efectivo:
                 corte.total_efectivo = (corte.total_efectivo or 0) + total_v
-                if v.tipo_producto == "accesorio":
+                if v.tipo_producto == "accesorios":
                     corte.accesorios_efectivo = (corte.accesorios_efectivo or 0) + total_v
                 else:
                     corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + total_v
             else:
                 # todo lo que no sea "efectivo" lo acumulamos en tarjeta (ajusta según necesites)
                 corte.total_tarjeta = (corte.total_tarjeta or 0) + total_v
-                if v.tipo_producto == "accesorio":
+                if v.tipo_producto == "accesorios":
                     corte.accesorios_tarjeta = (corte.accesorios_tarjeta or 0) + total_v
                 else:
                     corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + total_v
 
             # totales por tipo
-            if v.tipo_producto == "accesorio":
+            if v.tipo_producto == "accesorios":
                 corte.accesorios_total = (corte.accesorios_total or 0) + total_v
             else:
                 corte.telefonos_total = (corte.telefonos_total or 0) + total_v
@@ -948,7 +948,7 @@ def corte_general(
         models.Venta.modulo_id == modulo_final
     ).all()
 
-    ventas_productos = [v for v in ventas if v.tipo_producto == "accesorio"]
+    ventas_productos = [v for v in ventas if v.tipo_producto == "accesorios"]
     ventas_telefonos = [v for v in ventas if v.tipo_producto == "telefono"]
 
     # ACCESORIOS
@@ -1166,7 +1166,7 @@ def obtener_comisiones_ciclo_admin(
         models.Venta.fecha >= inicio_ciclo,
         models.Venta.fecha<= fin_ciclo,
         models.Venta.cancelada == False,
-        models.Venta.tipo_producto == "accesorio"
+        models.Venta.tipo_producto == "accesorios"
     ).all()
 
     # ← CORRECCIÓN: usar models.Venta aquí para teléfonos (consistente)

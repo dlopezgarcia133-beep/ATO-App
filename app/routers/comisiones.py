@@ -139,7 +139,7 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "hora": v.hora if v.hora else None
             })
 
-        elif getattr(v, "tipo_producto", "") == "accesorio":
+        elif getattr(v, "tipo_producto", "") == "accesorios":
 
             total_accesorios += comision_total
 
