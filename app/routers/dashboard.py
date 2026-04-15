@@ -286,7 +286,7 @@ def metricas_empleados(
 
         func.sum(
             case(
-                (models.Venta.tipo_producto == "accesorio",
+                (models.Venta.tipo_producto == "accesorios",
                  models.Venta.precio_unitario * models.Venta.cantidad),
                 else_=0
             )
@@ -453,7 +453,7 @@ def resumen_por_modulo(
         func.sum(
             case(
                 (
-                    func.lower(models.Venta.tipo_producto) == "accesorio",
+                    func.lower(models.Venta.tipo_producto) == "accesorios",
                     models.Venta.total
                 ),
                 else_=0
@@ -624,7 +624,7 @@ def ventas_por_dia_detalle(
         # 🔥 ACCESORIOS
         func.sum(
             case(
-                (models.Venta.tipo_producto == "accesorio", models.Venta.total),
+                (models.Venta.tipo_producto == "accesorios", models.Venta.total),
                 else_=0
             )
         ).label("accesorios"),
