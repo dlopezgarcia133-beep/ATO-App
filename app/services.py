@@ -124,4 +124,16 @@ def calcular_totales_comisiones(
 
 
 
+@router.get("/clientes_vip")
+def clientes_vip(db: Session = Depends(get_db)):
+    clientes = db.query(models.VentaChip).filter(
+        models.VentaChip.cvip == True
+    ).all()
+
+    return [
+        {
+            "telefono": c.telefono
+        }
+        for c in clientes
+    ]
 
