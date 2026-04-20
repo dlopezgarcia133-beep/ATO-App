@@ -1307,3 +1307,16 @@ def agregar_comision_por_tipo_venta(
         "hora": venta.hora
     }
 
+
+
+
+@router.get("/clientes_vip")
+def clientes_vip(db: Session = Depends(get_db)):
+    clientes = obtener_clientes_vip(db)
+
+    return [
+        {
+            "telefono": c.telefono
+        }
+        for c in clientes
+    ]
