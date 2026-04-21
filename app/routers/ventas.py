@@ -1317,6 +1317,6 @@ def clientes_vip(db: Session = Depends(get_db)):
         models.VentaChip.cvip == True
     ).all()
 
-    telefonos = list({c.telefono for c in clientes})
+    telefonos = list({c.numero_telefono for c in VentaChip})
 
     return [{"telefono": tel} for tel in telefonos]
