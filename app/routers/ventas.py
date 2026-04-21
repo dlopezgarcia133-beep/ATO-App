@@ -1312,11 +1312,11 @@ def agregar_comision_por_tipo_venta(
 
 @router.get("/clientes_vip")
 def clientes_vip(db: Session = Depends(get_db)):
-    clientes = obtener_clientes_vip(db)
 
-    return [
-        {
-            "telefono": c.telefono
-        }
-        for c in clientes
-    ]
+    clientes = db.query(models.VentaChip).filter(
+        models.VentaChip.cvip == True
+    ).all()
+
+    telefonos = list({c.telefono for c in clientes})
+
+    return [{"telefono": tel} for tel in telefonos]
