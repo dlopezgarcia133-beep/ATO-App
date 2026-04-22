@@ -109,7 +109,7 @@ def calcular_totales_comisiones(
             comision_total += comisiones_por_tipo.get(v.tipo_venta or "", 0)
             total_telefonos += comision_total
 
-        elif v.tipo_producto == "accesorio":
+        elif v.tipo_producto == "accesorios":
             total_accesorios += comision_total
 
     for v in ventas_chips:
