@@ -147,12 +147,19 @@ class VentaChipResponse(VentaChipCreate):
     hora: time
     cancelada: bool
     validado: bool
+    comision_pagada: bool = False
     descripcion_rechazo: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
+class PagarComisionesInput(BaseModel):
+    numeros: list[str]
+
+class PagarComisionesResponse(BaseModel):
+    pagados: int
+    no_encontrados: list[str]
 
 
 class ComisionCreate(BaseModel):

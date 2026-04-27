@@ -80,6 +80,7 @@ class VentaChip(Base):
     hora = Column(Time, nullable=False)
     cancelada = Column(Boolean, default=False)
     validado = Column(Boolean, default=False)
+    comision_pagada = Column(Boolean, default=False)
     descripcion_rechazo = Column(String, nullable=True)
     es_incubadora = Column(Boolean, default=False,  nullable=False)
 

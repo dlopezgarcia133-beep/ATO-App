@@ -637,6 +637,30 @@ def verificar_numero_duplicado(numero: str, db: Session = Depends(get_db)):
     return {"duplicado": existe is not None}
 
 
+@router.post("/venta_chips/pagar_comisiones", response_model=schemas.PagarComisionesResponse)
+def pagar_comisiones(
+    data: schemas.PagarComisionesInput,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    no_encontrados = []
+    pagados = 0
+
+    for numero in data.numeros:
+        chip = db.query(models.VentaChip).filter(
+            models.VentaChip.numero_telefono == numero
+        ).first()
+        if chip is None:
+            no_encontrados.append(numero)
+        else:
+            chip.validado = True
+            chip.comision_pagada = True
+            pagados += 1
+
+    db.commit()
+    return {"pagados": pagados, "no_encontrados": no_encontrados}
+
+
 @router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
 def obtener_ventas_chips(
     empleado_id: Optional[int] = None, 
