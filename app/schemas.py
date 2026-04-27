@@ -1,0 +1,505 @@
+from enum import Enum
+from typing import List, Literal, Optional
+from pydantic import BaseModel
+from datetime import date, datetime, time
+from app.models import EstadoTraspasoEnum, RolEnum
+from typing import Literal
+
+
+class AsistenciaBase(BaseModel):
+    nombre: str
+    modulo: str
+    turno: str
+
+class AsistenciaCreate(AsistenciaBase):
+    pass
+
+class Asistencia(AsistenciaBase):
+    id: int
+    fecha: date
+    hora: time
+    hora_salida: time | None
+
+    class Config:
+        from_attributes = True
+        
+
+class RolEnum(str, Enum):
+    admin = "admin"
+    encargado = "encargado"
+    asesor = "asesor"
+
+# 👉 Este es el que se usa para crear un usuario
+class UsuarioCreate(BaseModel):
+    nombre_completo: str
+    username: str
+    rol: RolEnum
+    password: str
+    modulo_id: Optional[int] = None  # Cambiado de modulo:str a modulo_id:int
+    is_admin: Optional[bool] = False
+
+# 👉 Este es para actualizar un usuario
+class UsuarioUpdate(BaseModel):
+    username: Optional[str] = None
+    rol: Optional[str] = None
+    modulo_id: Optional[int] = None
+    is_admin: Optional[bool] = None
+    password: Optional[str] = None 
+
+# 👉 Este para devolver la respuesta
+class ModuloOut(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+       from_attributes = True
+
+class UsuarioResponse(BaseModel):
+    id: int
+    
+    username: str
+    rol: RolEnum
+    is_admin: bool
+    modulo: Optional[ModuloOut] = None  
+
+    class Config:
+        from_attributes = True
+
+
+class VentaCreate(BaseModel):
+    producto: str
+    precio_unitario: float
+    cantidad: int
+    tipo_producto: str 
+    tipo_venta: str
+    metodo_pago: str
+    chip_casado: str
+    telefono_cliente: Optional[str] = None
+
+
+
+class SueldoBaseUpdate(BaseModel):
+    sueldo_base: float
+     
+
+class VentaResponse(VentaCreate):
+    id: int
+    empleado: Optional[UsuarioResponse] = None
+    modulo: Optional[ModuloOut]
+    producto: str
+    cantidad: int
+    precio_unitario: float
+    total: Optional[float] = None
+    comision: Optional[float] = None
+    tipo_producto: Optional[str] = None
+    tipo_venta: Optional[str] = None
+    metodo_pago: Optional[str] = None
+    cancelada : Optional[bool] = None
+    telefono_cliente: Optional[str] = None
+    chip_casado: Optional[str] = None
+    fecha: date
+    hora: time
+
+    class Config:
+        
+        from_attributes = True
+        
+
+class VentaCancelada(BaseModel):
+    id: int
+    cancelada: bool
+    fecha_cancelacion: datetime
+
+    class Config:
+        from_attributes = True
+        
+        
+
+class ProductoEnVenta(BaseModel):
+    producto: str
+    cantidad: int
+    precio_unitario: float
+    chip_casado: Optional[str] = None 
+    tipo_producto: Optional[str] = None
+    tipo_venta: Optional[str] = None
+    metodo_pago: Optional[str] = None
+    cancelada: Optional[bool] = False
+
+class VentaMultipleCreate(BaseModel):
+    productos: List[ProductoEnVenta]
+    telefono_cliente: Optional[str] = None
+    metodo_pago: str
+
+class VentaChipCreate(BaseModel):
+    tipo_chip: str
+    numero_telefono: str
+    monto_recarga: float
+    cvip: bool
+  
+
+class VentaChipResponse(VentaChipCreate):
+    id: int
+    empleado_id: Optional[int] = None
+    empleado: Optional[UsuarioResponse] = None
+    comision: Optional[float] = None
+    numero_telefono: str
+    fecha: date
+    hora: time
+    cancelada: bool
+    validado: bool
+    descripcion_rechazo: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+
+
+class ComisionCreate(BaseModel):
+    producto: str
+    cantidad: float
+
+class ComisionUpdate(BaseModel):
+    cantidad: float
+
+class ComisionResponse(ComisionCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+
+
+        
+
+class ModuloSelect(BaseModel):
+    modulo: str
+    
+class ModuloResponse(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
+
+
+
+
+class TraspasoBase(BaseModel):
+    producto: str
+    cantidad: int
+    modulo_destino: str
+
+
+class TraspasoCreate(TraspasoBase):
+    pass
+
+class TraspasoUpdate(BaseModel):
+    estado: Literal["aprobado", "rechazado"]
+    folio: Optional[str] = None
+
+
+class TraspasoResponse(TraspasoBase):
+    id: int
+    modulo_origen: str
+    estado: str
+    fecha: datetime
+    solicitado_por: int
+    aprobado_por: Optional[int] = None
+    visible_en_pendientes: bool 
+    clave: Optional[str] = None
+    precio: Optional[float] = None
+    tipo_producto: Optional[str] = None
+    folio: str | None
+
+    class Config:
+        from_attributes = True
+
+
+
+
+
+class InventarioGeneralCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+    tipo_producto: str
+
+
+class InventarioGeneralUpdate(BaseModel):
+    cantidad: int
+
+
+class InventarioGeneralResponse(BaseModel):
+    id: int
+    producto: str
+    clave: str
+    cantidad: int
+    precio: int
+    tipo_producto: str
+
+    class Config:
+        from_attributes = True
+
+
+
+
+class InventarioModuloCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+    modulo_id: int
+    tipo_producto: Optional[str] = None
+
+
+class InventarioModuloUpdate(BaseModel):
+    cantidad: Optional[int] = None 
+    precio: Optional[int] = None
+    modulo_id: Optional[int] = None
+
+class InventarioModuloResponse(BaseModel):
+    id: int
+    producto: str
+    clave : str
+    cantidad: int
+    precio: int
+    modulo: ModuloOut  
+
+    class Config:
+        from_attributes = True
+
+class InventarioGlobalCreate(BaseModel):
+    cantidad: int
+    clave: str
+    producto: str
+    precio: int
+    tipo_producto: str
+
+
+class InventarioGlobalUpdate(BaseModel):
+    cantidad: Optional[int] = None
+    precio: Optional[int] = None
+    clave: Optional[str] = None
+    producto: Optional[str] = None
+    tipo_producto: Optional[str] = None
+
+
+
+class MovimientoInventarioModulo(BaseModel):
+    producto_id: int
+    modulo: str
+    cantidad: int
+
+
+class VentaTelefonoCreate(BaseModel):
+    marca: str
+    modelo: str
+    tipo: str
+    precio_venta: float
+    metodo_pago: str
+
+class VentaTelefonoResponse(BaseModel):
+    id: int
+    empleado_id: int
+    fecha: date
+    tipo: str
+    hora: time
+    cancelada: bool
+    empleado: Optional[UsuarioResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class InventarioTelefonoGeneralCreate(BaseModel):
+    marca: str
+    modelo: str
+    cantidad: int
+    precio: float
+
+
+class InventarioTelefonoGeneralResponse(BaseModel):
+    id: int
+    marca: str
+    modelo: str
+    cantidad: int
+    precio: float
+    modulo_id: int
+
+    class Config:
+        from_attributes = True
+
+class MovimientoTelefonoRequest(BaseModel):
+    marca: str
+    modelo: str
+    cantidad: int
+    modulo_id: int
+
+
+class VentaAccesorioConComision(BaseModel):
+    producto: str
+    cantidad: int
+    comision: float
+    tipo_venta: Optional[str] = None
+    comision_total: Optional[float] = None
+    fecha: Optional[date] = None
+    hora: Optional[time] = None
+
+
+class VentaTelefonoConComision(BaseModel):
+    producto: str
+    cantidad: int
+    tipo_venta: str
+    comision: Optional[float] = None
+    comision_total: float
+    fecha: Optional[date] = None
+    hora: Optional[time] = None
+
+
+class VentaChipConComision(BaseModel):
+    tipo_chip: str
+    numero_telefono: Optional[str] = None
+    comision: float
+    es_incubadora: Optional[bool] = False
+    fecha: Optional[date] = None
+    hora: Optional[time] = None
+
+class ComisionesCicloResponse(BaseModel):
+    inicio_ciclo: date
+    fin_ciclo: date
+    fecha_pago: Optional[date] = None
+    total_chips: float
+    total_accesorios: float
+    total_telefonos: float
+    total_general: float
+    ventas_accesorios: List[VentaAccesorioConComision]
+    ventas_telefonos: List[VentaTelefonoConComision]
+    ventas_chips: List[VentaChipConComision]
+
+class CorteDiaCreate(BaseModel):
+    fecha: date
+    # accesorios
+    accesorios_efectivo: float
+    accesorios_tarjeta: float
+    accesorios_total: float
+    # teléfonos
+    telefonos_efectivo: float
+    telefonos_tarjeta: float
+    telefonos_total: float
+    # totales generales
+    total_efectivo: float
+    total_tarjeta: float
+    total_sistema: float
+    total_general: float
+    # adicionales
+    adicional_recargas: float
+    adicional_transporte: float
+    adicional_otros: float
+    
+
+class ComisionInput(BaseModel):
+    comision_manual: Optional[float] = None
+    
+    
+class ValidarChipIncubadoraRequest(BaseModel):
+    comision_manual: Optional[float] = None
+
+class InventarioFisicoBase(BaseModel):
+    producto: str
+    clave: str
+    cantidad: int
+
+class InventarioFisicoCreate(InventarioFisicoBase):
+    pass
+
+class InventarioFisicoResponse(InventarioFisicoBase):
+    id: int
+    fecha: datetime
+
+    class Config:
+        orm_mode = True
+
+
+
+class ItemConteo(BaseModel):
+    producto_id: int
+    cantidad: int
+
+class ConteoRequest(BaseModel):
+    modulo_id: int
+    productos: List[ItemConteo]
+
+
+class ProductoConteo(BaseModel):
+    clave: str
+    cantidad: int
+
+class ConteoInventarioRequest(BaseModel):
+    modulo_id: int
+    productos: List[ProductoConteo]
+
+
+class EntradaItem(BaseModel):
+    producto_id: int
+    cantidad: int
+
+class EntradaMercanciaRequest(BaseModel):
+    modulo_id: int
+    productos: list[EntradaItem]
+
+
+
+
+class NominaPeriodoResponse(BaseModel):
+    id: int
+    fecha_inicio: date
+    fecha_fin: date
+    estado: str
+    
+
+    class Config:
+        from_attributes = True
+
+class NominaPeriodoCreate(BaseModel):
+    fecha_inicio: date
+    fecha_fin: date
+    
+
+
+class NominaEmpleadoResponse(BaseModel):
+    usuario_id: int
+    username: str
+    comisiones: float
+    sueldo_base: float
+    horas_extra: int
+    pago_hora_extra: float
+    precio_hora_extra: float
+    sanciones: float
+    comisiones_pendientes: float
+    total_pagar: float
+    total_comisiones: float
+
+
+
+class NominaEmpleadoUpdate(BaseModel):
+
+    horas_extra: Optional[int] = None
+    precio_hora_extra: Optional[float] = None
+    sanciones: Optional[float] = None
+    comisiones_pendientes: Optional[float] = None
+
+
+class NominaPeriodoFechasUpdate(BaseModel):
+    inicio_a: Optional[date] = None
+    fin_a: Optional[date] = None
+    inicio_c: Optional[date] = None
+    fin_c: Optional[date] = None
+
+class PlanCreate(BaseModel):
+    tipo_tramite: str
+    tipo_plan: str
+    empleado_id: int
+    modulo_id: int
