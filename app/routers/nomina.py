@@ -674,6 +674,7 @@ def guardar_historial_nomina(
             registro.pago_horas_extra = emp.pago_horas_extra
             registro.sanciones = emp.sanciones
             registro.comisiones_pendientes = emp.comisiones_pendientes
+            registro.horas_faltantes = emp.horas_faltantes
             registro.total_pagar = emp.total_pagar
             registro.guardado_at = datetime.now(timezone.utc)
         else:
@@ -695,6 +696,7 @@ def guardar_historial_nomina(
                 pago_horas_extra=emp.pago_horas_extra,
                 sanciones=emp.sanciones,
                 comisiones_pendientes=emp.comisiones_pendientes,
+                horas_faltantes=emp.horas_faltantes,
                 total_pagar=emp.total_pagar,
             )
             db.add(registro)
@@ -750,3 +752,19 @@ def corregir_comisiones_historial(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {e}")
+
+
+@router.get("/mi-historial", response_model=Optional[NominaHistorialResponse])
+def obtener_mi_historial(
+    semana_inicio: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    query = db.query(NominaHistorial).filter(
+        NominaHistorial.usuario_id == current_user.id
+    )
+    if semana_inicio:
+        query = query.filter(NominaHistorial.semana_inicio == semana_inicio)
+    else:
+        query = query.order_by(NominaHistorial.semana_inicio.desc())
+    return query.first()

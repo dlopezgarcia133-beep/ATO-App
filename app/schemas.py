@@ -526,6 +526,7 @@ class NominaHistorialEmpleado(BaseModel):
     pago_horas_extra: float = 0
     sanciones: float = 0
     comisiones_pendientes: float = 0
+    horas_faltantes: float = 0
     total_pagar: float = 0
 
 
@@ -558,6 +559,7 @@ class NominaHistorialResponse(BaseModel):
     pago_horas_extra: float
     sanciones: float
     comisiones_pendientes: float
+    horas_faltantes: float = 0
     total_pagar: float
     guardado_at: datetime
 
