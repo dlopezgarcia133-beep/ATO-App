@@ -684,34 +684,38 @@ def corregir_comisiones_historial(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    verificar_admin(current_user)
+    try:
+        verificar_admin(current_user)
 
-    chips = (
-        db.query(VentaChip)
-        .filter(VentaChip.validado == True, VentaChip.comision == None)
-        .all()
-    )
+        chips = (
+            db.query(VentaChip)
+            .filter(VentaChip.validado == True, VentaChip.comision.is_(None))
+            .all()
+        )
 
-    if not chips:
-        return {"corregidos": 0, "total_sin_comision": 0}
+        if not chips:
+            return {"corregidos": 0, "total_sin_comision": 0}
 
-    chip_numero = {
-        chip: chip.numero_telefono.strip().split()[0]
-        for chip in chips
-        if chip.numero_telefono
-    }
+        chip_numero: dict = {}
+        for chip in chips:
+            if chip.numero_telefono:
+                partes = chip.numero_telefono.strip().split()
+                if partes:
+                    chip_numero[chip] = partes[0]
 
-    numeros_limpios = list(set(chip_numero.values()))
+        if not chip_numero:
+            return {"corregidos": 0, "total_sin_comision": len(chips)}
 
-    sb = _get_supabase()
-    if not sb:
-        raise HTTPException(status_code=503, detail="Supabase no configurado")
+        numeros_limpios = list(set(chip_numero.values()))
 
-    comision_map: dict[str, float] = {}
-    BATCH = 400
-    for i in range(0, len(numeros_limpios), BATCH):
-        lote = numeros_limpios[i : i + BATCH]
-        try:
+        sb = _get_supabase()
+        if not sb:
+            raise HTTPException(status_code=503, detail="Supabase no configurado")
+
+        comision_map: dict[str, float] = {}
+        BATCH = 400
+        for i in range(0, len(numeros_limpios), BATCH):
+            lote = numeros_limpios[i : i + BATCH]
             res = (
                 sb.from_("comisiones_telcel")
                 .select("numero, comision_telcel")
@@ -720,15 +724,18 @@ def corregir_comisiones_historial(
             )
             for row in (res.data or []):
                 comision_map[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Error Supabase: {e}")
 
-    corregidos = 0
-    for chip, numero_limpio in chip_numero.items():
-        monto = comision_map.get(numero_limpio)
-        if monto is not None:
-            chip.comision = monto
-            corregidos += 1
+        corregidos = 0
+        for chip, numero_limpio in chip_numero.items():
+            monto = comision_map.get(numero_limpio)
+            if monto is not None:
+                chip.comision = monto
+                corregidos += 1
 
-    db.commit()
-    return {"corregidos": corregidos, "total_sin_comision": len(chips)}
+        db.commit()
+        return {"corregidos": corregidos, "total_sin_comision": len(chips)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {e}")
