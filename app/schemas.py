@@ -521,7 +521,7 @@ class NominaHistorialEmpleado(BaseModel):
     comisiones_chips: float = 0
     comisiones_total: float = 0
     sueldo_base: float = 0
-    horas_extra: int = 0
+    horas_extra: float = 0
     precio_hora_extra: float = 0
     pago_horas_extra: float = 0
     sanciones: float = 0
@@ -553,7 +553,7 @@ class NominaHistorialResponse(BaseModel):
     comisiones_chips: float
     comisiones_total: float
     sueldo_base: float
-    horas_extra: int
+    horas_extra: float
     precio_hora_extra: float
     pago_horas_extra: float
     sanciones: float
