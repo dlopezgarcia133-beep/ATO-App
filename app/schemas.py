@@ -510,3 +510,56 @@ class PlanCreate(BaseModel):
     tipo_plan: str
     empleado_id: int
     modulo_id: int
+
+
+class NominaHistorialEmpleado(BaseModel):
+    usuario_id: int
+    username: str
+    grupo: str
+    comisiones_accesorios: float = 0
+    comisiones_telefonos: float = 0
+    comisiones_chips: float = 0
+    comisiones_total: float = 0
+    sueldo_base: float = 0
+    horas_extra: int = 0
+    precio_hora_extra: float = 0
+    pago_horas_extra: float = 0
+    sanciones: float = 0
+    comisiones_pendientes: float = 0
+    total_pagar: float = 0
+
+
+class NominaHistorialCreate(BaseModel):
+    semana_inicio: date
+    semana_fin: date
+    comisiones_inicio_a: date
+    comisiones_fin_a: date
+    comisiones_inicio_c: date
+    comisiones_fin_c: date
+    empleados: list[NominaHistorialEmpleado]
+
+
+class NominaHistorialResponse(BaseModel):
+    id: int
+    semana_inicio: date
+    semana_fin: date
+    comisiones_inicio: date
+    comisiones_fin: date
+    usuario_id: int
+    username: str
+    grupo: str
+    comisiones_accesorios: float
+    comisiones_telefonos: float
+    comisiones_chips: float
+    comisiones_total: float
+    sueldo_base: float
+    horas_extra: int
+    precio_hora_extra: float
+    pago_horas_extra: float
+    sanciones: float
+    comisiones_pendientes: float
+    total_pagar: float
+    guardado_at: datetime
+
+    class Config:
+        from_attributes = True

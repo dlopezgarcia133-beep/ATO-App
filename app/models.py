@@ -301,6 +301,34 @@ class NominaEmpleado(Base):
     total_pagar = Column(Float, default=0)
 
 
+class NominaHistorial(Base):
+    __tablename__ = "nomina_historial"
+    __table_args__ = (
+        UniqueConstraint("semana_inicio", "usuario_id", name="uq_historial_semana_usuario"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    semana_inicio = Column(Date, nullable=False)
+    semana_fin = Column(Date, nullable=False)
+    comisiones_inicio = Column(Date, nullable=False)
+    comisiones_fin = Column(Date, nullable=False)
+    usuario_id = Column(Integer, nullable=False)
+    username = Column(String, nullable=False)
+    grupo = Column(String(1), nullable=False)
+    comisiones_accesorios = Column(Float, default=0)
+    comisiones_telefonos = Column(Float, default=0)
+    comisiones_chips = Column(Float, default=0)
+    comisiones_total = Column(Float, default=0)
+    sueldo_base = Column(Float, default=0)
+    horas_extra = Column(Integer, default=0)
+    precio_hora_extra = Column(Float, default=0)
+    pago_horas_extra = Column(Float, default=0)
+    sanciones = Column(Float, default=0)
+    comisiones_pendientes = Column(Float, default=0)
+    total_pagar = Column(Float, default=0)
+    guardado_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 
 class TipoMovimientoEnum(str, enum.Enum):
     VENTA = "VENTA"
