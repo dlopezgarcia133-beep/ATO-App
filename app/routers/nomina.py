@@ -1,17 +1,28 @@
+import os
 from datetime import date
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import NominaEmpleado, NominaPeriodo, Venta
-from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
+from app.models import NominaEmpleado, NominaHistorial, NominaPeriodo, Venta, VentaChip
+from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaHistorialCreate, NominaHistorialResponse, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import  calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
+from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
+from datetime import datetime, timezone
 import openpyxl
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from io import BytesIO
+
+
+def _get_supabase():
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_KEY", "")
+    if not url or not key:
+        return None
+    from supabase import create_client
+    return create_client(url, key)
 
 
 
@@ -564,3 +575,160 @@ def actualizar_fechas_periodo(
     db.refresh(periodo)
 
     return periodo
+
+
+# =========================
+# HISTORIAL DE NÓMINAS
+# =========================
+
+@router.get("/historial/semanas")
+def listar_semanas_historial(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    verificar_admin(current_user)
+
+    semanas = (
+        db.query(NominaHistorial.semana_inicio)
+        .distinct()
+        .order_by(NominaHistorial.semana_inicio.desc())
+        .all()
+    )
+
+    return [str(s.semana_inicio) for s in semanas]
+
+
+@router.get("/historial", response_model=list[NominaHistorialResponse])
+def obtener_historial_semana(
+    semana_inicio: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    verificar_admin(current_user)
+
+    return (
+        db.query(NominaHistorial)
+        .filter(NominaHistorial.semana_inicio == semana_inicio)
+        .all()
+    )
+
+
+@router.post("/historial")
+def guardar_historial_nomina(
+    data: NominaHistorialCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    verificar_admin(current_user)
+
+    for emp in data.empleados:
+        comisiones_inicio = (
+            data.comisiones_inicio_a if emp.grupo == "A" else data.comisiones_inicio_c
+        )
+        comisiones_fin = (
+            data.comisiones_fin_a if emp.grupo == "A" else data.comisiones_fin_c
+        )
+
+        registro = db.query(NominaHistorial).filter_by(
+            semana_inicio=data.semana_inicio,
+            usuario_id=emp.usuario_id
+        ).first()
+
+        if registro:
+            registro.semana_fin = data.semana_fin
+            registro.comisiones_inicio = comisiones_inicio
+            registro.comisiones_fin = comisiones_fin
+            registro.username = emp.username
+            registro.grupo = emp.grupo
+            registro.comisiones_accesorios = emp.comisiones_accesorios
+            registro.comisiones_telefonos = emp.comisiones_telefonos
+            registro.comisiones_chips = emp.comisiones_chips
+            registro.comisiones_total = emp.comisiones_total
+            registro.sueldo_base = emp.sueldo_base
+            registro.horas_extra = emp.horas_extra
+            registro.precio_hora_extra = emp.precio_hora_extra
+            registro.pago_horas_extra = emp.pago_horas_extra
+            registro.sanciones = emp.sanciones
+            registro.comisiones_pendientes = emp.comisiones_pendientes
+            registro.total_pagar = emp.total_pagar
+            registro.guardado_at = datetime.now(timezone.utc)
+        else:
+            registro = NominaHistorial(
+                semana_inicio=data.semana_inicio,
+                semana_fin=data.semana_fin,
+                comisiones_inicio=comisiones_inicio,
+                comisiones_fin=comisiones_fin,
+                usuario_id=emp.usuario_id,
+                username=emp.username,
+                grupo=emp.grupo,
+                comisiones_accesorios=emp.comisiones_accesorios,
+                comisiones_telefonos=emp.comisiones_telefonos,
+                comisiones_chips=emp.comisiones_chips,
+                comisiones_total=emp.comisiones_total,
+                sueldo_base=emp.sueldo_base,
+                horas_extra=emp.horas_extra,
+                precio_hora_extra=emp.precio_hora_extra,
+                pago_horas_extra=emp.pago_horas_extra,
+                sanciones=emp.sanciones,
+                comisiones_pendientes=emp.comisiones_pendientes,
+                total_pagar=emp.total_pagar,
+            )
+            db.add(registro)
+
+    db.commit()
+    return {"ok": True, "guardados": len(data.empleados)}
+
+
+@router.post("/corregir_comisiones_historial")
+def corregir_comisiones_historial(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    verificar_admin(current_user)
+
+    chips = (
+        db.query(VentaChip)
+        .filter(VentaChip.validado == True, VentaChip.comision == None)
+        .all()
+    )
+
+    if not chips:
+        return {"corregidos": 0, "total_sin_comision": 0}
+
+    chip_numero = {
+        chip: chip.numero_telefono.strip().split()[0]
+        for chip in chips
+        if chip.numero_telefono
+    }
+
+    numeros_limpios = list(set(chip_numero.values()))
+
+    sb = _get_supabase()
+    if not sb:
+        raise HTTPException(status_code=503, detail="Supabase no configurado")
+
+    comision_map: dict[str, float] = {}
+    BATCH = 400
+    for i in range(0, len(numeros_limpios), BATCH):
+        lote = numeros_limpios[i : i + BATCH]
+        try:
+            res = (
+                sb.from_("comisiones_telcel")
+                .select("numero, comision_telcel")
+                .in_("numero", lote)
+                .execute()
+            )
+            for row in (res.data or []):
+                comision_map[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Error Supabase: {e}")
+
+    corregidos = 0
+    for chip, numero_limpio in chip_numero.items():
+        monto = comision_map.get(numero_limpio)
+        if monto is not None:
+            chip.comision = monto
+            corregidos += 1
+
+    db.commit()
+    return {"corregidos": corregidos, "total_sin_comision": len(chips)}
