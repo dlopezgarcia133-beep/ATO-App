@@ -1,4 +1,5 @@
 import os
+import httpx
 from datetime import date
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,13 +17,36 @@ from openpyxl import Workbook
 from io import BytesIO
 
 
-def _get_supabase():
-    url = os.getenv("SUPABASE_URL", "")
+def _supabase_env():
+    url = os.getenv("SUPABASE_URL", "").rstrip("/")
     key = os.getenv("SUPABASE_KEY", "")
-    if not url or not key:
-        return None
-    from supabase import create_client
-    return create_client(url, key)
+    return (url, key) if url and key else (None, None)
+
+
+def _supabase_fetch_comisiones(numeros: list[str]) -> dict[str, float]:
+    url, key = _supabase_env()
+    if not url:
+        return None  # señal: no configurado
+
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    }
+    comision_map: dict[str, float] = {}
+    BATCH = 400
+    with httpx.Client(timeout=30) as client:
+        for i in range(0, len(numeros), BATCH):
+            lote = numeros[i : i + BATCH]
+            in_filter = "(" + ",".join(lote) + ")"
+            resp = client.get(
+                f"{url}/rest/v1/comisiones_telcel",
+                headers=headers,
+                params={"select": "numero,comision_telcel", "numero": f"in.{in_filter}"},
+            )
+            resp.raise_for_status()
+            for row in resp.json():
+                comision_map[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
+    return comision_map
 
 
 
@@ -708,22 +732,9 @@ def corregir_comisiones_historial(
 
         numeros_limpios = list(set(chip_numero.values()))
 
-        sb = _get_supabase()
-        if not sb:
+        comision_map = _supabase_fetch_comisiones(numeros_limpios)
+        if comision_map is None:
             raise HTTPException(status_code=503, detail="Supabase no configurado")
-
-        comision_map: dict[str, float] = {}
-        BATCH = 400
-        for i in range(0, len(numeros_limpios), BATCH):
-            lote = numeros_limpios[i : i + BATCH]
-            res = (
-                sb.from_("comisiones_telcel")
-                .select("numero, comision_telcel")
-                .in_("numero", lote)
-                .execute()
-            )
-            for row in (res.data or []):
-                comision_map[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
 
         corregidos = 0
         for chip, numero_limpio in chip_numero.items():
