@@ -662,9 +662,16 @@ def pagar_comisiones(
     pagados = 0
 
     for numero in data.numeros:
-        chip = db.query(models.VentaChip).filter(
-            models.VentaChip.numero_telefono == numero
-        ).first()
+        numero_limpio = numero.strip().split()[0]
+        # Busca candidatos cuyo numero_telefono empiece con el número limpio
+        candidatos = db.query(models.VentaChip).filter(
+            models.VentaChip.numero_telefono.like(f"{numero_limpio}%")
+        ).all()
+        # Verifica coincidencia exacta del primer token
+        chip = next(
+            (c for c in candidatos if c.numero_telefono.strip().split()[0] == numero_limpio),
+            None
+        )
         if chip is None:
             no_encontrados.append(numero)
         else:
