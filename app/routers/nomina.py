@@ -70,7 +70,7 @@ def obtener_periodo_activo(
 
 
 def verificar_admin(user):
-    if user.rol != "admin":
+    if user.rol != "admin" and not user.is_admin:
         raise HTTPException(
             status_code=403,
             detail="No autorizado"
