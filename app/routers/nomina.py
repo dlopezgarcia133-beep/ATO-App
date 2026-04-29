@@ -9,7 +9,7 @@ from app.models import NominaEmpleado, NominaHistorial, NominaPeriodo, Venta, Ve
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaHistorialCreate, NominaHistorialResponse, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
+from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado, obtener_desglose_comisiones_por_empleado
 from datetime import datetime, timezone
 import openpyxl
 from fastapi.responses import StreamingResponse
@@ -158,18 +158,10 @@ def obtener_resumen_nomina(
     fin_c_calc = fin_c or periodo.fin_c
 
 
-    # 🔹 Comisiones
-    comisiones_a = obtener_comisiones_por_empleado_optimizado(
-    db=db,
-    inicio=inicio_a_calc,
-    fin=fin_a_calc
-    )
+    # 🔹 Comisiones con desglose por categoría
+    desglose_a = obtener_desglose_comisiones_por_empleado(db=db, inicio=inicio_a_calc, fin=fin_a_calc)
+    desglose_c = obtener_desglose_comisiones_por_empleado(db=db, inicio=inicio_c_calc, fin=fin_c_calc)
 
-    comisiones_c = obtener_comisiones_por_empleado_optimizado(
-        db=db,
-        inicio=inicio_c_calc,
-        fin=fin_c_calc
-    )
     resultado = []
 
     for emp in empleados:
@@ -180,11 +172,10 @@ def obtener_resumen_nomina(
         if grupo not in ("A", "C"):
             continue
 
-        if grupo == "A":
-            total_comisiones = comisiones_a.get(emp.id, 0)
-        else:
-            total_comisiones = comisiones_c.get(emp.id, 0)
-
+        desglose = (desglose_a if grupo == "A" else desglose_c).get(
+            emp.id, {"accesorios": 0.0, "telefonos": 0.0, "chips": 0.0, "total": 0.0}
+        )
+        total_comisiones = desglose["total"]
 
         nomina = nomina_map.get(emp.id)
 
@@ -193,10 +184,8 @@ def obtener_resumen_nomina(
         pago_hora_extra = nomina.pago_horas_extra if nomina else 0
         precio_hora_extra = nomina.precio_hora_extra if nomina else 0
 
-
         sanciones = (nomina.sanciones or 0) if nomina else 0
         comisiones_pendientes = (nomina.comisiones_pendientes or 0) if nomina else 0
-
 
         total = sueldo_base + total_comisiones + pago_hora_extra + comisiones_pendientes - sanciones
 
@@ -205,11 +194,14 @@ def obtener_resumen_nomina(
             "username": emp.username,
             "grupo": grupo,
             "comisiones": total_comisiones,
+            "comisiones_accesorios": desglose["accesorios"],
+            "comisiones_telefonos": desglose["telefonos"],
+            "comisiones_chips": desglose["chips"],
             "total_comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
             "pago_hora_extra": pago_hora_extra,
-            "precio_hora_extra": precio_hora_extra, 
+            "precio_hora_extra": precio_hora_extra,
             "sanciones": sanciones,
             "comisiones_pendientes": comisiones_pendientes,
             "total_pagar": total

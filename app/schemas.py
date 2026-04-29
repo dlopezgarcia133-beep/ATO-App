@@ -480,6 +480,9 @@ class NominaEmpleadoResponse(BaseModel):
     usuario_id: int
     username: str
     comisiones: float
+    comisiones_accesorios: float = 0
+    comisiones_telefonos: float = 0
+    comisiones_chips: float = 0
     sueldo_base: float
     horas_extra: int
     pago_hora_extra: float
