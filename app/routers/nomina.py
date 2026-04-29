@@ -345,116 +345,65 @@ def cerrar_nomina(
 
 @router.get("/descargar")
 def descargar_nomina(
-    periodo_id: int,
+    semana_inicio: date,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    # 🔎 Buscar periodo
-    periodo = db.query(NominaPeriodo).filter(NominaPeriodo.id == periodo_id).first()
-    if not periodo:
-        raise HTTPException(status_code=404, detail="Periodo no encontrado")
-
-    # 👥 Traer TODOS los empleados activos (del mismo módulo si aplica)
-    empleados = (
-        db.query(Usuario)
-        .filter(
-            Usuario.activo == True,
-            Usuario.modulo_id == current_user.modulo_id  # elimina esta línea si no usas módulos
-        )
+    registros = (
+        db.query(NominaHistorial)
+        .filter(NominaHistorial.semana_inicio == semana_inicio)
+        .order_by(NominaHistorial.grupo, NominaHistorial.username)
         .all()
     )
 
-    # 📄 Traer nóminas guardadas del periodo
-    nominas = (
-        db.query(NominaEmpleado)
-        .filter(NominaEmpleado.periodo_id == periodo.id)
-        .all()
-    )
-
-    # 🔁 Crear mapa usuario_id → nomina
-    nomina_map = {n.usuario_id: n for n in nominas}
-
-    # 💰 Calcular comisiones por empleado
-    ventas = (
-        db.query(Venta)
-        .filter(
-            Venta.periodo_id == periodo.id,
-            Venta.modulo_id == current_user.modulo_id  # elimina si no usas módulos
-        )
-        .all()
-    )
-
-    comisiones_por_empleado = {}
-    for venta in ventas:
-        if venta.usuario_id not in comisiones_por_empleado:
-            comisiones_por_empleado[venta.usuario_id] = 0
-        comisiones_por_empleado[venta.usuario_id] += venta.comision or 0
-
-    # 📊 Crear Excel
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Nómina"
 
-    # 🧾 Encabezados
     ws.append([
         "Empleado",
+        "Grupo",
+        "Com. inicio",
+        "Com. fin",
         "Sueldo Base",
         "Horas Extra",
         "Precio Hora Extra",
         "Pago Horas Extra",
-        "Comisiones",
-        "Comisiones Pendientes",
+        "Com. Accesorios",
+        "Com. Teléfonos",
+        "Com. Chips",
+        "Com. Total",
         "Sanciones",
-        "Total a Pagar"
+        "Com. Pendientes",
+        "Hrs Faltantes",
+        "Total a Pagar",
     ])
 
-    # 🔄 Recorrer empleados
-    for usuario in empleados:
-
-        if not usuario.username:
-            continue
-
-        grupo = usuario.username.upper()[0]
-        if grupo not in ("A", "C"):
-            continue
-
-        nomina = nomina_map.get(usuario.id)
-
-        sueldo_base = usuario.sueldo_base or 0
-        horas_extra = nomina.horas_extra if nomina else 0
-        precio_hora = nomina.precio_hora_extra if nomina else 0
-        pago_horas = nomina.pago_horas_extra if nomina else 0
-        sanciones = nomina.sanciones if nomina else 0
-        comisiones_pendientes = nomina.comisiones_pendientes if nomina else 0
-
-        comisiones = comisiones_por_empleado.get(usuario.id, 0)
-
-        total = (
-            sueldo_base
-            + pago_horas
-            + comisiones
-            + comisiones_pendientes
-            - sanciones
-        )
-
+    for r in registros:
         ws.append([
-            usuario.username,
-            sueldo_base,
-            horas_extra,
-            precio_hora,
-            pago_horas,
-            comisiones,
-            comisiones_pendientes,
-            sanciones,
-            total
+            r.username,
+            r.grupo,
+            str(r.comisiones_inicio),
+            str(r.comisiones_fin),
+            r.sueldo_base,
+            r.horas_extra,
+            r.precio_hora_extra,
+            r.pago_horas_extra,
+            r.comisiones_accesorios,
+            r.comisiones_telefonos,
+            r.comisiones_chips,
+            r.comisiones_total,
+            r.sanciones,
+            r.comisiones_pendientes,
+            r.horas_faltantes,
+            r.total_pagar,
         ])
 
-    # 📦 Preparar archivo
     output = BytesIO()
     wb.save(output)
     output.seek(0)
 
-    filename = f"nomina_{periodo.nombre}.xlsx"
+    filename = f"nomina_{semana_inicio}.xlsx"
 
     return StreamingResponse(
         output,
