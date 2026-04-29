@@ -1,6 +1,6 @@
 import os
 import httpx
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -707,5 +707,12 @@ def obtener_mi_historial(
     if semana_inicio:
         query = query.filter(NominaHistorial.semana_inicio == semana_inicio)
     else:
-        query = query.order_by(NominaHistorial.semana_inicio.desc())
+        # Devolver la semana cuya fecha de pago (semana_inicio + 9 días = miércoles)
+        # sea la más reciente que ya llegó o ya pasó respecto a hoy.
+        cutoff = date.today() - timedelta(days=9)
+        query = (
+            query
+            .filter(NominaHistorial.semana_inicio <= cutoff)
+            .order_by(NominaHistorial.semana_inicio.desc())
+        )
     return query.first()
