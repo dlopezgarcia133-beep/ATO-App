@@ -12,6 +12,7 @@ from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_
 from datetime import date
 from app.routers.kardex import registrar_kardex
 import os
+import traceback
 from supabase import create_client
 
 def _get_supabase():
@@ -710,6 +711,9 @@ def pagar_comisiones(
 
     except Exception as e:
         db.rollback()
+        print("=== ERROR EN pagar_comisiones ===")
+        print(traceback.format_exc())
+        print("=================================")
         raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)}")
 
 
