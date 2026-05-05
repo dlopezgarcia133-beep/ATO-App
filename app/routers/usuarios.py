@@ -1,4 +1,6 @@
 
+import sys
+import traceback
 from sqlalchemy import case
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
@@ -103,30 +105,40 @@ def editar_usuario(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    usuario_db = db.query(models.Usuario).filter_by(id=usuario_id).first()
+    try:
+        usuario_db = db.query(models.Usuario).filter_by(id=usuario_id).first()
 
-    if not usuario_db:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if not usuario_db:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    if datos.username:
-        usuario_db.username = datos.username
-    if datos.rol:
-        usuario_db.rol = datos.rol
-    if datos.modulo_id is not None:
-        modulo_obj = db.query(models.Modulo).filter_by(id=datos.modulo_id).first()
-        if not modulo_obj:
-            raise HTTPException(status_code=404, detail="Módulo no encontrado")
-        usuario_db.modulo = modulo_obj
-    if datos.is_admin is not None:
-        usuario_db.is_admin = datos.is_admin
-    if datos.password:
-        if len(datos.password) < 8 or not any(c.isdigit() for c in datos.password) or not any(c.isalpha() for c in datos.password):
-            raise HTTPException(status_code=400, detail="La contraseña no cumple con los requisitos")
-        usuario_db.password = hashear_contraseña(datos.password)
+        if datos.username:
+            usuario_db.username = datos.username
+        if datos.rol:
+            usuario_db.rol = datos.rol
+        if datos.modulo_id is not None:
+            modulo_obj = db.query(models.Modulo).filter_by(id=datos.modulo_id).first()
+            if not modulo_obj:
+                raise HTTPException(status_code=404, detail="Módulo no encontrado")
+            usuario_db.modulo = modulo_obj
+        if datos.is_admin is not None:
+            usuario_db.is_admin = datos.is_admin
+        if datos.password:
+            if len(datos.password) < 8 or not any(c.isdigit() for c in datos.password) or not any(c.isalpha() for c in datos.password):
+                raise HTTPException(status_code=400, detail="La contraseña no cumple con los requisitos")
+            usuario_db.password = hashear_contraseña(datos.password)
 
-    db.commit()
-    db.refresh(usuario_db)
-    return usuario_db
+        db.commit()
+        db.refresh(usuario_db)
+        return usuario_db
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print("=== ERROR EN editar_usuario ===", file=sys.stderr, flush=True)
+        print(traceback.format_exc(), file=sys.stderr, flush=True)
+        print("================================", file=sys.stderr, flush=True)
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)}")
 
 
 
