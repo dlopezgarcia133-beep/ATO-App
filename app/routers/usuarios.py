@@ -111,7 +111,13 @@ def editar_usuario(
         if not usuario_db:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        if datos.username:
+        if datos.username and datos.username != usuario_db.username:
+            duplicado = db.query(models.Usuario).filter(
+                models.Usuario.username == datos.username,
+                models.Usuario.id != usuario_id
+            ).first()
+            if duplicado:
+                raise HTTPException(status_code=400, detail=f"El username '{datos.username}' ya está en uso")
             usuario_db.username = datos.username
         if datos.rol:
             usuario_db.rol = datos.rol
