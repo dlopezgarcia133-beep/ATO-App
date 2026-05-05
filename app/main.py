@@ -12,6 +12,17 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://atosistema.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Incluir los routers
 app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 app.include_router(usuarios.router, prefix="/registro", tags=["Usuarios"])
@@ -24,17 +35,6 @@ app.include_router(inventarioTelefonos.router, prefix="/inventario_telefonos", t
 app.include_router(nomina.router, prefix="/nomina", tags=["Nomina"])
 app.include_router(kardex.router, prefix="/kardex", tags=["Kardex"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://atosistema.vercel.app",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 
