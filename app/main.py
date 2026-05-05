@@ -10,9 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 Base.metadata.create_all(bind=engine)
 
-import os, sys
-print(f"[STARTUP] DATABASE_URL = {os.getenv('DATABASE_URL', 'NO DEFINIDA')}", file=sys.stderr, flush=True)
-
 app = FastAPI()
 
 app.add_middleware(

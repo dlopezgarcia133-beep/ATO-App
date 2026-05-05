@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.database import get_db
@@ -12,8 +12,6 @@ from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_
 from datetime import date
 from app.routers.kardex import registrar_kardex
 import os
-import sys
-import traceback
 from supabase import create_client
 
 def _get_supabase():
@@ -676,19 +674,15 @@ def pagar_comisiones(
         # Limpiar números de entrada
         numeros_limpios = [n.strip().split()[0] for n in data.numeros]
 
-        # Consultar comisiones en Supabase de una sola vez
+        # Consultar comisiones directamente vía SQLAlchemy
         comision_telcel: dict[str, float] = {}
-        sb = _get_supabase()
-        if sb:
-            try:
-                res = sb.from_("comisiones_telcel") \
-                    .select("numero, comision_telcel") \
-                    .in_("numero", numeros_limpios) \
-                    .execute()
-                for row in (res.data or []):
-                    comision_telcel[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
-            except Exception:
-                pass  # Si Supabase falla, continuamos sin escribir el monto
+        if numeros_limpios:
+            rows = db.execute(
+                text("SELECT numero, comision_telcel FROM comisiones_telcel WHERE numero = ANY(:nums)"),
+                {"nums": numeros_limpios}
+            ).fetchall()
+            for row in rows:
+                comision_telcel[str(row[0]).strip()] = float(row[1] or 0)
 
         for numero in data.numeros:
             numero_limpio = numero.strip().split()[0]
@@ -712,9 +706,6 @@ def pagar_comisiones(
 
     except Exception as e:
         db.rollback()
-        print("=== ERROR EN pagar_comisiones ===", file=sys.stderr, flush=True)
-        print(traceback.format_exc(), file=sys.stderr, flush=True)
-        print("=================================", file=sys.stderr, flush=True)
         raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)}")
 
 
