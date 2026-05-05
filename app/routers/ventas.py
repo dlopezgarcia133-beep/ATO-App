@@ -667,45 +667,50 @@ def pagar_comisiones(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    no_encontrados = []
-    pagados = 0
+    try:
+        no_encontrados = []
+        pagados = 0
 
-    # Limpiar números de entrada
-    numeros_limpios = [n.strip().split()[0] for n in data.numeros]
+        # Limpiar números de entrada
+        numeros_limpios = [n.strip().split()[0] for n in data.numeros]
 
-    # Consultar comisiones en Supabase de una sola vez
-    comision_telcel: dict[str, float] = {}
-    sb = _get_supabase()
-    if sb:
-        try:
-            res = sb.from_("comisiones_telcel") \
-                .select("numero, comision_telcel") \
-                .in_("numero", numeros_limpios) \
-                .execute()
-            for row in (res.data or []):
-                comision_telcel[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
-        except Exception:
-            pass  # Si Supabase falla, continuamos sin escribir el monto
+        # Consultar comisiones en Supabase de una sola vez
+        comision_telcel: dict[str, float] = {}
+        sb = _get_supabase()
+        if sb:
+            try:
+                res = sb.from_("comisiones_telcel") \
+                    .select("numero, comision_telcel") \
+                    .in_("numero", numeros_limpios) \
+                    .execute()
+                for row in (res.data or []):
+                    comision_telcel[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
+            except Exception:
+                pass  # Si Supabase falla, continuamos sin escribir el monto
 
-    for numero in data.numeros:
-        numero_limpio = numero.strip().split()[0]
-        candidatos = db.query(models.VentaChip).filter(
-            models.VentaChip.numero_telefono.like(f"{numero_limpio}%")
-        ).all()
-        chip = next(
-            (c for c in candidatos if c.numero_telefono.strip().split()[0] == numero_limpio),
-            None
-        )
-        if chip is None:
-            no_encontrados.append(numero)
-        else:
-            chip.validado = True
-            chip.comision_pagada = True
-            chip.comision = comision_telcel.get(numero_limpio, chip.comision or 0)
-            pagados += 1
+        for numero in data.numeros:
+            numero_limpio = numero.strip().split()[0]
+            candidatos = db.query(models.VentaChip).filter(
+                models.VentaChip.numero_telefono.like(f"{numero_limpio}%")
+            ).all()
+            chip = next(
+                (c for c in candidatos if c.numero_telefono.strip().split()[0] == numero_limpio),
+                None
+            )
+            if chip is None:
+                no_encontrados.append(numero)
+            else:
+                chip.validado = True
+                chip.comision_pagada = True
+                chip.comision = comision_telcel.get(numero_limpio, chip.comision or 0)
+                pagados += 1
 
-    db.commit()
-    return {"pagados": pagados, "no_encontrados": no_encontrados}
+        db.commit()
+        return {"pagados": pagados, "no_encontrados": no_encontrados}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {str(e)}")
 
 
 @router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
