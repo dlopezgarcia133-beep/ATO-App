@@ -407,6 +407,39 @@ class CorteDiaCreate(BaseModel):
     adicional_otros: float
     
 
+class RecargasUpdate(BaseModel):
+    adicional_recargas: float = 0
+    adicional_transporte: float = 0
+    adicional_otros: float = 0
+
+class SalidaUpdate(BaseModel):
+    salida_efectivo: float = 0
+    nota_salida: Optional[str] = None
+
+class CorteDiaResponse(BaseModel):
+    id: int
+    fecha: date
+    modulo_id: int
+    accesorios_efectivo: float
+    accesorios_tarjeta: float
+    accesorios_total: float
+    telefonos_efectivo: float
+    telefonos_tarjeta: float
+    telefonos_total: float
+    total_efectivo: float
+    total_tarjeta: float
+    total_sistema: float
+    total_general: float
+    adicional_recargas: float
+    adicional_transporte: float
+    adicional_otros: float
+    salida_efectivo: float
+    nota_salida: Optional[str]
+    enviado: bool
+
+    class Config:
+        from_attributes = True
+
 class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None
     

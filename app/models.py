@@ -241,6 +241,11 @@ class CorteDia(Base):
     adicional_transporte = Column(Float, default=0)
     adicional_otros = Column(Float, default=0)
 
+    # 🔹 Salida y estado
+    salida_efectivo = Column(Float, default=0)
+    nota_salida = Column(String, nullable=True)
+    enviado = Column(Boolean, default=False)
+
     modulo = relationship("Modulo", back_populates="cortes")
     
     
