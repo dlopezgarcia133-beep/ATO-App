@@ -1037,12 +1037,12 @@ def corte_general(
     # ACCESORIOS
     efectivo_productos = sum(
         v.total for v in ventas_productos
-        if v.metodo_pago == "efectivo" and not v.cancelada
+        if (v.metodo_pago or "").lower() == "efectivo" and not v.cancelada
     )
 
     tarjeta_productos = sum(
         v.total for v in ventas_productos
-        if v.metodo_pago == "tarjeta" and not v.cancelada
+        if (v.metodo_pago or "").lower() == "tarjeta" and not v.cancelada
     )
 
     def total_tel(v):
@@ -1051,13 +1051,13 @@ def corte_general(
     efectivo_tel = sum(
         total_tel(v)
         for v in ventas_telefonos
-        if v.metodo_pago == "efectivo" and not v.cancelada
+        if (v.metodo_pago or "").lower() == "efectivo" and not v.cancelada
     )
 
     tarjeta_tel = sum(
         total_tel(v)
         for v in ventas_telefonos
-        if v.metodo_pago == "tarjeta" and not v.cancelada
+        if (v.metodo_pago or "").lower() == "tarjeta" and not v.cancelada
     )
 
     total_efectivo = efectivo_productos + efectivo_tel
