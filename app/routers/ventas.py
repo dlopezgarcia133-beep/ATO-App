@@ -711,7 +711,8 @@ def pagar_comisiones(
 
 @router.get("/venta_chips", response_model=list[schemas.VentaChipResponse])
 def obtener_ventas_chips(
-    empleado_id: Optional[int] = None, 
+    empleado_id: Optional[int] = None,
+    modulo_nombre: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
@@ -720,6 +721,14 @@ def obtener_ventas_chips(
         if empleado_id is not None:
             query = query.filter(models.VentaChip.empleado_id == empleado_id)
         return query.all()
+    elif current_user.rol == "encargado" and modulo_nombre:
+        return (
+            db.query(models.VentaChip)
+            .join(models.Usuario, models.VentaChip.empleado_id == models.Usuario.id)
+            .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
+            .filter(models.Modulo.nombre == modulo_nombre)
+            .all()
+        )
     else:
         return db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
 
