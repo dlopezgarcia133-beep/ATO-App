@@ -12,6 +12,7 @@ class RolEnum(str, enum.Enum):
     admin = "admin"
     encargado = "encargado"
     asesor = "asesor"
+    direccion = "direccion"
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -240,6 +241,8 @@ class CorteDia(Base):
     adicional_recargas = Column(Float, default=0)
     adicional_transporte = Column(Float, default=0)
     adicional_otros = Column(Float, default=0)
+    adicional_mayoreo = Column(Float, default=0)
+    adicional_mayoreo_para = Column(String, nullable=True)
 
     # 🔹 Salida y estado
     salida_efectivo = Column(Float, default=0)
