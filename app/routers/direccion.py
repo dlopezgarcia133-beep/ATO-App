@@ -26,6 +26,7 @@ def obtener_corte_direccion(
     db: Session = Depends(get_db),
 ):
     _verificar_rol(user)
+    print(f"[direccion/cortes] modulo_id={modulo_id!r} ({type(modulo_id).__name__}) fecha={fecha!r}")
 
     corte = (
         db.query(models.CorteDia)
@@ -36,6 +37,7 @@ def obtener_corte_direccion(
         .first()
     )
 
+    print(f"[direccion/cortes] corte encontrado: {corte.id if corte else None}")
     if corte is None:
         return None
 
@@ -83,6 +85,7 @@ def obtener_corte_direccion(
         for v in ventas_db
     ]
 
+    print(f"[direccion/cortes] ventas encontradas: {len(ventas_list)} | chips: {len(chips)}")
     base = schemas.CorteDiaResponse.model_validate(corte)
     return schemas.DireccionCorteResponse(
         **base.model_dump(),
