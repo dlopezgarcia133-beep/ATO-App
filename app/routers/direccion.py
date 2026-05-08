@@ -38,6 +38,7 @@ def obtener_corte_direccion(
     if corte is None:
         return None
 
+    # chips del módulo y fecha
     chips = (
         db.query(models.VentaChip)
         .join(models.Usuario, models.VentaChip.empleado_id == models.Usuario.id)
@@ -54,9 +55,37 @@ def obtener_corte_direccion(
         tipo = chip.tipo_chip or "Sin tipo"
         chips_por_tipo[tipo] = chips_por_tipo.get(tipo, 0) + 1
 
+    # ventas (accesorios + teléfonos) del módulo y fecha
+    ventas_db = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.modulo_id == modulo_id,
+            models.Venta.fecha == fecha,
+            models.Venta.cancelada == False,
+        )
+        .all()
+    )
+
+    ventas_list = [
+        schemas.VentaResumenItem(
+            id=v.id,
+            producto=v.producto,
+            tipo_producto=v.tipo_producto,
+            tipo_venta=v.tipo_venta,
+            precio_unitario=v.precio_unitario,
+            cantidad=v.cantidad,
+            total=v.total,
+            metodo_pago=v.metodo_pago,
+            empleado_username=v.empleado.username if v.empleado else None,
+            cancelada=v.cancelada or False,
+        )
+        for v in ventas_db
+    ]
+
     base = schemas.CorteDiaResponse.model_validate(corte)
     return schemas.DireccionCorteResponse(
         **base.model_dump(),
         chips_count=len(chips),
         chips_por_tipo=chips_por_tipo,
+        ventas=ventas_list,
     )

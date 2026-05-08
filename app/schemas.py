@@ -608,6 +608,20 @@ class NominaHistorialResponse(BaseModel):
         from_attributes = True
 
 
+class VentaResumenItem(BaseModel):
+    id: int
+    producto: str
+    tipo_producto: str
+    tipo_venta: Optional[str] = None
+    precio_unitario: float
+    cantidad: int
+    total: Optional[float] = None
+    metodo_pago: Optional[str] = None
+    empleado_username: Optional[str] = None
+    cancelada: bool = False
+
+
 class DireccionCorteResponse(CorteDiaResponse):
     chips_count: int = 0
     chips_por_tipo: Dict[str, int] = {}
+    ventas: List[VentaResumenItem] = []
