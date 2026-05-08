@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from datetime import date
 
@@ -26,7 +25,6 @@ def obtener_corte_direccion(
     db: Session = Depends(get_db),
 ):
     _verificar_rol(user)
-    print(f"[direccion/cortes] modulo_id={modulo_id!r} ({type(modulo_id).__name__}) fecha={fecha!r}")
 
     corte = (
         db.query(models.CorteDia)
@@ -37,7 +35,6 @@ def obtener_corte_direccion(
         .first()
     )
 
-    print(f"[direccion/cortes] corte encontrado: {corte.id if corte else None}")
     if corte is None:
         return None
 
@@ -48,7 +45,7 @@ def obtener_corte_direccion(
         .filter(
             models.Usuario.modulo_id == modulo_id,
             models.VentaChip.fecha == fecha,
-            models.VentaChip.cancelada == False,
+            models.VentaChip.cancelada.isnot(True),
         )
         .all()
     )
@@ -58,13 +55,14 @@ def obtener_corte_direccion(
         tipo = chip.tipo_chip or "Sin tipo"
         chips_por_tipo[tipo] = chips_por_tipo.get(tipo, 0) + 1
 
-    # ventas del módulo y fecha — mismo filtro que GET /ventas/ventas/cortes
+    # ventas del módulo y fecha — misma lógica que GET /ventas/ventas
     ventas_db = (
         db.query(models.Venta)
+        .options(joinedload(models.Venta.empleado))
         .filter(
-            func.date(models.Venta.fecha) == fecha,
+            models.Venta.fecha == fecha,
             models.Venta.modulo_id == modulo_id,
-            models.Venta.cancelada == False,
+            models.Venta.cancelada.isnot(True),
         )
         .all()
     )
@@ -77,7 +75,7 @@ def obtener_corte_direccion(
             tipo_venta=v.tipo_venta,
             precio_unitario=v.precio_unitario,
             cantidad=v.cantidad,
-            total=v.total,
+            total=v.precio_unitario * v.cantidad,
             metodo_pago=v.metodo_pago,
             empleado_username=v.empleado.username if v.empleado else None,
             cancelada=v.cancelada or False,
@@ -85,7 +83,6 @@ def obtener_corte_direccion(
         for v in ventas_db
     ]
 
-    print(f"[direccion/cortes] ventas encontradas: {len(ventas_list)} | chips: {len(chips)}")
     base = schemas.CorteDiaResponse.model_validate(corte)
     return schemas.DireccionCorteResponse(
         **base.model_dump(),
