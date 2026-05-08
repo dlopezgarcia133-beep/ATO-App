@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date
@@ -55,12 +56,12 @@ def obtener_corte_direccion(
         tipo = chip.tipo_chip or "Sin tipo"
         chips_por_tipo[tipo] = chips_por_tipo.get(tipo, 0) + 1
 
-    # ventas (accesorios + teléfonos) del módulo y fecha
+    # ventas del módulo y fecha — mismo filtro que GET /ventas/ventas/cortes
     ventas_db = (
         db.query(models.Venta)
         .filter(
+            func.date(models.Venta.fecha) == fecha,
             models.Venta.modulo_id == modulo_id,
-            models.Venta.fecha == fecha,
             models.Venta.cancelada == False,
         )
         .all()
