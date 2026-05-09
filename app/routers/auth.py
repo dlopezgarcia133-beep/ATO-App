@@ -57,9 +57,9 @@ def login(
     ahora_local = datetime.now(tz=zona_horaria_local)
     hoy = ahora_local.date()
 
-    asistencia_existente = db.query(models.Asistencia).filter(
-        models.Asistencia.nombre == user.username,
-        models.Asistencia.fecha == hoy
+    asistencia_existente = db.query(models.AsistenciaLegacy).filter(
+        models.AsistenciaLegacy.nombre == user.username,
+        models.AsistenciaLegacy.fecha == hoy
     ).first()
 
     def determinar_turno(hora):
@@ -72,7 +72,7 @@ def login(
 
     if not asistencia_existente:
         turno = determinar_turno(ahora_local.time())
-        nueva_asistencia = models.Asistencia(
+        nueva_asistencia = models.AsistenciaLegacy(
             nombre=user.username,
             modulo=user.modulo.nombre if user.modulo else None,
             turno=turno,
