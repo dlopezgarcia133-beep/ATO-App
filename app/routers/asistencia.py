@@ -1,0 +1,290 @@
+import base64
+import os
+from datetime import date, datetime
+from typing import List, Optional
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app import models, schemas
+from app.config import get_current_user
+from app.database import get_db
+
+ZONA = ZoneInfo("America/Mexico_City")
+
+router = APIRouter(prefix="/asistencia", tags=["Asistencia"])
+modulos_router = APIRouter(prefix="/modulos", tags=["Asistencia"])
+
+
+# ── Supabase admin client ─────────────────────────────────────────────────────
+
+def _supabase_admin():
+    from supabase import create_client
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not key:
+        raise HTTPException(500, "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no configurados")
+    return create_client(url, key)
+
+
+# ── Helper: agrupar registros por (usuario, fecha) ───────────────────────────
+
+def _agrupar(registros: list, include_user: bool = False) -> List[schemas.AsistenciaResumenDia]:
+    dias: dict = {}
+    for r in registros:
+        key = (r.usuario_id, r.fecha) if include_user else (0, r.fecha)
+        if key not in dias:
+            dias[key] = {"entrada": None, "salida": None}
+        dias[key][r.tipo] = r
+
+    resultado = []
+    for key in sorted(dias):
+        data = dias[key]
+        ent = data.get("entrada")
+        sal = data.get("salida")
+
+        horas = 0.0
+        if ent and sal:
+            delta = sal.hora - ent.hora
+            horas = max(0.0, delta.total_seconds() / 3600)
+
+        modulo_nombre = None
+        registro_ref = ent or sal
+        if registro_ref and registro_ref.modulo_rel:
+            modulo_nombre = registro_ref.modulo_rel.nombre
+
+        resultado.append(schemas.AsistenciaResumenDia(
+            fecha=(ent or sal).fecha,
+            entrada=ent.hora if ent else None,
+            salida=sal.hora if sal else None,
+            horas_trabajadas=round(horas, 2),
+            foto_entrada_url=ent.foto_url if ent else None,
+            foto_salida_url=sal.foto_url if sal else None,
+            dentro_de_zona_entrada=ent.dentro_de_zona if ent else None,
+            dentro_de_zona_salida=sal.dentro_de_zona if sal else None,
+            distancia_metros_entrada=ent.distancia_metros if ent else None,
+            distancia_metros_salida=sal.distancia_metros if sal else None,
+            username=ent.username if ent else (sal.username if sal else None),
+            modulo_id=ent.modulo_id if ent else (sal.modulo_id if sal else None),
+            modulo_nombre=modulo_nombre,
+        ))
+    return resultado
+
+
+# ── POST /asistencia/check ────────────────────────────────────────────────────
+
+@router.post("/check", response_model=schemas.AsistenciaResponse)
+def check_asistencia(
+    body: schemas.AsistenciaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("asesor", "encargado"):
+        raise HTTPException(403, "Solo asesores y encargados pueden registrar asistencia")
+
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == current_user.modulo_id).first()
+    if not modulo:
+        raise HTTPException(404, "El usuario no tiene módulo asignado")
+
+    # Cálculo de distancia Haversine
+    dentro_de_zona = True
+    distancia = None
+    if modulo.latitud is not None and modulo.longitud is not None:
+        from app.utils.geo import distancia_metros
+        distancia = distancia_metros(body.latitud, body.longitud, modulo.latitud, modulo.longitud)
+        dentro_de_zona = distancia <= (modulo.radio_metros or 100)
+
+    # Subir foto a Supabase Storage
+    supabase = _supabase_admin()
+    ts = int(datetime.now(ZONA).timestamp())
+    fecha_str = date.today().isoformat()
+    filename = f"{current_user.username}_{fecha_str}_{body.tipo}_{ts}.jpg"
+
+    raw_b64 = body.foto_base64
+    if "," in raw_b64:
+        raw_b64 = raw_b64.split(",", 1)[1]
+    img_bytes = base64.b64decode(raw_b64)
+
+    supabase.storage.from_("asistencia-fotos").upload(
+        path=filename,
+        file=img_bytes,
+        file_options={"content-type": "image/jpeg", "upsert": "true"},
+    )
+    foto_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/asistencia-fotos/{filename}"
+
+    # Upsert en tabla asistencia
+    ahora = datetime.now(ZONA)
+    registro = db.query(models.Asistencia).filter(
+        models.Asistencia.usuario_id == current_user.id,
+        models.Asistencia.fecha == date.today(),
+        models.Asistencia.tipo == body.tipo,
+    ).first()
+
+    if registro:
+        registro.hora = ahora
+        registro.latitud = body.latitud
+        registro.longitud = body.longitud
+        registro.foto_url = foto_url
+        registro.dentro_de_zona = dentro_de_zona
+        registro.distancia_metros = distancia
+    else:
+        registro = models.Asistencia(
+            usuario_id=current_user.id,
+            username=current_user.username,
+            modulo_id=current_user.modulo_id,
+            fecha=date.today(),
+            tipo=body.tipo,
+            hora=ahora,
+            latitud=body.latitud,
+            longitud=body.longitud,
+            foto_url=foto_url,
+            dentro_de_zona=dentro_de_zona,
+            distancia_metros=distancia,
+        )
+        db.add(registro)
+
+    db.flush()
+
+    if not dentro_de_zona:
+        notif = models.NotificacionAsistencia(
+            asistencia_id=registro.id,
+            usuario_id=current_user.id,
+            username=current_user.username,
+            modulo_id=current_user.modulo_id,
+            mensaje=(
+                f"{current_user.username} hizo {body.tipo} fuera de zona "
+                f"— a {int(distancia)} metros del módulo"
+            ),
+            distancia_metros=distancia,
+        )
+        db.add(notif)
+
+    db.commit()
+    db.refresh(registro)
+    return registro
+
+
+# ── GET /asistencia/mi-historial ─────────────────────────────────────────────
+
+@router.get("/mi-historial", response_model=List[schemas.AsistenciaResumenDia])
+def mi_historial(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("asesor", "encargado"):
+        raise HTTPException(403, "Solo asesores y encargados")
+
+    registros = (
+        db.query(models.Asistencia)
+        .filter(
+            models.Asistencia.usuario_id == current_user.id,
+            models.Asistencia.fecha >= desde,
+            models.Asistencia.fecha <= hasta,
+        )
+        .all()
+    )
+    return _agrupar(registros)
+
+
+# ── GET /asistencia/admin ─────────────────────────────────────────────────────
+
+@router.get("/admin", response_model=List[schemas.AsistenciaResumenDia])
+def admin_historial(
+    usuario_id: Optional[int] = None,
+    modulo_id: Optional[int] = None,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    q = db.query(models.Asistencia)
+    if usuario_id:
+        q = q.filter(models.Asistencia.usuario_id == usuario_id)
+    if modulo_id:
+        q = q.filter(models.Asistencia.modulo_id == modulo_id)
+    if desde:
+        q = q.filter(models.Asistencia.fecha >= desde)
+    if hasta:
+        q = q.filter(models.Asistencia.fecha <= hasta)
+
+    return _agrupar(q.all(), include_user=True)
+
+
+# ── GET /asistencia/notificaciones ───────────────────────────────────────────
+
+@router.get("/notificaciones", response_model=List[schemas.NotificacionResponse])
+def listar_notificaciones(
+    solo_no_leidas: bool = True,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    q = db.query(models.NotificacionAsistencia)
+    if solo_no_leidas:
+        q = q.filter(models.NotificacionAsistencia.leida == False)  # noqa: E712
+    return q.order_by(models.NotificacionAsistencia.creada_at.desc()).all()
+
+
+# ── PUT /asistencia/notificaciones/{id}/marcar-leida ─────────────────────────
+
+@router.put("/notificaciones/{notif_id}/marcar-leida")
+def marcar_leida(
+    notif_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    notif = db.query(models.NotificacionAsistencia).filter(
+        models.NotificacionAsistencia.id == notif_id
+    ).first()
+    if not notif:
+        raise HTTPException(404, "Notificación no encontrada")
+
+    notif.leida = True
+    db.commit()
+    return {"ok": True}
+
+
+# ── PUT /modulos/{id}/ubicacion ───────────────────────────────────────────────
+
+@modulos_router.put("/{modulo_id}/ubicacion")
+def actualizar_ubicacion_modulo(
+    modulo_id: int,
+    body: schemas.ModuloUbicacionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol != "admin":
+        raise HTTPException(403, "Solo admin")
+
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == modulo_id).first()
+    if not modulo:
+        raise HTTPException(404, "Módulo no encontrado")
+
+    modulo.latitud = body.latitud
+    modulo.longitud = body.longitud
+    modulo.radio_metros = body.radio_metros
+    db.commit()
+    return {"ok": True}
+
+
+# ── GET /modulos/con-ubicacion ────────────────────────────────────────────────
+
+@modulos_router.get("/con-ubicacion", response_model=List[schemas.ModuloConUbicacion])
+def modulos_con_ubicacion(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol != "admin":
+        raise HTTPException(403, "Solo admin")
+    return db.query(models.Modulo).all()

@@ -31,7 +31,7 @@ class Usuario(Base):
     modulo = relationship("Modulo", backref="usuarios")
     sueldo_base = Column(Float, default=0)
 
-class Asistencia(Base):
+class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -41,6 +41,44 @@ class Asistencia(Base):
     fecha = Column(Date, default=func.current_date())
     hora = Column(Time, default=func.current_time())
     hora_salida = Column(Time, nullable=True)
+
+
+class Asistencia(Base):
+    __tablename__ = "asistencia"
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "fecha", "tipo", name="uq_asistencia_usuario_fecha_tipo"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    username = Column(String, nullable=False)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String(10), nullable=False)
+    hora = Column(DateTime(timezone=True), nullable=True)
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
+    foto_url = Column(String, nullable=True)
+    dentro_de_zona = Column(Boolean, nullable=True)
+    distancia_metros = Column(Float, nullable=True)
+    creada_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    modulo_rel = relationship("Modulo", foreign_keys=[modulo_id])
+
+
+class NotificacionAsistencia(Base):
+    __tablename__ = "notificaciones_asistencia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asistencia_id = Column(Integer, ForeignKey("asistencia.id"), nullable=True)
+    usuario_id = Column(Integer, nullable=False)
+    username = Column(String, nullable=False)
+    modulo_id = Column(Integer, nullable=True)
+    mensaje = Column(String, nullable=False)
+    distancia_metros = Column(Float, nullable=True)
+    leida = Column(Boolean, default=False)
+    creada_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Venta(Base):
@@ -167,6 +205,9 @@ class Modulo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, nullable=False)
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
+    radio_metros = Column(Integer, default=100)
 
     ventas = relationship("Venta", back_populates="modulo")
     cortes = relationship("CorteDia", back_populates="modulo")

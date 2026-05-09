@@ -3,8 +3,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.database import Base, SessionLocal, engine
 from app import models
-from app.models import Asistencia
-from app.routers import asistencias, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
+from app.models import AsistenciaLegacy  # noqa: F401 — keeps legacy table registered
+from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
 from app.routers import dashboard, direccion
 from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,6 +55,8 @@ app.include_router(nomina.router, prefix="/nomina", tags=["Nomina"])
 app.include_router(kardex.router, prefix="/kardex", tags=["Kardex"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(direccion.router, prefix="/direccion", tags=["Dirección"])
+app.include_router(asistencia.router)         # prefix="/asistencia" (definido en el router)
+app.include_router(asistencia.modulos_router) # prefix="/modulos"  (ubicación de módulos)
 
 
 

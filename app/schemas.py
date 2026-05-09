@@ -6,15 +6,15 @@ from app.models import EstadoTraspasoEnum, RolEnum
 from typing import Literal
 
 
-class AsistenciaBase(BaseModel):
+class AsistenciaLegacyBase(BaseModel):
     nombre: str
     modulo: str
     turno: str
 
-class AsistenciaCreate(AsistenciaBase):
+class AsistenciaLegacyCreate(AsistenciaLegacyBase):
     pass
 
-class Asistencia(AsistenciaBase):
+class AsistenciaLegacyResponse(AsistenciaLegacyBase):
     id: int
     fecha: date
     hora: time
@@ -22,7 +22,84 @@ class Asistencia(AsistenciaBase):
 
     class Config:
         from_attributes = True
-        
+
+
+# ── Nuevos schemas: Asistencia geo + foto ─────────────────────────────────────
+
+class AsistenciaCreate(BaseModel):
+    tipo: Literal["entrada", "salida"]
+    latitud: float
+    longitud: float
+    foto_base64: str
+
+
+class AsistenciaResponse(BaseModel):
+    id: int
+    usuario_id: int
+    username: str
+    modulo_id: Optional[int] = None
+    fecha: date
+    tipo: str
+    hora: Optional[datetime] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    foto_url: Optional[str] = None
+    dentro_de_zona: Optional[bool] = None
+    distancia_metros: Optional[float] = None
+    creada_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AsistenciaResumenDia(BaseModel):
+    fecha: date
+    entrada: Optional[datetime] = None
+    salida: Optional[datetime] = None
+    horas_trabajadas: float = 0.0
+    foto_entrada_url: Optional[str] = None
+    foto_salida_url: Optional[str] = None
+    dentro_de_zona_entrada: Optional[bool] = None
+    dentro_de_zona_salida: Optional[bool] = None
+    distancia_metros_entrada: Optional[float] = None
+    distancia_metros_salida: Optional[float] = None
+    username: Optional[str] = None
+    modulo_id: Optional[int] = None
+    modulo_nombre: Optional[str] = None
+
+
+class ModuloUbicacionUpdate(BaseModel):
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    radio_metros: int = 100
+
+
+class NotificacionResponse(BaseModel):
+    id: int
+    asistencia_id: Optional[int] = None
+    usuario_id: int
+    username: str
+    modulo_id: Optional[int] = None
+    mensaje: str
+    distancia_metros: Optional[float] = None
+    leida: bool
+    creada_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ModuloConUbicacion(BaseModel):
+    id: int
+    nombre: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    radio_metros: int = 100
+
+    class Config:
+        from_attributes = True
+
+
 
 class RolEnum(str, Enum):
     admin = "admin"

@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 # ------------------- ASISTENCIAS -------------------
-@router.post("/asistencias", response_model=schemas.Asistencia)
+@router.post("/asistencias", response_model=schemas.AsistenciaLegacyResponse)
 def registrar_asistencia(
     turno: str,  
     db: Session = Depends(get_db),
@@ -25,11 +25,11 @@ def registrar_asistencia(
 
     # 2. Verificamos que no exista ya una asistencia hoy
     hoy = datetime.now().date()
-    if db.query(models.Asistencia).filter(models.Asistencia.nombre==nombre, models.Asistencia.fecha==hoy).first():
+    if db.query(models.AsistenciaLegacy).filter(models.AsistenciaLegacy.nombre==nombre, models.AsistenciaLegacy.fecha==hoy).first():
         raise HTTPException(400, "Ya registraste asistencia hoy")
 
     # 3. Creamos la nueva asistencia
-    nueva = models.Asistencia(
+    nueva = models.AsistenciaLegacy(
         nombre=nombre,
         modulo=modulo,
         turno=turno,
@@ -49,10 +49,10 @@ def logout(current_user: models.Usuario = Depends(get_current_user), db: Session
     ahora = datetime.now(zona_horaria)
     hoy = ahora.date()
 
-    asistencia = db.query(models.Asistencia).filter(
-        models.Asistencia.nombre == current_user.username,
-        models.Asistencia.fecha == hoy
-    ).order_by(models.Asistencia.hora.desc()).first()
+    asistencia = db.query(models.AsistenciaLegacy).filter(
+        models.AsistenciaLegacy.nombre == current_user.username,
+        models.AsistenciaLegacy.fecha == hoy
+    ).order_by(models.AsistenciaLegacy.hora.desc()).first()
 
     if not asistencia:
         raise HTTPException(status_code=404, detail="No se encontró asistencia para hoy")
