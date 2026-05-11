@@ -3,7 +3,7 @@ import math
 
 def distancia_metros(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     """Haversine distance between two geographic points, in metres."""
-    R = 6_371_000  # Earth radius in metres
+    R = 6_371_000
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     dphi = math.radians(lat2 - lat1)

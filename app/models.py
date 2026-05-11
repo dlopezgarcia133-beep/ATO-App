@@ -20,7 +20,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre_completo = Column(String, nullable=False)
     username = Column(String, unique=True, nullable=False)
-    rol = Column(Enum(RolEnum), nullable=False, default=RolEnum.asesor)  
+    rol = Column(Enum(RolEnum), nullable=False, default=RolEnum.asesor)
     password = Column(String, nullable=False)
     modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=True)
     is_admin = Column(Boolean, default=False)
@@ -30,6 +30,10 @@ class Usuario(Base):
     ventas_chip = relationship("VentaChip", back_populates="empleado")
     modulo = relationship("Modulo", backref="usuarios")
     sueldo_base = Column(Float, default=0)
+    lugar_trabajo = Column(String, nullable=True)
+    latitud_promotor = Column(Float, nullable=True)
+    longitud_promotor = Column(Float, nullable=True)
+    radio_metros_promotor = Column(Integer, default=100)
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"

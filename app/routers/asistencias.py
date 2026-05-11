@@ -15,20 +15,17 @@ router = APIRouter()
 # ------------------- ASISTENCIAS -------------------
 @router.post("/asistencias", response_model=schemas.AsistenciaLegacyResponse)
 def registrar_asistencia(
-    turno: str,  
+    turno: str,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    
     nombre = current_user.username
     modulo = current_user.modulo.nombre if current_user.modulo else None
 
-    # 2. Verificamos que no exista ya una asistencia hoy
     hoy = datetime.now().date()
     if db.query(models.AsistenciaLegacy).filter(models.AsistenciaLegacy.nombre==nombre, models.AsistenciaLegacy.fecha==hoy).first():
         raise HTTPException(400, "Ya registraste asistencia hoy")
 
-    # 3. Creamos la nueva asistencia
     nueva = models.AsistenciaLegacy(
         nombre=nombre,
         modulo=modulo,

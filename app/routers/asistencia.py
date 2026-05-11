@@ -15,6 +15,7 @@ ZONA = ZoneInfo("America/Mexico_City")
 
 router = APIRouter(prefix="/asistencia", tags=["Asistencia"])
 modulos_router = APIRouter(prefix="/modulos", tags=["Asistencia"])
+promotores_router = APIRouter(prefix="/promotores", tags=["Promotores Cadenas"])
 
 
 # ── Supabase admin client ─────────────────────────────────────────────────────
@@ -49,10 +50,14 @@ def _agrupar(registros: list, include_user: bool = False) -> List[schemas.Asiste
             delta = sal.hora - ent.hora
             horas = max(0.0, delta.total_seconds() / 3600)
 
+        ref = ent or sal
         modulo_nombre = None
-        registro_ref = ent or sal
-        if registro_ref and registro_ref.modulo_rel:
-            modulo_nombre = registro_ref.modulo_rel.nombre
+        if ref and ref.modulo_rel:
+            modulo_nombre = ref.modulo_rel.nombre
+
+        lugar_trabajo = None
+        if ref and ref.usuario:
+            lugar_trabajo = ref.usuario.lugar_trabajo
 
         resultado.append(schemas.AsistenciaResumenDia(
             fecha=(ent or sal).fecha,
@@ -68,11 +73,12 @@ def _agrupar(registros: list, include_user: bool = False) -> List[schemas.Asiste
             username=ent.username if ent else (sal.username if sal else None),
             modulo_id=ent.modulo_id if ent else (sal.modulo_id if sal else None),
             modulo_nombre=modulo_nombre,
+            lugar_trabajo=lugar_trabajo,
         ))
     return resultado
 
 
-# ── POST /asistencia/check ────────────────────────────────────────────────────
+# ── Endpoints de asistencia ───────────────────────────────────────────────────
 
 @router.post("/check", response_model=schemas.AsistenciaResponse)
 def check_asistencia(
@@ -87,10 +93,28 @@ def check_asistencia(
     if not modulo:
         raise HTTPException(404, "El usuario no tiene módulo asignado")
 
-    # Cálculo de distancia Haversine
+    # Determinar si es promotor de Cadenas (módulo contiene "Cadenas" y username empieza con "C")
+    is_cadenas_promotor = (
+        "Cadenas" in (modulo.nombre or "")
+        and current_user.username.startswith("C")
+    )
+
     dentro_de_zona = True
     distancia = None
-    if modulo.latitud is not None and modulo.longitud is not None:
+
+    if is_cadenas_promotor:
+        if (
+            current_user.latitud_promotor is not None
+            and current_user.longitud_promotor is not None
+        ):
+            from app.utils.geo import distancia_metros
+            distancia = distancia_metros(
+                body.latitud, body.longitud,
+                current_user.latitud_promotor, current_user.longitud_promotor,
+            )
+            dentro_de_zona = distancia <= (current_user.radio_metros_promotor or 100)
+        # Si no tiene coords configuradas: dentro_de_zona = True por default
+    elif modulo.latitud is not None and modulo.longitud is not None:
         from app.utils.geo import distancia_metros
         distancia = distancia_metros(body.latitud, body.longitud, modulo.latitud, modulo.longitud)
         dentro_de_zona = distancia <= (modulo.radio_metros or 100)
@@ -113,7 +137,6 @@ def check_asistencia(
     )
     foto_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/asistencia-fotos/{filename}"
 
-    # Upsert en tabla asistencia
     ahora = datetime.now(ZONA)
     registro = db.query(models.Asistencia).filter(
         models.Asistencia.usuario_id == current_user.id,
@@ -154,7 +177,7 @@ def check_asistencia(
             modulo_id=current_user.modulo_id,
             mensaje=(
                 f"{current_user.username} hizo {body.tipo} fuera de zona "
-                f"— a {int(distancia)} metros del módulo"
+                f"— a {int(distancia)} metros del punto de referencia"
             ),
             distancia_metros=distancia,
         )
@@ -164,8 +187,6 @@ def check_asistencia(
     db.refresh(registro)
     return registro
 
-
-# ── GET /asistencia/mi-historial ─────────────────────────────────────────────
 
 @router.get("/mi-historial", response_model=List[schemas.AsistenciaResumenDia])
 def mi_historial(
@@ -188,8 +209,6 @@ def mi_historial(
     )
     return _agrupar(registros)
 
-
-# ── GET /asistencia/admin ─────────────────────────────────────────────────────
 
 @router.get("/admin", response_model=List[schemas.AsistenciaResumenDia])
 def admin_historial(
@@ -216,8 +235,6 @@ def admin_historial(
     return _agrupar(q.all(), include_user=True)
 
 
-# ── GET /asistencia/notificaciones ───────────────────────────────────────────
-
 @router.get("/notificaciones", response_model=List[schemas.NotificacionResponse])
 def listar_notificaciones(
     solo_no_leidas: bool = True,
@@ -232,8 +249,6 @@ def listar_notificaciones(
         q = q.filter(models.NotificacionAsistencia.leida == False)  # noqa: E712
     return q.order_by(models.NotificacionAsistencia.creada_at.desc()).all()
 
-
-# ── PUT /asistencia/notificaciones/{id}/marcar-leida ─────────────────────────
 
 @router.put("/notificaciones/{notif_id}/marcar-leida")
 def marcar_leida(
@@ -255,7 +270,7 @@ def marcar_leida(
     return {"ok": True}
 
 
-# ── PUT /modulos/{id}/ubicacion ───────────────────────────────────────────────
+# ── Endpoints de módulos (ubicación) ─────────────────────────────────────────
 
 @modulos_router.put("/{modulo_id}/ubicacion")
 def actualizar_ubicacion_modulo(
@@ -278,13 +293,61 @@ def actualizar_ubicacion_modulo(
     return {"ok": True}
 
 
-# ── GET /modulos/con-ubicacion ────────────────────────────────────────────────
-
 @modulos_router.get("/con-ubicacion", response_model=List[schemas.ModuloConUbicacion])
 def modulos_con_ubicacion(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+    return db.query(models.Modulo).all()
+
+
+# ── Endpoints de promotores Cadenas (ubicación por promotor) ─────────────────
+
+@promotores_router.get("/con-ubicacion", response_model=List[schemas.PromotorConUbicacion])
+def promotores_con_ubicacion(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    return (
+        db.query(models.Usuario)
+        .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
+        .filter(
+            models.Usuario.username.like("C%"),
+            models.Modulo.nombre.contains("Cadenas"),
+        )
+        .all()
+    )
+
+
+@promotores_router.put("/{usuario_id}/ubicacion")
+def actualizar_ubicacion_promotor(
+    usuario_id: int,
+    body: schemas.PromotorUbicacionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
     if current_user.rol != "admin":
         raise HTTPException(403, "Solo admin")
-    return db.query(models.Modulo).all()
+
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == usuario.modulo_id).first()
+    if not modulo or "Cadenas" not in (modulo.nombre or ""):
+        raise HTTPException(400, "El usuario no pertenece al módulo Cadenas")
+
+    if not usuario.username.startswith("C"):
+        raise HTTPException(400, "El username del usuario no empieza con C")
+
+    usuario.lugar_trabajo = body.lugar_trabajo
+    usuario.latitud_promotor = body.latitud_promotor
+    usuario.longitud_promotor = body.longitud_promotor
+    usuario.radio_metros_promotor = body.radio_metros_promotor
+    db.commit()
+    return {"ok": True}

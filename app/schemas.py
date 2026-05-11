@@ -24,7 +24,7 @@ class AsistenciaLegacyResponse(AsistenciaLegacyBase):
         from_attributes = True
 
 
-# ── Nuevos schemas: Asistencia geo + foto ─────────────────────────────────────
+# ── Schemas de Asistencia geolocalizada ──────────────────────────────────────
 
 class AsistenciaCreate(BaseModel):
     tipo: Literal["entrada", "salida"]
@@ -66,6 +66,7 @@ class AsistenciaResumenDia(BaseModel):
     username: Optional[str] = None
     modulo_id: Optional[int] = None
     modulo_nombre: Optional[str] = None
+    lugar_trabajo: Optional[str] = None
 
 
 class ModuloUbicacionUpdate(BaseModel):
@@ -99,6 +100,24 @@ class ModuloConUbicacion(BaseModel):
     class Config:
         from_attributes = True
 
+
+class PromotorUbicacionUpdate(BaseModel):
+    lugar_trabajo: str
+    latitud_promotor: float
+    longitud_promotor: float
+    radio_metros_promotor: int = 100
+
+
+class PromotorConUbicacion(BaseModel):
+    id: int
+    username: str
+    lugar_trabajo: Optional[str] = None
+    latitud_promotor: Optional[float] = None
+    longitud_promotor: Optional[float] = None
+    radio_metros_promotor: Optional[int] = 100
+
+    class Config:
+        from_attributes = True
 
 
 class RolEnum(str, Enum):
