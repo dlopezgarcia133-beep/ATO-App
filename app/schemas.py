@@ -740,3 +740,20 @@ class DireccionCorteResponse(CorteDiaResponse):
     chips_count: int = 0
     chips_por_tipo: Dict[str, int] = {}
     ventas: List[VentaResumenItem] = []
+
+
+class ModuloStockItem(BaseModel):
+    modulo: str
+    cantidad: int
+
+
+class ProductoBusquedaResult(BaseModel):
+    producto: str
+    total: int
+    modulos: List[ModuloStockItem]
+
+
+class StockPorModuloItem(BaseModel):
+    modulo: str
+    total_productos: int
+    tipos_distintos: int

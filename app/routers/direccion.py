@@ -1,8 +1,10 @@
+from collections import defaultdict
 from datetime import date, datetime
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
@@ -11,6 +13,7 @@ from app.database import get_db
 
 ZONA = ZoneInfo("America/Mexico_City")
 MODULOS_EXCLUIR = {"v2", "cadenas c.", "mi2", "bo", "prueba"}
+MODULOS_EXCLUIR_SQL = ["V2", "Cadenas C.", "MI2", "BO", "prueba"]
 
 router = APIRouter()
 
@@ -175,3 +178,79 @@ def marcar_corte_revisado(
         revisado_por=corte.revisado_por,
         revisado_at=corte.revisado_at,
     )
+
+
+@router.get("/buscar-producto", response_model=List[schemas.ProductoBusquedaResult])
+def buscar_producto(
+    q: str = Query(default=""),
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+
+    if len(q.strip()) < 2:
+        return []
+
+    rows = (
+        db.query(
+            models.InventarioModulo.producto,
+            models.Modulo.nombre.label("modulo_nombre"),
+            func.sum(models.InventarioModulo.cantidad).label("total_cant"),
+        )
+        .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
+        .filter(
+            models.InventarioModulo.producto.ilike(f"%{q.strip()}%"),
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+            models.InventarioModulo.cantidad > 0,
+        )
+        .group_by(models.InventarioModulo.producto, models.Modulo.nombre)
+        .all()
+    )
+
+    agrupado: dict = defaultdict(list)
+    for row in rows:
+        agrupado[row.producto].append(
+            schemas.ModuloStockItem(modulo=row.modulo_nombre, cantidad=int(row.total_cant))
+        )
+
+    resultado = []
+    for producto, modulos in agrupado.items():
+        total = sum(m.cantidad for m in modulos)
+        resultado.append(schemas.ProductoBusquedaResult(
+            producto=producto,
+            total=total,
+            modulos=sorted(modulos, key=lambda x: x.cantidad, reverse=True),
+        ))
+
+    resultado.sort(key=lambda x: x.total, reverse=True)
+    return resultado[:50]
+
+
+@router.get("/stock-por-modulo", response_model=List[schemas.StockPorModuloItem])
+def stock_por_modulo(
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+
+    rows = (
+        db.query(
+            models.Modulo.nombre.label("modulo"),
+            func.sum(models.InventarioModulo.cantidad).label("total_productos"),
+            func.count(func.distinct(models.InventarioModulo.producto)).label("tipos_distintos"),
+        )
+        .join(models.InventarioModulo, models.Modulo.id == models.InventarioModulo.modulo_id)
+        .filter(~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL))
+        .group_by(models.Modulo.nombre)
+        .order_by(func.sum(models.InventarioModulo.cantidad).desc())
+        .all()
+    )
+
+    return [
+        schemas.StockPorModuloItem(
+            modulo=row.modulo,
+            total_productos=int(row.total_productos or 0),
+            tipos_distintos=int(row.tipos_distintos or 0),
+        )
+        for row in rows
+    ]
