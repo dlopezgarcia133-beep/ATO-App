@@ -314,29 +314,62 @@ def actualizar_inventario_modulo(
     producto: str,
     datos: schemas.InventarioModuloUpdate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
 ):
-    item = db.query(models.InventarioModulo).filter_by(producto=producto, modulo_id=datos.modulo_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Producto no encontrado en el módulo.")
-
-    # Incrementar en vez de reemplazar
-    item.cantidad += datos.cantidad  
-
-    # También descontar del inventario general
-    producto_general = db.query(models.InventarioGeneral).filter_by(producto=producto).first()
-    if not producto_general:
-        raise HTTPException(status_code=404, detail="Producto no encontrado en inventario general.")
     
-    if producto_general.cantidad < datos.cantidad:
-        raise HTTPException(status_code=400, detail="No hay suficiente producto en el inventario general.")
+    item = db.query(models.InventarioModulo).filter_by(
+        producto=producto,
+        modulo_id=datos.modulo_id
+    ).first()
 
-    producto_general.cantidad -= datos.cantidad
+    if not item:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado en el módulo."
+        )
+
+    producto_general = db.query(models.InventarioGeneral).filter_by(
+        producto=producto
+    ).first()
+
+    if not producto_general:
+        raise HTTPException(
+            status_code=404,
+            detail="Producto no encontrado en inventario general."
+        )
+
+
+    cantidad_anterior = item.cantidad
+
+
+    nueva_cantidad = datos.cantidad
+
+ 
+    diferencia = nueva_cantidad - cantidad_anterior
+
+    
+    if diferencia > 0:
+        if producto_general.cantidad < diferencia:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay suficiente producto en inventario general."
+            )
+
+        producto_general.cantidad -= diferencia
+
+   
+    elif diferencia < 0:
+        producto_general.cantidad += abs(diferencia)
+
+    
+    item.cantidad = nueva_cantidad
 
     db.commit()
     db.refresh(item)
-    return item
 
+    return item
  
 @router.get("/inventario/modulo", response_model=list[schemas.InventarioModuloResponse])
 def obtener_inventario_modulo(
