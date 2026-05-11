@@ -46,8 +46,13 @@ def _agrupar(registros: list, include_user: bool = False) -> List[schemas.Asiste
         sal = data.get("salida")
 
         horas = 0.0
-        if ent and sal:
-            delta = sal.hora - ent.hora
+        if ent and sal and ent.hora and sal.hora:
+            from datetime import timezone as _utc
+            def _to_utc(dt):
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=_utc.utc)
+                return dt.astimezone(_utc.utc)
+            delta = _to_utc(sal.hora) - _to_utc(ent.hora)
             horas = max(0.0, delta.total_seconds() / 3600)
 
         ref = ent or sal
@@ -93,6 +98,19 @@ def check_asistencia(
     if not modulo:
         raise HTTPException(404, "El usuario no tiene módulo asignado")
 
+    # Bug 2: usar fecha en zona horaria México, no UTC
+    fecha_actual = datetime.now(ZONA).date()
+
+    # Bug 1: CHECK-OUT requiere CHECK-IN previo el mismo día
+    if body.tipo == "salida":
+        tiene_entrada = db.query(models.Asistencia).filter(
+            models.Asistencia.usuario_id == current_user.id,
+            models.Asistencia.fecha == fecha_actual,
+            models.Asistencia.tipo == "entrada",
+        ).first()
+        if not tiene_entrada:
+            raise HTTPException(400, "Primero debes hacer tu CHECK-IN antes del CHECK-OUT")
+
     # Determinar si es promotor de Cadenas (módulo contiene "Cadenas" y username empieza con "C")
     is_cadenas_promotor = (
         "Cadenas" in (modulo.nombre or "")
@@ -122,7 +140,7 @@ def check_asistencia(
     # Subir foto a Supabase Storage
     supabase = _supabase_admin()
     ts = int(datetime.now(ZONA).timestamp())
-    fecha_str = date.today().isoformat()
+    fecha_str = fecha_actual.isoformat()
     filename = f"{current_user.username}_{fecha_str}_{body.tipo}_{ts}.jpg"
 
     raw_b64 = body.foto_base64
@@ -140,7 +158,7 @@ def check_asistencia(
     ahora = datetime.now(ZONA)
     registro = db.query(models.Asistencia).filter(
         models.Asistencia.usuario_id == current_user.id,
-        models.Asistencia.fecha == date.today(),
+        models.Asistencia.fecha == fecha_actual,
         models.Asistencia.tipo == body.tipo,
     ).first()
 
@@ -156,7 +174,7 @@ def check_asistencia(
             usuario_id=current_user.id,
             username=current_user.username,
             modulo_id=current_user.modulo_id,
-            fecha=date.today(),
+            fecha=fecha_actual,
             tipo=body.tipo,
             hora=ahora,
             latitud=body.latitud,
