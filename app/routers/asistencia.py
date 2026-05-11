@@ -13,6 +13,16 @@ from app.database import get_db
 
 ZONA = ZoneInfo("America/Mexico_City")
 
+
+def _hora_mx_str(dt: datetime) -> str:
+    """datetime (cualquier tz) → '9:20 a.m.' en zona México."""
+    dt_mx = dt.astimezone(ZONA)
+    hora = str(dt_mx.hour % 12 or 12)
+    minuto = f"{dt_mx.minute:02d}"
+    sufijo = "a.m." if dt_mx.hour < 12 else "p.m."
+    return f"{hora}:{minuto} {sufijo}"
+
+
 router = APIRouter(prefix="/asistencia", tags=["Asistencia"])
 modulos_router = APIRouter(prefix="/modulos", tags=["Asistencia"])
 promotores_router = APIRouter(prefix="/promotores", tags=["Promotores Cadenas"])
@@ -98,18 +108,52 @@ def check_asistencia(
     if not modulo:
         raise HTTPException(404, "El usuario no tiene módulo asignado")
 
-    # Bug 2: usar fecha en zona horaria México, no UTC
     fecha_actual = datetime.now(ZONA).date()
 
-    # Bug 1: CHECK-OUT requiere CHECK-IN previo el mismo día
-    if body.tipo == "salida":
-        tiene_entrada = db.query(models.Asistencia).filter(
+    if body.tipo == "entrada":
+        existente = db.query(models.Asistencia).filter(
             models.Asistencia.usuario_id == current_user.id,
             models.Asistencia.fecha == fecha_actual,
             models.Asistencia.tipo == "entrada",
         ).first()
-        if not tiene_entrada:
-            raise HTTPException(400, "Primero debes hacer tu CHECK-IN antes del CHECK-OUT")
+        if existente:
+            raise HTTPException(400, detail={
+                "codigo": "ENTRADA_DUPLICADA",
+                "mensaje": f"Ya tienes registrado tu CHECK-IN de hoy a las {_hora_mx_str(existente.hora)}. Si crees que es un error, reporta a administración.",
+            })
+    else:
+        entrada_hoy = db.query(models.Asistencia).filter(
+            models.Asistencia.usuario_id == current_user.id,
+            models.Asistencia.fecha == fecha_actual,
+            models.Asistencia.tipo == "entrada",
+        ).first()
+        if not entrada_hoy:
+            db.add(models.NotificacionAsistencia(
+                asistencia_id=None,
+                usuario_id=current_user.id,
+                username=current_user.username,
+                modulo_id=current_user.modulo_id,
+                mensaje=(
+                    f"🚨 SIN CHECK-IN: {current_user.username} intentó hacer check-out "
+                    f"sin haber registrado entrada el día {fecha_actual}"
+                ),
+                distancia_metros=None,
+            ))
+            db.commit()
+            raise HTTPException(400, detail={
+                "codigo": "SIN_CHECKIN",
+                "mensaje": "No tienes registrado tu CHECK-IN de hoy. Por favor reporta esto a administración para que lo revisen.",
+            })
+        salida_existente = db.query(models.Asistencia).filter(
+            models.Asistencia.usuario_id == current_user.id,
+            models.Asistencia.fecha == fecha_actual,
+            models.Asistencia.tipo == "salida",
+        ).first()
+        if salida_existente:
+            raise HTTPException(400, detail={
+                "codigo": "SALIDA_DUPLICADA",
+                "mensaje": f"Ya tienes registrado tu CHECK-OUT de hoy a las {_hora_mx_str(salida_existente.hora)}. Si crees que es un error, reporta a administración.",
+            })
 
     # Determinar si es promotor de Cadenas (módulo contiene "Cadenas" y username empieza con "C")
     is_cadenas_promotor = (
@@ -156,34 +200,20 @@ def check_asistencia(
     foto_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/asistencia-fotos/{filename}"
 
     ahora = datetime.now(ZONA)
-    registro = db.query(models.Asistencia).filter(
-        models.Asistencia.usuario_id == current_user.id,
-        models.Asistencia.fecha == fecha_actual,
-        models.Asistencia.tipo == body.tipo,
-    ).first()
-
-    if registro:
-        registro.hora = ahora
-        registro.latitud = body.latitud
-        registro.longitud = body.longitud
-        registro.foto_url = foto_url
-        registro.dentro_de_zona = dentro_de_zona
-        registro.distancia_metros = distancia
-    else:
-        registro = models.Asistencia(
-            usuario_id=current_user.id,
-            username=current_user.username,
-            modulo_id=current_user.modulo_id,
-            fecha=fecha_actual,
-            tipo=body.tipo,
-            hora=ahora,
-            latitud=body.latitud,
-            longitud=body.longitud,
-            foto_url=foto_url,
-            dentro_de_zona=dentro_de_zona,
-            distancia_metros=distancia,
-        )
-        db.add(registro)
+    registro = models.Asistencia(
+        usuario_id=current_user.id,
+        username=current_user.username,
+        modulo_id=current_user.modulo_id,
+        fecha=fecha_actual,
+        tipo=body.tipo,
+        hora=ahora,
+        latitud=body.latitud,
+        longitud=body.longitud,
+        foto_url=foto_url,
+        dentro_de_zona=dentro_de_zona,
+        distancia_metros=distancia,
+    )
+    db.add(registro)
 
     db.flush()
 
