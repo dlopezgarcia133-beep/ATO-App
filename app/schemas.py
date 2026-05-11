@@ -757,3 +757,82 @@ class StockPorModuloItem(BaseModel):
     modulo: str
     total_productos: int
     tipos_distintos: int
+
+
+# ── Estadísticas del mes ──────────────────────────────────────────────────────
+
+class CantidadMonto(BaseModel):
+    cantidad: int
+    monto: float
+
+class TipoChipStatItem(BaseModel):
+    tipo_chip: str
+    cantidad: int
+
+class MontoRecargaStatItem(BaseModel):
+    monto: float
+    cantidad: int
+
+class TopProductoItem(BaseModel):
+    producto: str
+    cantidad: int
+    monto: float
+
+class TramiteStatItem(BaseModel):
+    tramite: str
+    cantidad: int
+
+class PlanStatItem(BaseModel):
+    plan: str
+    cantidad: int
+
+class ModuloEstadItem(BaseModel):
+    modulo: str
+    total_mxn: float
+    telefonos: int
+    chips: int
+    accesorios: int
+
+class VentaDiaItem(BaseModel):
+    dia: int
+    total: float
+
+class ResumenGeneralStats(BaseModel):
+    total_ventas_mxn: float
+    total_telefonos: int
+    total_chips: int
+    total_accesorios: int
+    total_planes: int
+
+class TelefonosStats(BaseModel):
+    total: int
+    contado: CantidadMonto
+    payjoy: CantidadMonto
+    paguitos: CantidadMonto
+    sin_clasificar: CantidadMonto
+
+class AccesoriosStats(BaseModel):
+    total_unidades: int
+    monto_total: float
+    top_5_productos: List[TopProductoItem]
+
+class ChipsStats(BaseModel):
+    total: int
+    por_tipo: List[TipoChipStatItem]
+    por_monto_recarga: List[MontoRecargaStatItem]
+
+class PlanesStats(BaseModel):
+    total: int
+    por_tramite: List[TramiteStatItem]
+    por_plan: List[PlanStatItem]
+
+class EstadisticasMesResponse(BaseModel):
+    mes: str
+    periodo_texto: str
+    resumen_general: ResumenGeneralStats
+    telefonos: TelefonosStats
+    accesorios: AccesoriosStats
+    chips: ChipsStats
+    planes: PlanesStats
+    por_modulo: List[ModuloEstadItem]
+    ventas_por_dia: List[VentaDiaItem]
