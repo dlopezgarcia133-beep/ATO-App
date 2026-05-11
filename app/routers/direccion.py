@@ -290,18 +290,17 @@ def estadisticas_mes(
     mes_str = f"{año:04d}-{m:02d}"
 
     # ── Filtros base ──────────────────────────────────────────────────────────
+    # Teléfonos Y accesorios están TODOS en la tabla 'ventas'.
+    # Se distinguen por tipo_producto = 'telefono' (case-insensitive).
     f_ventas = [
         models.Venta.fecha >= fecha_inicio,
         models.Venta.fecha <= fecha_fin,
         models.Venta.cancelada.isnot(True),
         ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
     ]
-    f_tel = [
-        models.VentaTelefono.fecha >= fecha_inicio,
-        models.VentaTelefono.fecha <= fecha_fin,
-        models.VentaTelefono.cancelada.isnot(True),
-        ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
-    ]
+    f_ventas_tel = f_ventas + [models.Venta.tipo_producto.ilike("telefono")]
+    f_ventas_acc = f_ventas + [~models.Venta.tipo_producto.ilike("telefono")]
+
     f_chips = [
         models.VentaChip.fecha >= fecha_inicio,
         models.VentaChip.fecha <= fecha_fin,
@@ -309,14 +308,55 @@ def estadisticas_mes(
         ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
     ]
 
-    # ── Accesorios (ventas) ───────────────────────────────────────────────────
+    # ── Teléfonos (tabla ventas, tipo_producto = 'telefono') ──────────────────
+    # Clasificación por tipo_venta: Contado / Pajoy (o Payjoy) / Paguitos
+    tel_tipo_rows = (
+        db.query(
+            models.Venta.tipo_venta,
+            func.count(models.Venta.id).label("cnt"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
+        )
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_tel)
+        .group_by(models.Venta.tipo_venta)
+        .all()
+    )
+
+    contado: dict = {"cantidad": 0, "monto": 0.0}
+    payjoy: dict = {"cantidad": 0, "monto": 0.0}
+    paguitos: dict = {"cantidad": 0, "monto": 0.0}
+    sin_clasificar: dict = {"cantidad": 0, "monto": 0.0}
+
+    for row in tel_tipo_rows:
+        tv = (row.tipo_venta or "").strip().lower()
+        cnt = int(row.cnt or 0)
+        monto_t = float(row.monto or 0)
+        if tv in ("pajoy", "payjoy"):
+            payjoy["cantidad"] += cnt
+            payjoy["monto"] += monto_t
+        elif tv == "paguitos":
+            paguitos["cantidad"] += cnt
+            paguitos["monto"] += monto_t
+        elif not tv:
+            sin_clasificar["cantidad"] += cnt
+            sin_clasificar["monto"] += monto_t
+        else:
+            contado["cantidad"] += cnt
+            contado["monto"] += monto_t
+
+    total_telefonos = (
+        contado["cantidad"] + payjoy["cantidad"]
+        + paguitos["cantidad"] + sin_clasificar["cantidad"]
+    )
+
+    # ── Accesorios (tabla ventas, excluyendo tipo_producto = 'telefono') ──────
     acc_agg = (
         db.query(
             func.sum(models.Venta.cantidad).label("total_unidades"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto_total"),
         )
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
-        .filter(*f_ventas)
+        .filter(*f_ventas_acc)
         .first()
     )
     total_unidades_acc = int(acc_agg.total_unidades or 0)
@@ -329,56 +369,23 @@ def estadisticas_mes(
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total_monto"),
         )
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
-        .filter(*f_ventas)
+        .filter(*f_ventas_acc)
         .group_by(models.Venta.producto)
         .order_by(func.sum(models.Venta.cantidad).desc())
         .limit(5)
         .all()
     )
 
-    # ── Teléfonos ─────────────────────────────────────────────────────────────
-    tel_tipo_rows = (
+    # Total MXN = todas las ventas (teléfonos + accesorios)
+    total_mxn_row = (
         db.query(
-            models.VentaTelefono.tipo,
-            func.count(models.VentaTelefono.id).label("cnt"),
-            func.sum(models.VentaTelefono.precio_venta).label("monto"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
         )
-        .join(models.Modulo, models.VentaTelefono.modulo_id == models.Modulo.id)
-        .filter(*f_tel)
-        .group_by(models.VentaTelefono.tipo)
-        .all()
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas)
+        .first()
     )
-
-    contado: dict = {"cantidad": 0, "monto": 0.0}
-    payjoy: dict = {"cantidad": 0, "monto": 0.0}
-    paguitos: dict = {"cantidad": 0, "monto": 0.0}
-    sin_clasificar: dict = {"cantidad": 0, "monto": 0.0}
-
-    for row in tel_tipo_rows:
-        t = (row.tipo or "").strip().lower()
-        cnt = int(row.cnt or 0)
-        monto_t = float(row.monto or 0)
-        if t in ("pajoy", "payjoy"):
-            payjoy["cantidad"] += cnt
-            payjoy["monto"] += monto_t
-        elif t == "paguitos":
-            paguitos["cantidad"] += cnt
-            paguitos["monto"] += monto_t
-        elif not t:
-            sin_clasificar["cantidad"] += cnt
-            sin_clasificar["monto"] += monto_t
-        else:
-            contado["cantidad"] += cnt
-            contado["monto"] += monto_t
-
-    total_telefonos = (
-        contado["cantidad"] + payjoy["cantidad"]
-        + paguitos["cantidad"] + sin_clasificar["cantidad"]
-    )
-    monto_telefonos = (
-        contado["monto"] + payjoy["monto"]
-        + paguitos["monto"] + sin_clasificar["monto"]
-    )
+    total_ventas_mxn = round(float(total_mxn_row.total or 0), 2)
 
     # ── Chips ─────────────────────────────────────────────────────────────────
     chips_tipo_rows = (
@@ -403,11 +410,41 @@ def estadisticas_mes(
         .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
         .filter(*f_chips)
         .group_by(models.VentaChip.monto_recarga)
-        .order_by(models.VentaChip.monto_recarga.asc())
         .all()
     )
 
     total_chips = sum(int(r.cnt or 0) for r in chips_tipo_rows)
+
+    # Normalizar montos de chips en buckets limpios
+    _BUCKET_ORDER = ["$0 (sin recarga)", "$50", "$100", "$150", "$200", "$Otro"]
+
+    def _bucket_monto(m: float) -> str:
+        if m < 50:
+            return "$0 (sin recarga)"
+        elif m < 90:
+            return "$50"
+        elif m < 125:
+            return "$100"
+        elif m < 175:
+            return "$150"
+        elif m < 225:
+            return "$200"
+        else:
+            return "$Otro"
+
+    monto_buckets: dict = defaultdict(int)
+    for row in chips_monto_rows:
+        label = _bucket_monto(float(row.monto_recarga or 0))
+        monto_buckets[label] += int(row.cnt or 0)
+
+    por_monto_recarga = [
+        schemas.MontoRecargaStatItem(monto=label, cantidad=cnt)
+        for label, cnt in sorted(
+            monto_buckets.items(),
+            key=lambda x: _BUCKET_ORDER.index(x[0]) if x[0] in _BUCKET_ORDER else 99,
+        )
+        if cnt > 0
+    ]
 
     # ── Planes ────────────────────────────────────────────────────────────────
     planes_tramite_rows = (
@@ -455,7 +492,7 @@ def estadisticas_mes(
         )
         .select_from(models.Venta)
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
-        .filter(*f_ventas)
+        .filter(*f_ventas_acc)
         .group_by(models.Modulo.nombre)
         .all()
     )
@@ -466,12 +503,12 @@ def estadisticas_mes(
     tel_mod = (
         db.query(
             models.Modulo.nombre.label("modulo"),
-            func.sum(models.VentaTelefono.precio_venta).label("monto"),
-            func.count(models.VentaTelefono.id).label("cnt"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
+            func.count(models.Venta.id).label("cnt"),
         )
-        .select_from(models.VentaTelefono)
-        .join(models.Modulo, models.VentaTelefono.modulo_id == models.Modulo.id)
-        .filter(*f_tel)
+        .select_from(models.Venta)
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_tel)
         .group_by(models.Modulo.nombre)
         .all()
     )
@@ -509,10 +546,8 @@ def estadisticas_mes(
         reverse=True,
     )
 
-    # ── Ventas por día ────────────────────────────────────────────────────────
-    dia_total: dict = defaultdict(float)
-
-    acc_dia = (
+    # ── Ventas por día (todas las ventas = accesorios + teléfonos) ────────────
+    dia_rows = (
         db.query(
             extract("day", models.Venta.fecha).label("dia"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
@@ -522,21 +557,7 @@ def estadisticas_mes(
         .group_by(extract("day", models.Venta.fecha))
         .all()
     )
-    for row in acc_dia:
-        dia_total[int(row.dia)] += float(row.total or 0)
-
-    tel_dia = (
-        db.query(
-            extract("day", models.VentaTelefono.fecha).label("dia"),
-            func.sum(models.VentaTelefono.precio_venta).label("total"),
-        )
-        .join(models.Modulo, models.VentaTelefono.modulo_id == models.Modulo.id)
-        .filter(*f_tel)
-        .group_by(extract("day", models.VentaTelefono.fecha))
-        .all()
-    )
-    for row in tel_dia:
-        dia_total[int(row.dia)] += float(row.total or 0)
+    dia_total: dict = {int(r.dia): float(r.total or 0) for r in dia_rows}
 
     ventas_por_dia = [
         schemas.VentaDiaItem(dia=d, total=round(dia_total.get(d, 0.0), 2))
@@ -548,7 +569,7 @@ def estadisticas_mes(
         mes=mes_str,
         periodo_texto=periodo_texto,
         resumen_general=schemas.ResumenGeneralStats(
-            total_ventas_mxn=round(monto_acc + monto_telefonos, 2),
+            total_ventas_mxn=total_ventas_mxn,
             total_telefonos=total_telefonos,
             total_chips=total_chips,
             total_accesorios=total_unidades_acc,
@@ -590,13 +611,7 @@ def estadisticas_mes(
                 )
                 for r in chips_tipo_rows
             ],
-            por_monto_recarga=[
-                schemas.MontoRecargaStatItem(
-                    monto=float(r.monto_recarga or 0),
-                    cantidad=int(r.cnt or 0),
-                )
-                for r in chips_monto_rows
-            ],
+            por_monto_recarga=por_monto_recarga,
         ),
         planes=schemas.PlanesStats(
             total=total_planes,

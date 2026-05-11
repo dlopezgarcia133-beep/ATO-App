@@ -770,7 +770,7 @@ class TipoChipStatItem(BaseModel):
     cantidad: int
 
 class MontoRecargaStatItem(BaseModel):
-    monto: float
+    monto: str
     cantidad: int
 
 class TopProductoItem(BaseModel):
