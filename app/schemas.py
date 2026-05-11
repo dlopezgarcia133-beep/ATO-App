@@ -537,9 +537,28 @@ class CorteDiaResponse(BaseModel):
     salida_efectivo: float
     nota_salida: Optional[str]
     enviado: bool
+    revisado_direccion: bool = False
+    revisado_por: Optional[str] = None
+    revisado_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class CortePendienteItem(BaseModel):
+    id: int
+    modulo_id: int
+    modulo_nombre: str
+    fecha: date
+    total_efectivo: float
+    total_tarjeta: float
+    total_general: float
+
+
+class CorteRevisarResponse(BaseModel):
+    revisado_direccion: bool
+    revisado_por: str
+    revisado_at: datetime
 
 class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None

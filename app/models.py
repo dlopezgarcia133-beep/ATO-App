@@ -294,6 +294,11 @@ class CorteDia(Base):
     nota_salida = Column(String, nullable=True)
     enviado = Column(Boolean, default=False)
 
+    # 🔹 Revisión dirección
+    revisado_direccion = Column(Boolean, default=False, nullable=False)
+    revisado_por = Column(String, nullable=True)
+    revisado_at = Column(DateTime(timezone=True), nullable=True)
+
     modulo = relationship("Modulo", back_populates="cortes")
     
     
