@@ -826,6 +826,14 @@ class PlanesStats(BaseModel):
     por_tramite: List[TramiteStatItem]
     por_plan: List[PlanStatItem]
 
+class TelefonoModuloItem(BaseModel):
+    modulo: str
+    total_telefonos: int
+    monto_total: float
+    contado: int
+    payjoy: int
+    paguitos: int
+
 class EstadisticasMesResponse(BaseModel):
     mes: str
     periodo_texto: str
@@ -836,3 +844,4 @@ class EstadisticasMesResponse(BaseModel):
     planes: PlanesStats
     por_modulo: List[ModuloEstadItem]
     ventas_por_dia: List[VentaDiaItem]
+    telefonos_por_modulo: List[TelefonoModuloItem]

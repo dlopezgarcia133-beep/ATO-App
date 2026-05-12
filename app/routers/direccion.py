@@ -415,12 +415,12 @@ def estadisticas_mes(
 
     total_chips = sum(int(r.cnt or 0) for r in chips_tipo_rows)
 
-    # Normalizar montos de chips en buckets limpios
-    _BUCKET_ORDER = ["$0 (sin recarga)", "$50", "$100", "$150", "$200", "$Otro"]
+    # Normalizar montos de chips en buckets (chips < $50 se omiten)
+    _BUCKET_ORDER = ["$50", "$100", "$150", "$200", "$Otro"]
 
-    def _bucket_monto(m: float) -> str:
+    def _bucket_monto(m: float) -> Optional[str]:
         if m < 50:
-            return "$0 (sin recarga)"
+            return None
         elif m < 90:
             return "$50"
         elif m < 125:
@@ -435,7 +435,8 @@ def estadisticas_mes(
     monto_buckets: dict = defaultdict(int)
     for row in chips_monto_rows:
         label = _bucket_monto(float(row.monto_recarga or 0))
-        monto_buckets[label] += int(row.cnt or 0)
+        if label is not None:
+            monto_buckets[label] += int(row.cnt or 0)
 
     por_monto_recarga = [
         schemas.MontoRecargaStatItem(monto=label, cantidad=cnt)
@@ -564,6 +565,61 @@ def estadisticas_mes(
         for d in range(1, ultimo_dia + 1)
     ]
 
+    # ── Teléfonos por módulo (venta_telefonos, agrupado por módulo y tipo) ────
+    f_vt = [
+        models.VentaTelefono.fecha >= fecha_inicio,
+        models.VentaTelefono.fecha <= fecha_fin,
+        models.VentaTelefono.cancelada.isnot(True),
+        ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+    ]
+
+    tel_mod_tipo_rows = (
+        db.query(
+            models.Modulo.nombre.label("modulo"),
+            models.VentaTelefono.tipo,
+            func.count(models.VentaTelefono.id).label("cnt"),
+            func.sum(models.VentaTelefono.precio_venta).label("monto"),
+        )
+        .select_from(models.VentaTelefono)
+        .join(models.Modulo, models.VentaTelefono.modulo_id == models.Modulo.id)
+        .filter(*f_vt)
+        .group_by(models.Modulo.nombre, models.VentaTelefono.tipo)
+        .all()
+    )
+
+    tel_mod_map: dict = defaultdict(
+        lambda: {"total": 0, "monto": 0.0, "contado": 0, "payjoy": 0, "paguitos": 0}
+    )
+    for row in tel_mod_tipo_rows:
+        t = (row.tipo or "").strip().lower()
+        cnt = int(row.cnt or 0)
+        m = float(row.monto or 0)
+        tel_mod_map[row.modulo]["total"] += cnt
+        tel_mod_map[row.modulo]["monto"] += m
+        if t in ("pajoy", "payjoy"):
+            tel_mod_map[row.modulo]["payjoy"] += cnt
+        elif t == "paguitos":
+            tel_mod_map[row.modulo]["paguitos"] += cnt
+        else:
+            tel_mod_map[row.modulo]["contado"] += cnt
+
+    telefonos_por_modulo = sorted(
+        [
+            schemas.TelefonoModuloItem(
+                modulo=mod,
+                total_telefonos=vals["total"],
+                monto_total=round(vals["monto"], 2),
+                contado=vals["contado"],
+                payjoy=vals["payjoy"],
+                paguitos=vals["paguitos"],
+            )
+            for mod, vals in tel_mod_map.items()
+            if vals["total"] > 0
+        ],
+        key=lambda x: x.total_telefonos,
+        reverse=True,
+    )
+
     # ── Respuesta ─────────────────────────────────────────────────────────────
     return schemas.EstadisticasMesResponse(
         mes=mes_str,
@@ -632,4 +688,5 @@ def estadisticas_mes(
         ),
         por_modulo=por_modulo,
         ventas_por_dia=ventas_por_dia,
+        telefonos_por_modulo=telefonos_por_modulo,
     )
