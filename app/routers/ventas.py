@@ -716,21 +716,40 @@ def obtener_ventas_chips(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    if current_user.rol == "admin":
+    print(f"[chips] usuario={current_user.username} rol={current_user.rol!r} modulo_id={current_user.modulo_id}")
+    if current_user.is_admin:
         query = db.query(models.VentaChip)
         if empleado_id is not None:
             query = query.filter(models.VentaChip.empleado_id == empleado_id)
-        return query.all()
-    elif current_user.rol == "encargado" and modulo_nombre:
-        return (
-            db.query(models.VentaChip)
-            .join(models.Usuario, models.VentaChip.empleado_id == models.Usuario.id)
+        resultado = query.all()
+        print(f"[chips] admin -> {len(resultado)} chips")
+        return resultado
+    elif str(current_user.rol).replace("RolEnum.", "") == "encargado" or current_user.rol == "encargado":
+        encargado_modulo = db.query(models.Modulo).filter(models.Modulo.id == current_user.modulo_id).first()
+        if not encargado_modulo:
+            print(f"[chips] encargado sin modulo -> devolviendo []")
+            return []
+        nombre_modulo = encargado_modulo.nombre
+        print(f"[chips] encargado modulo_nombre={nombre_modulo!r}")
+        empleados_modulo = (
+            db.query(models.Usuario.id)
             .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
-            .filter(models.Modulo.nombre == modulo_nombre)
+            .filter(models.Modulo.nombre == nombre_modulo)
             .all()
         )
+        ids_empleados = [e.id for e in empleados_modulo]
+        print(f"[chips] empleados en modulo {nombre_modulo!r}: {ids_empleados}")
+        resultado = (
+            db.query(models.VentaChip)
+            .filter(models.VentaChip.empleado_id.in_(ids_empleados))
+            .all()
+        )
+        print(f"[chips] encargado -> {len(resultado)} chips")
+        return resultado
     else:
-        return db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
+        resultado = db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
+        print(f"[chips] asesor -> {len(resultado)} chips")
+        return resultado
 
 
 @router.put("/venta_chips/{id}/validar", response_model=schemas.VentaChipResponse)
@@ -745,6 +764,14 @@ def validar_chip(
 
     if chip.validado:
         raise HTTPException(status_code=400, detail="Ya ha sido validado")
+
+    if chip.tipo_chip == "Tarjetas PayJoy":
+        chip.validado = True
+        chip.comision_pagada = True
+        chip.comision = 50.00
+        db.commit()
+        db.refresh(chip)
+        return chip
 
     tipo = chip.tipo_chip
     monto = int(chip.monto_recarga)
@@ -791,8 +818,12 @@ def validar_chip(
             ],
             
             "Porta Otras cadenas": [
-                ((0, 500), 50), 
-            ]            
+                ((0, 500), 50),
+            ],
+
+            "Tarjetas PayJoy": [
+                ((0, 9999), 50),
+            ],
 
         }
 
@@ -909,8 +940,12 @@ def validar_chip_incubadora(
             ((0, 500), 25),
         ],
         "Porta Otras cadenas": [
-            ((0, 500), 50), 
-        ]
+            ((0, 500), 50),
+        ],
+
+        "Tarjetas PayJoy": [
+            ((0, 9999), 50),
+        ],
     }
 
     # 🔥 CASO ESPECIAL: ACTIVACION
@@ -1226,15 +1261,18 @@ def crear_corte(
 
 @router.get("/cortes/hoy", response_model=Optional[schemas.CorteDiaResponse])
 def obtener_corte_hoy(
-    fecha: Optional[date] = Query(None),
+    fecha: Optional[date] = Query(default=None),
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    target = fecha or date.today()
-    return db.query(models.CorteDia).filter(
+    target = fecha if fecha is not None else date.today()
+    print(f"[cortes/hoy] fecha_param={fecha!r} target={target!r} modulo_id={user.modulo_id}")
+    resultado = db.query(models.CorteDia).filter(
         models.CorteDia.fecha == target,
         models.CorteDia.modulo_id == user.modulo_id
     ).first()
+    print(f"[cortes/hoy] resultado_fecha={getattr(resultado, 'fecha', None)!r}")
+    return resultado
 
 
 @router.patch("/cortes/hoy/recargas", response_model=schemas.CorteDiaResponse)
@@ -1256,6 +1294,8 @@ def guardar_recargas(
     corte.adicional_recargas = data.adicional_recargas
     corte.adicional_transporte = data.adicional_transporte
     corte.adicional_otros = data.adicional_otros
+    corte.adicional_mayoreo = data.adicional_mayoreo
+    corte.adicional_mayoreo_para = data.adicional_mayoreo_para
     db.commit()
     db.refresh(corte)
     return corte
