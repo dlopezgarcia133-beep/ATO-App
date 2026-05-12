@@ -799,6 +799,7 @@ class ModuloEstadItem(BaseModel):
     promedio_historico: float
     meta_proporcional: float
     productividad_pct: Optional[float] = None
+    meses_considerados: int = 0
 
 class VentaDiaItem(BaseModel):
     dia: int

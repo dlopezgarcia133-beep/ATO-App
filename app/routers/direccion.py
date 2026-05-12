@@ -598,6 +598,7 @@ def estadisticas_mes(
             extract("year", models.Venta.fecha).label("yr"),
             extract("month", models.Venta.fecha).label("mo"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
+            func.count(models.Venta.id).label("cnt"),
         )
         .select_from(models.Venta)
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
@@ -615,24 +616,25 @@ def estadisticas_mes(
         .all()
     )
 
+    # Solo incluir meses con >= 100 ventas (meses "operativos")
     hist_map: dict = defaultdict(dict)
     for row in hist_rows:
         key = (int(row.yr), int(row.mo))
-        if key in hist_months_set:
+        if key in hist_months_set and int(row.cnt or 0) >= 100:
             hist_map[row.modulo][key] = float(row.total or 0)
 
     prod_map: dict = {}
     for mod, vals in modulo_map.items():
         meses_datos = hist_map.get(mod, {})
-        if not meses_datos:
-            prod_map[mod] = {"promedio": 0.0, "meta": 0.0, "pct": None}
+        n = len(meses_datos)
+        if n == 0:
+            prod_map[mod] = {"promedio": 0.0, "meta": 0.0, "pct": None, "meses_considerados": 0}
         else:
             total_hist = sum(meses_datos.values())
-            n = len(meses_datos)
             promedio = total_hist / n
             meta = promedio * (dias_transcurridos / ultimo_dia)
             pct = round((vals["total_mxn"] / meta) * 100, 1) if meta > 0 else None
-            prod_map[mod] = {"promedio": round(promedio, 2), "meta": round(meta, 2), "pct": pct}
+            prod_map[mod] = {"promedio": round(promedio, 2), "meta": round(meta, 2), "pct": pct, "meses_considerados": n}
 
     por_modulo = sorted(
         [
@@ -649,6 +651,7 @@ def estadisticas_mes(
                 promedio_historico=prod_map.get(mod, {}).get("promedio", 0.0),
                 meta_proporcional=prod_map.get(mod, {}).get("meta", 0.0),
                 productividad_pct=prod_map.get(mod, {}).get("pct"),
+                meses_considerados=prod_map.get(mod, {}).get("meses_considerados", 0),
             )
             for mod, vals in modulo_map.items()
         ],
