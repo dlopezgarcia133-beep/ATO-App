@@ -271,14 +271,15 @@ def estadisticas_mes(
 ):
     _verificar_rol(user)
 
+    ahora_mx = datetime.now(ZONA)
+
     if mes:
         try:
             año, m = int(mes[:4]), int(mes[5:7])
         except Exception:
             raise HTTPException(400, "Formato inválido. Use YYYY-MM")
     else:
-        ahora = datetime.now(ZONA)
-        año, m = ahora.year, ahora.month
+        año, m = ahora_mx.year, ahora_mx.month
 
     fecha_inicio = date(año, m, 1)
     _, ultimo_dia = calendar.monthrange(año, m)
@@ -290,8 +291,6 @@ def estadisticas_mes(
     mes_str = f"{año:04d}-{m:02d}"
 
     # ── Filtros base ──────────────────────────────────────────────────────────
-    # Teléfonos Y accesorios están TODOS en la tabla 'ventas'.
-    # Se distinguen por tipo_producto = 'telefono' (case-insensitive).
     f_ventas = [
         models.Venta.fecha >= fecha_inicio,
         models.Venta.fecha <= fecha_fin,
@@ -309,7 +308,6 @@ def estadisticas_mes(
     ]
 
     # ── Teléfonos (tabla ventas, tipo_producto = 'telefono') ──────────────────
-    # Clasificación por tipo_venta: Contado / Pajoy (o Payjoy) / Paguitos
     tel_tipo_rows = (
         db.query(
             models.Venta.tipo_venta,
@@ -349,7 +347,7 @@ def estadisticas_mes(
         + paguitos["cantidad"] + sin_clasificar["cantidad"]
     )
 
-    # ── Accesorios (tabla ventas, excluyendo tipo_producto = 'telefono') ──────
+    # ── Accesorios ────────────────────────────────────────────────────────────
     acc_agg = (
         db.query(
             func.sum(models.Venta.cantidad).label("total_unidades"),
@@ -376,7 +374,6 @@ def estadisticas_mes(
         .all()
     )
 
-    # Total MXN = todas las ventas (teléfonos + accesorios)
     total_mxn_row = (
         db.query(
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
@@ -415,19 +412,18 @@ def estadisticas_mes(
 
     total_chips = sum(int(r.cnt or 0) for r in chips_tipo_rows)
 
-    # Normalizar montos de chips en buckets (chips < $50 se omiten)
     _BUCKET_ORDER = ["$50", "$100", "$150", "$200", "$Otro"]
 
-    def _bucket_monto(m: float) -> Optional[str]:
-        if m < 50:
+    def _bucket_monto(mv: float) -> Optional[str]:
+        if mv < 50:
             return None
-        elif m < 90:
+        elif mv < 90:
             return "$50"
-        elif m < 125:
+        elif mv < 125:
             return "$100"
-        elif m < 175:
+        elif mv < 175:
             return "$150"
-        elif m < 225:
+        elif mv < 225:
             return "$200"
         else:
             return "$Otro"
@@ -483,7 +479,16 @@ def estadisticas_mes(
     total_planes = sum(int(r.cnt or 0) for r in planes_tramite_rows)
 
     # ── Por módulo ────────────────────────────────────────────────────────────
-    modulo_map: dict = defaultdict(lambda: {"total_mxn": 0.0, "telefonos": 0, "chips": 0, "accesorios": 0})
+    modulo_map: dict = defaultdict(lambda: {
+        "total_mxn": 0.0,
+        "telefonos_contado": 0,
+        "telefonos_payjoy": 0,
+        "telefonos_paguitos": 0,
+        "telefonos_total": 0,
+        "chips": 0,
+        "accesorios": 0,
+        "planes": 0,
+    })
 
     acc_mod = (
         db.query(
@@ -501,21 +506,41 @@ def estadisticas_mes(
         modulo_map[row.modulo]["total_mxn"] += float(row.monto or 0)
         modulo_map[row.modulo]["accesorios"] += int(row.unidades or 0)
 
-    tel_mod = (
+    # Teléfonos por módulo+tipo_venta — reutilizado para modulo_map y telefonos_por_modulo
+    tel_mod_desglose = (
         db.query(
             models.Modulo.nombre.label("modulo"),
-            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
+            models.Venta.tipo_venta,
             func.count(models.Venta.id).label("cnt"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
         )
         .select_from(models.Venta)
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
         .filter(*f_ventas_tel)
-        .group_by(models.Modulo.nombre)
+        .group_by(models.Modulo.nombre, models.Venta.tipo_venta)
         .all()
     )
-    for row in tel_mod:
-        modulo_map[row.modulo]["total_mxn"] += float(row.monto or 0)
-        modulo_map[row.modulo]["telefonos"] += int(row.cnt or 0)
+
+    tel_mod_map: dict = defaultdict(
+        lambda: {"total": 0, "monto": 0.0, "contado": 0, "payjoy": 0, "paguitos": 0}
+    )
+    for row in tel_mod_desglose:
+        tv = (row.tipo_venta or "").strip().lower()
+        cnt = int(row.cnt or 0)
+        mv = float(row.monto or 0)
+        modulo_map[row.modulo]["total_mxn"] += mv
+        modulo_map[row.modulo]["telefonos_total"] += cnt
+        tel_mod_map[row.modulo]["total"] += cnt
+        tel_mod_map[row.modulo]["monto"] += mv
+        if tv in ("pajoy", "payjoy"):
+            modulo_map[row.modulo]["telefonos_payjoy"] += cnt
+            tel_mod_map[row.modulo]["payjoy"] += cnt
+        elif tv == "paguitos":
+            modulo_map[row.modulo]["telefonos_paguitos"] += cnt
+            tel_mod_map[row.modulo]["paguitos"] += cnt
+        else:
+            modulo_map[row.modulo]["telefonos_contado"] += cnt
+            tel_mod_map[row.modulo]["contado"] += cnt
 
     chips_mod = (
         db.query(
@@ -532,14 +557,98 @@ def estadisticas_mes(
     for row in chips_mod:
         modulo_map[row.modulo]["chips"] += int(row.cnt or 0)
 
+    planes_mod = (
+        db.query(
+            models.Modulo.nombre.label("modulo"),
+            func.count(models.Plan.id).label("cnt"),
+        )
+        .join(models.Modulo, models.Plan.modulo_id == models.Modulo.id)
+        .filter(
+            models.Plan.fecha >= dt_inicio,
+            models.Plan.fecha <= dt_fin,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+        )
+        .group_by(models.Modulo.nombre)
+        .all()
+    )
+    for row in planes_mod:
+        modulo_map[row.modulo]["planes"] += int(row.cnt or 0)
+
+    # ── Productividad: promedio histórico últimos 12 meses ────────────────────
+    is_mes_actual = (año == ahora_mx.year and m == ahora_mx.month)
+    dias_transcurridos = ahora_mx.day if is_mes_actual else ultimo_dia
+
+    y_h, m_h = año, m
+    hist_months: list = []
+    for _ in range(12):
+        m_h -= 1
+        if m_h == 0:
+            m_h = 12
+            y_h -= 1
+        hist_months.append((y_h, m_h))
+
+    hist_oldest = date(hist_months[-1][0], hist_months[-1][1], 1)
+    _, hist_newest_ud = calendar.monthrange(hist_months[0][0], hist_months[0][1])
+    hist_newest_end = date(hist_months[0][0], hist_months[0][1], hist_newest_ud)
+    hist_months_set = set(hist_months)
+
+    hist_rows = (
+        db.query(
+            models.Modulo.nombre.label("modulo"),
+            extract("year", models.Venta.fecha).label("yr"),
+            extract("month", models.Venta.fecha).label("mo"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
+        )
+        .select_from(models.Venta)
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(
+            models.Venta.fecha >= hist_oldest,
+            models.Venta.fecha <= hist_newest_end,
+            models.Venta.cancelada.isnot(True),
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+        )
+        .group_by(
+            models.Modulo.nombre,
+            extract("year", models.Venta.fecha),
+            extract("month", models.Venta.fecha),
+        )
+        .all()
+    )
+
+    hist_map: dict = defaultdict(dict)
+    for row in hist_rows:
+        key = (int(row.yr), int(row.mo))
+        if key in hist_months_set:
+            hist_map[row.modulo][key] = float(row.total or 0)
+
+    prod_map: dict = {}
+    for mod, vals in modulo_map.items():
+        meses_datos = hist_map.get(mod, {})
+        if not meses_datos:
+            prod_map[mod] = {"promedio": 0.0, "meta": 0.0, "pct": None}
+        else:
+            total_hist = sum(meses_datos.values())
+            n = len(meses_datos)
+            promedio = total_hist / n
+            meta = promedio * (dias_transcurridos / ultimo_dia)
+            pct = round((vals["total_mxn"] / meta) * 100, 1) if meta > 0 else None
+            prod_map[mod] = {"promedio": round(promedio, 2), "meta": round(meta, 2), "pct": pct}
+
     por_modulo = sorted(
         [
             schemas.ModuloEstadItem(
                 modulo=mod,
                 total_mxn=round(vals["total_mxn"], 2),
-                telefonos=vals["telefonos"],
+                telefonos_contado=vals["telefonos_contado"],
+                telefonos_payjoy=vals["telefonos_payjoy"],
+                telefonos_paguitos=vals["telefonos_paguitos"],
+                telefonos_total=vals["telefonos_total"],
                 chips=vals["chips"],
                 accesorios=vals["accesorios"],
+                planes=vals["planes"],
+                promedio_historico=prod_map.get(mod, {}).get("promedio", 0.0),
+                meta_proporcional=prod_map.get(mod, {}).get("meta", 0.0),
+                productividad_pct=prod_map.get(mod, {}).get("pct"),
             )
             for mod, vals in modulo_map.items()
         ],
@@ -547,7 +656,7 @@ def estadisticas_mes(
         reverse=True,
     )
 
-    # ── Ventas por día (todas las ventas = accesorios + teléfonos) ────────────
+    # ── Ventas por día ────────────────────────────────────────────────────────
     dia_rows = (
         db.query(
             extract("day", models.Venta.fecha).label("dia"),
@@ -565,44 +674,7 @@ def estadisticas_mes(
         for d in range(1, ultimo_dia + 1)
     ]
 
-    # ── Teléfonos por módulo (venta_telefonos, agrupado por módulo y tipo) ────
-    f_vt = [
-        models.VentaTelefono.fecha >= fecha_inicio,
-        models.VentaTelefono.fecha <= fecha_fin,
-        models.VentaTelefono.cancelada.isnot(True),
-        ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
-    ]
-
-    tel_mod_tipo_rows = (
-        db.query(
-            models.Modulo.nombre.label("modulo"),
-            models.VentaTelefono.tipo,
-            func.count(models.VentaTelefono.id).label("cnt"),
-            func.sum(models.VentaTelefono.precio_venta).label("monto"),
-        )
-        .select_from(models.VentaTelefono)
-        .join(models.Modulo, models.VentaTelefono.modulo_id == models.Modulo.id)
-        .filter(*f_vt)
-        .group_by(models.Modulo.nombre, models.VentaTelefono.tipo)
-        .all()
-    )
-
-    tel_mod_map: dict = defaultdict(
-        lambda: {"total": 0, "monto": 0.0, "contado": 0, "payjoy": 0, "paguitos": 0}
-    )
-    for row in tel_mod_tipo_rows:
-        t = (row.tipo or "").strip().lower()
-        cnt = int(row.cnt or 0)
-        m = float(row.monto or 0)
-        tel_mod_map[row.modulo]["total"] += cnt
-        tel_mod_map[row.modulo]["monto"] += m
-        if t in ("pajoy", "payjoy"):
-            tel_mod_map[row.modulo]["payjoy"] += cnt
-        elif t == "paguitos":
-            tel_mod_map[row.modulo]["paguitos"] += cnt
-        else:
-            tel_mod_map[row.modulo]["contado"] += cnt
-
+    # ── Teléfonos por módulo (from ventas table, built from tel_mod_desglose) ─
     telefonos_por_modulo = sorted(
         [
             schemas.TelefonoModuloItem(

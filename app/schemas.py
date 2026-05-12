@@ -789,9 +789,16 @@ class PlanStatItem(BaseModel):
 class ModuloEstadItem(BaseModel):
     modulo: str
     total_mxn: float
-    telefonos: int
+    telefonos_contado: int
+    telefonos_payjoy: int
+    telefonos_paguitos: int
+    telefonos_total: int
     chips: int
     accesorios: int
+    planes: int
+    promedio_historico: float
+    meta_proporcional: float
+    productividad_pct: Optional[float] = None
 
 class VentaDiaItem(BaseModel):
     dia: int
