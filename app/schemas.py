@@ -853,3 +853,48 @@ class EstadisticasMesResponse(BaseModel):
     por_modulo: List[ModuloEstadItem]
     ventas_por_dia: List[VentaDiaItem]
     telefonos_por_modulo: List[TelefonoModuloItem]
+
+
+# ── Tiempo Real ───────────────────────────────────────────────────────────────
+
+class TiempoRealResumen(BaseModel):
+    total_ventas_mxn: float
+    total_telefonos: int
+    total_chips: int
+    total_accesorios: int
+
+class TelefonoHoyItem(BaseModel):
+    hora: str
+    modulo: str
+    asesor: str
+    producto: str
+    tipo_venta: str
+    precio: float
+
+class ModuloTiempoRealItem(BaseModel):
+    modulo: str
+    total_mxn: float
+    telefonos_contado: int
+    telefonos_payjoy: int
+    telefonos_paguitos: int
+    telefonos_total: int
+    chips: int
+    accesorios: int
+    promedio_diario_historico: float
+    meta_proporcional: float
+    productividad_pct: Optional[float] = None
+    dias_considerados: int = 0
+
+class TiempoRealResponse(BaseModel):
+    fecha: str
+    fecha_texto: str
+    hora_actual: str
+    horas_transcurridas: float
+    horas_totales: int
+    porcentaje_dia: float
+    resumen_general: TiempoRealResumen
+    telefonos: TelefonosStats
+    chips: ChipsStats
+    accesorios: AccesoriosStats
+    lista_telefonos_hoy: List[TelefonoHoyItem]
+    por_modulo: List[ModuloTiempoRealItem]
