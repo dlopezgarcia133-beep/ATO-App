@@ -631,6 +631,12 @@ def crear_venta_chip(
         hora=fecha_actual.time(),
     )
 
+    # ── Auto-validar Tarjetas PayJoy (comisión fija, sin necesidad de validación admin)
+    if nueva_venta.tipo_chip == "Tarjetas PayJoy":
+        nueva_venta.comision = 50.00
+        nueva_venta.validado = True
+        nueva_venta.comision_pagada = True
+
     db.add(nueva_venta)
     db.commit()
     db.refresh(nueva_venta)
