@@ -120,6 +120,7 @@ class PromotorConUbicacion(BaseModel):
         from_attributes = True
 
 
+
 class RolEnum(str, Enum):
     admin = "admin"
     encargado = "encargado"

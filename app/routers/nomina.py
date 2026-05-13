@@ -1,52 +1,18 @@
-import os
-import httpx
 from datetime import date, timedelta
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import NominaEmpleado, NominaHistorial, NominaPeriodo, Venta, VentaChip
+from app.models import NominaEmpleado, NominaHistorial, NominaPeriodo, Venta
 from app.schemas import NominaEmpleadoResponse, NominaEmpleadoUpdate, NominaHistorialCreate, NominaHistorialResponse, NominaPeriodoCreate, NominaPeriodoFechasUpdate, NominaPeriodoResponse
 from app.models import Usuario
 from app.config import get_current_user
-from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado, obtener_desglose_comisiones_por_empleado
+from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
 from datetime import datetime, timezone
 import openpyxl
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from io import BytesIO
-
-
-def _supabase_env():
-    url = os.getenv("SUPABASE_URL", "").rstrip("/")
-    key = os.getenv("SUPABASE_KEY", "")
-    return (url, key) if url and key else (None, None)
-
-
-def _supabase_fetch_comisiones(numeros: list[str]) -> dict[str, float]:
-    url, key = _supabase_env()
-    if not url:
-        return None  # señal: no configurado
-
-    headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-    }
-    comision_map: dict[str, float] = {}
-    BATCH = 400
-    with httpx.Client(timeout=30) as client:
-        for i in range(0, len(numeros), BATCH):
-            lote = numeros[i : i + BATCH]
-            in_filter = "(" + ",".join(lote) + ")"
-            resp = client.get(
-                f"{url}/rest/v1/comisiones_telcel",
-                headers=headers,
-                params={"select": "numero,comision_telcel", "numero": f"in.{in_filter}"},
-            )
-            resp.raise_for_status()
-            for row in resp.json():
-                comision_map[str(row["numero"]).strip()] = float(row["comision_telcel"] or 0)
-    return comision_map
 
 
 
@@ -70,7 +36,7 @@ def obtener_periodo_activo(
 
 
 def verificar_admin(user):
-    if user.rol != "admin" and not user.is_admin:
+    if user.rol != "admin":
         raise HTTPException(
             status_code=403,
             detail="No autorizado"
@@ -158,10 +124,18 @@ def obtener_resumen_nomina(
     fin_c_calc = fin_c or periodo.fin_c
 
 
-    # 🔹 Comisiones con desglose por categoría
-    desglose_a = obtener_desglose_comisiones_por_empleado(db=db, inicio=inicio_a_calc, fin=fin_a_calc)
-    desglose_c = obtener_desglose_comisiones_por_empleado(db=db, inicio=inicio_c_calc, fin=fin_c_calc)
+    # 🔹 Comisiones
+    comisiones_a = obtener_comisiones_por_empleado_optimizado(
+    db=db,
+    inicio=inicio_a_calc,
+    fin=fin_a_calc
+    )
 
+    comisiones_c = obtener_comisiones_por_empleado_optimizado(
+        db=db,
+        inicio=inicio_c_calc,
+        fin=fin_c_calc
+    )
     resultado = []
 
     for emp in empleados:
@@ -172,10 +146,11 @@ def obtener_resumen_nomina(
         if grupo not in ("A", "C"):
             continue
 
-        desglose = (desglose_a if grupo == "A" else desglose_c).get(
-            emp.id, {"accesorios": 0.0, "telefonos": 0.0, "chips": 0.0, "total": 0.0}
-        )
-        total_comisiones = desglose["total"]
+        if grupo == "A":
+            total_comisiones = comisiones_a.get(emp.id, 0)
+        else:
+            total_comisiones = comisiones_c.get(emp.id, 0)
+
 
         nomina = nomina_map.get(emp.id)
 
@@ -184,8 +159,10 @@ def obtener_resumen_nomina(
         pago_hora_extra = nomina.pago_horas_extra if nomina else 0
         precio_hora_extra = nomina.precio_hora_extra if nomina else 0
 
+
         sanciones = (nomina.sanciones or 0) if nomina else 0
         comisiones_pendientes = (nomina.comisiones_pendientes or 0) if nomina else 0
+
 
         total = sueldo_base + total_comisiones + pago_hora_extra + comisiones_pendientes - sanciones
 
@@ -194,14 +171,11 @@ def obtener_resumen_nomina(
             "username": emp.username,
             "grupo": grupo,
             "comisiones": total_comisiones,
-            "comisiones_accesorios": desglose["accesorios"],
-            "comisiones_telefonos": desglose["telefonos"],
-            "comisiones_chips": desglose["chips"],
             "total_comisiones": total_comisiones,
             "sueldo_base": sueldo_base,
             "horas_extra": horas_extra,
             "pago_hora_extra": pago_hora_extra,
-            "precio_hora_extra": precio_hora_extra,
+            "precio_hora_extra": precio_hora_extra, 
             "sanciones": sanciones,
             "comisiones_pendientes": comisiones_pendientes,
             "total_pagar": total
@@ -615,7 +589,6 @@ def guardar_historial_nomina(
             registro.pago_horas_extra = emp.pago_horas_extra
             registro.sanciones = emp.sanciones
             registro.comisiones_pendientes = emp.comisiones_pendientes
-            registro.horas_faltantes = emp.horas_faltantes
             registro.total_pagar = emp.total_pagar
             registro.guardado_at = datetime.now(timezone.utc)
         else:
@@ -637,62 +610,12 @@ def guardar_historial_nomina(
                 pago_horas_extra=emp.pago_horas_extra,
                 sanciones=emp.sanciones,
                 comisiones_pendientes=emp.comisiones_pendientes,
-                horas_faltantes=emp.horas_faltantes,
                 total_pagar=emp.total_pagar,
             )
             db.add(registro)
 
     db.commit()
     return {"ok": True, "guardados": len(data.empleados)}
-
-
-@router.post("/corregir_comisiones_historial")
-def corregir_comisiones_historial(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    try:
-        verificar_admin(current_user)
-
-        chips = (
-            db.query(VentaChip)
-            .filter(VentaChip.validado == True, VentaChip.comision.is_(None))
-            .all()
-        )
-
-        if not chips:
-            return {"corregidos": 0, "total_sin_comision": 0}
-
-        chip_numero: dict = {}
-        for chip in chips:
-            if chip.numero_telefono:
-                partes = chip.numero_telefono.strip().split()
-                if partes:
-                    chip_numero[chip] = partes[0]
-
-        if not chip_numero:
-            return {"corregidos": 0, "total_sin_comision": len(chips)}
-
-        numeros_limpios = list(set(chip_numero.values()))
-
-        comision_map = _supabase_fetch_comisiones(numeros_limpios)
-        if comision_map is None:
-            raise HTTPException(status_code=503, detail="Supabase no configurado")
-
-        corregidos = 0
-        for chip, numero_limpio in chip_numero.items():
-            monto = comision_map.get(numero_limpio)
-            if monto is not None:
-                chip.comision = monto
-                corregidos += 1
-
-        db.commit()
-        return {"corregidos": corregidos, "total_sin_comision": len(chips)}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno: {type(e).__name__}: {e}")
 
 
 @router.get("/mi-historial", response_model=Optional[NominaHistorialResponse])

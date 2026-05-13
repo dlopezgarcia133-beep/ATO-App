@@ -57,3 +57,7 @@ app.include_router(nomina.router, prefix="/nomina", tags=["Nomina"])
 app.include_router(kardex.router, prefix="/kardex", tags=["Kardex"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(direccion.router, prefix="/direccion", tags=["Dirección"])
+
+
+
+>>>>>>> Stashed changes

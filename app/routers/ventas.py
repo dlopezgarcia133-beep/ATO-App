@@ -1225,11 +1225,13 @@ def crear_corte(
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if user.rol != "encargado":
-        raise HTTPException(status_code=403, detail="Solo los encargados pueden hacer cortes")
-    
+    if user.rol not in ("encargado", "asesor"):
+        raise HTTPException(status_code=403, detail="Solo los encargados y asesores pueden hacer cortes")
+    if user.rol == "asesor" and getattr(user.modulo, "nombre", None) == "Cadenas Comerciales":
+        raise HTTPException(status_code=403, detail="Los asesores de Cadenas Comerciales no pueden hacer cortes")
+
     if not user.modulo_id:
-        raise HTTPException(status_code=400, detail="El encargado no tiene un módulo asignado")
+        raise HTTPException(status_code=400, detail="El usuario no tiene un módulo asignado")
 
     nuevo_corte = models.CorteDia(
         fecha=date.today(),
@@ -1329,10 +1331,12 @@ def enviar_corte_hoy(
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if user.rol != "encargado":
-        raise HTTPException(status_code=403, detail="Solo los encargados pueden enviar cortes")
+    if user.rol not in ("encargado", "asesor"):
+        raise HTTPException(status_code=403, detail="Solo los encargados y asesores pueden enviar cortes")
+    if user.rol == "asesor" and getattr(user.modulo, "nombre", None) == "Cadenas Comerciales":
+        raise HTTPException(status_code=403, detail="Los asesores de Cadenas Comerciales no pueden enviar cortes")
     if not user.modulo_id:
-        raise HTTPException(status_code=400, detail="El encargado no tiene módulo asignado")
+        raise HTTPException(status_code=400, detail="El usuario no tiene módulo asignado")
 
     hoy = date.today()
     corte = db.query(models.CorteDia).filter(
