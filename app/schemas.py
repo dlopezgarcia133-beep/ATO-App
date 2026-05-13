@@ -217,11 +217,12 @@ class ProductoEnVenta(BaseModel):
     producto: str
     cantidad: int
     precio_unitario: float
-    chip_casado: Optional[str] = None 
+    chip_casado: Optional[str] = None
     tipo_producto: Optional[str] = None
     tipo_venta: Optional[str] = None
     metodo_pago: Optional[str] = None
     cancelada: Optional[bool] = False
+    skip_comision: Optional[bool] = False
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]

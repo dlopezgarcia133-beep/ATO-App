@@ -43,7 +43,7 @@ def crear_ventas(
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
             .first()
         )
-        comision_id = com.id if com else None
+        comision_id = None if item.skip_comision else (com.id if com else None)
         modulo_id = current_user.modulo_id
 
         inventario = (
@@ -433,7 +433,7 @@ def crear_ventas_multiples(
             .filter(models.Comision.activo == True)
             .first()
         )
-        comision_id = com.id if com else None
+        comision_id = None if item.skip_comision else (com.id if com else None)
         modulo_id = current_user.modulo.id
 
         inventario = (
