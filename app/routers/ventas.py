@@ -1289,13 +1289,13 @@ def guardar_recargas(
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    hoy = date.today()
+    hoy = datetime.now(zona_horaria).date()
     corte = db.query(models.CorteDia).filter(
         models.CorteDia.fecha == hoy,
         models.CorteDia.modulo_id == user.modulo_id
     ).first()
-    if corte and corte.enviado:
-        raise HTTPException(status_code=400, detail="El corte ya fue enviado y no se puede modificar")
+    if corte and corte.fecha < datetime.now(zona_horaria).date():
+        raise HTTPException(status_code=400, detail="El corte de días anteriores ya está cerrado y no se puede modificar")
     if not corte:
         corte = models.CorteDia(fecha=hoy, modulo_id=user.modulo_id)
         db.add(corte)
@@ -1315,13 +1315,13 @@ def guardar_salida(
     user: models.Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    hoy = date.today()
+    hoy = datetime.now(zona_horaria).date()
     corte = db.query(models.CorteDia).filter(
         models.CorteDia.fecha == hoy,
         models.CorteDia.modulo_id == user.modulo_id
     ).first()
-    if corte and corte.enviado:
-        raise HTTPException(status_code=400, detail="El corte ya fue enviado y no se puede modificar")
+    if corte and corte.fecha < datetime.now(zona_horaria).date():
+        raise HTTPException(status_code=400, detail="El corte de días anteriores ya está cerrado y no se puede modificar")
     if not corte:
         corte = models.CorteDia(fecha=hoy, modulo_id=user.modulo_id)
         db.add(corte)
@@ -1332,72 +1332,12 @@ def guardar_salida(
     return corte
 
 
-@router.post("/cortes/hoy/enviar", response_model=schemas.CorteDiaResponse)
-def enviar_corte_hoy(
-    user: models.Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if user.rol not in ("encargado", "asesor"):
-        raise HTTPException(status_code=403, detail="Solo los encargados y asesores pueden enviar cortes")
-    if user.rol == "asesor" and getattr(user.modulo, "nombre", None) == "Cadenas Comerciales":
-        raise HTTPException(status_code=403, detail="Los asesores de Cadenas Comerciales no pueden enviar cortes")
-    if not user.modulo_id:
-        raise HTTPException(status_code=400, detail="El usuario no tiene módulo asignado")
-
-    hoy = date.today()
-    corte = db.query(models.CorteDia).filter(
-        models.CorteDia.fecha == hoy,
-        models.CorteDia.modulo_id == user.modulo_id
-    ).first()
-    if corte and corte.enviado:
-        raise HTTPException(status_code=400, detail="El corte ya fue enviado")
-
-    ventas = db.query(models.Venta).filter(
-        func.date(models.Venta.fecha) == hoy,
-        models.Venta.modulo_id == user.modulo_id,
-        models.Venta.cancelada == False
-    ).all()
-
-    ventas_acc = [v for v in ventas if v.tipo_producto == "accesorios"]
-    ventas_tel = [v for v in ventas if v.tipo_producto == "telefono"]
-
-    def _tot_tel(v): return (v.precio_unitario or 0) * (v.cantidad or 1)
-
-    ef_acc = sum(v.total for v in ventas_acc if v.metodo_pago == "efectivo")
-    ta_acc = sum(v.total for v in ventas_acc if v.metodo_pago == "tarjeta")
-    ef_tel = sum(_tot_tel(v) for v in ventas_tel if v.metodo_pago == "efectivo")
-    ta_tel = sum(_tot_tel(v) for v in ventas_tel if v.metodo_pago == "tarjeta")
-
-    total_ef = ef_acc + ef_tel
-    total_ta = ta_acc + ta_tel
-    total_sis = total_ef + total_ta
-
-    adic = (
-        (corte.adicional_recargas or 0) +
-        (corte.adicional_transporte or 0) +
-        (corte.adicional_otros or 0)
-    ) if corte else 0
-    total_gen = total_sis + adic
-
-    if not corte:
-        corte = models.CorteDia(fecha=hoy, modulo_id=user.modulo_id)
-        db.add(corte)
-
-    corte.accesorios_efectivo = ef_acc
-    corte.accesorios_tarjeta = ta_acc
-    corte.accesorios_total = ef_acc + ta_acc
-    corte.telefonos_efectivo = ef_tel
-    corte.telefonos_tarjeta = ta_tel
-    corte.telefonos_total = ef_tel + ta_tel
-    corte.total_efectivo = total_ef
-    corte.total_tarjeta = total_ta
-    corte.total_sistema = total_sis
-    corte.total_general = total_gen
-    corte.enviado = True
-
-    db.commit()
-    db.refresh(corte)
-    return corte
+@router.post("/cortes/hoy/enviar")
+def enviar_corte_hoy():
+    raise HTTPException(
+        status_code=410,
+        detail="Los cortes ahora se cierran automáticamente a medianoche. Ya no es necesario enviarlos.",
+    )
 
 
 # vamos a modificar ya no se que es 
