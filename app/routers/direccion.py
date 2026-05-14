@@ -1,6 +1,6 @@
 import calendar
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
@@ -111,7 +111,8 @@ def cortes_pendientes(
         .join(models.Modulo, models.CorteDia.modulo_id == models.Modulo.id)
         .filter(
             models.CorteDia.revisado_direccion == False,  # noqa: E712
-            models.CorteDia.fecha >= date(2026, 5, 10),
+            models.CorteDia.fecha >= datetime.now(ZONA).date() - timedelta(days=30),
+            models.CorteDia.fecha < datetime.now(ZONA).date(),
         )
         .order_by(models.CorteDia.fecha.desc(), models.Modulo.nombre.asc())
         .all()
