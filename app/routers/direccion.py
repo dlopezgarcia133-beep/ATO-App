@@ -1171,3 +1171,105 @@ def tiempo_real(
         lista_telefonos_hoy=lista_telefonos_hoy,
         por_modulo=por_modulo_tr,
     )
+
+
+# ─── RECARGAS ────────────────────────────────────────────────────────────────
+
+@router.get("/recargas-pendientes", response_model=List[schemas.RecargaItemResponse])
+def recargas_pendientes(
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    cortes = (
+        db.query(models.CorteDia)
+        .options(joinedload(models.CorteDia.modulo))
+        .filter(
+            models.CorteDia.revisado_direccion == True,   # noqa: E712
+            models.CorteDia.recarga_revisada == False,    # noqa: E712
+            (
+                func.coalesce(models.CorteDia.adicional_recargas, 0) +
+                func.coalesce(models.CorteDia.adicional_transporte, 0) +
+                func.coalesce(models.CorteDia.adicional_otros, 0) +
+                func.coalesce(models.CorteDia.adicional_mayoreo, 0)
+            ) > 0,
+        )
+        .order_by(models.CorteDia.fecha.desc())
+        .all()
+    )
+    return [
+        schemas.RecargaItemResponse(
+            id=c.id,
+            modulo_id=c.modulo_id,
+            modulo_nombre=c.modulo.nombre if c.modulo else "",
+            fecha=c.fecha,
+            adicional_recargas=c.adicional_recargas or 0,
+            adicional_transporte=c.adicional_transporte or 0,
+            adicional_otros=c.adicional_otros or 0,
+            adicional_mayoreo=c.adicional_mayoreo or 0,
+            recarga_revisada=False,
+        )
+        for c in cortes
+    ]
+
+
+@router.get("/recargas-revisadas", response_model=List[schemas.RecargaItemResponse])
+def recargas_revisadas(
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    cortes = (
+        db.query(models.CorteDia)
+        .options(joinedload(models.CorteDia.modulo))
+        .filter(
+            models.CorteDia.revisado_direccion == True,   # noqa: E712
+            models.CorteDia.recarga_revisada == True,     # noqa: E712
+        )
+        .order_by(models.CorteDia.fecha.desc())
+        .all()
+    )
+    return [
+        schemas.RecargaItemResponse(
+            id=c.id,
+            modulo_id=c.modulo_id,
+            modulo_nombre=c.modulo.nombre if c.modulo else "",
+            fecha=c.fecha,
+            adicional_recargas=c.adicional_recargas or 0,
+            adicional_transporte=c.adicional_transporte or 0,
+            adicional_otros=c.adicional_otros or 0,
+            adicional_mayoreo=c.adicional_mayoreo or 0,
+            recarga_revisada=True,
+        )
+        for c in cortes
+    ]
+
+
+@router.put("/cortes/{corte_id}/marcar-recarga-revisada")
+def marcar_recarga_revisada(
+    corte_id: int,
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    corte = db.query(models.CorteDia).filter(models.CorteDia.id == corte_id).first()
+    if not corte:
+        raise HTTPException(404, "Corte no encontrado")
+    corte.recarga_revisada = True
+    db.commit()
+    return {"ok": True}
+
+
+@router.put("/cortes/{corte_id}/desmarcar-recarga-revisada")
+def desmarcar_recarga_revisada(
+    corte_id: int,
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    corte = db.query(models.CorteDia).filter(models.CorteDia.id == corte_id).first()
+    if not corte:
+        raise HTTPException(404, "Corte no encontrado")
+    corte.recarga_revisada = False
+    db.commit()
+    return {"ok": True}

@@ -298,6 +298,7 @@ class CorteDia(Base):
     revisado_direccion = Column(Boolean, default=False, nullable=False)
     revisado_por = Column(String, nullable=True)
     revisado_at = Column(DateTime(timezone=True), nullable=True)
+    recarga_revisada = Column(Boolean, default=False)
 
     modulo = relationship("Modulo", back_populates="cortes")
     

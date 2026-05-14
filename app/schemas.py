@@ -562,6 +562,18 @@ class CorteRevisarResponse(BaseModel):
     revisado_por: str
     revisado_at: datetime
 
+
+class RecargaItemResponse(BaseModel):
+    id: int
+    modulo_id: int
+    modulo_nombre: str
+    fecha: date
+    adicional_recargas: float
+    adicional_transporte: float
+    adicional_otros: float
+    adicional_mayoreo: float
+    recarga_revisada: bool
+
 class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None
     
