@@ -10,22 +10,29 @@ from sqlalchemy import func, case
 
 def obtener_comisiones_por_empleado_optimizado(db: Session, inicio: date, fin: date):
 
+    _base = func.coalesce(models.Comision.cantidad, 0)
+    _extra = case(
+        (models.Venta.tipo_venta == "Contado",  10),
+        (models.Venta.tipo_venta == "Pajoy",   100),
+        (models.Venta.tipo_venta == "Paguitos",110),
+        else_=0
+    )
+    # Contado con comision especial: solo base (sin sumar $10)
+    _unitaria_tel = case(
+        (
+            (models.Venta.tipo_venta == "Contado") & (_base > 0),
+            _base
+        ),
+        else_=_base + _extra
+    )
     ventas_rows = (
         db.query(
             models.Venta.empleado_id,
             func.sum(
-                func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad +
                 case(
-                    (
-                        models.Venta.tipo_producto == "telefono",
-                        case(
-                            (models.Venta.tipo_venta == "Contado", 10),
-                            (models.Venta.tipo_venta == "Pajoy", 100),
-                            (models.Venta.tipo_venta == "Paguitos", 110),
-                            else_=0
-                        )
-                    ),
-                    else_=0
+                    (models.Venta.tipo_producto == "telefono",
+                     _unitaria_tel * models.Venta.cantidad),
+                    else_=_base * models.Venta.cantidad
                 )
             ).label("total_comisiones")
         )
@@ -83,12 +90,21 @@ def obtener_desglose_comisiones_por_empleado(db: Session, inicio: date, fin: dat
             func.sum(
                 case(
                     (models.Venta.tipo_producto == "telefono",
-                     func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad +
                      case(
-                         (models.Venta.tipo_venta == "Contado", 10),
-                         (models.Venta.tipo_venta == "Pajoy", 100),
-                         (models.Venta.tipo_venta == "Paguitos", 110),
-                         else_=0
+                         (
+                             (models.Venta.tipo_venta == "Contado") &
+                             (func.coalesce(models.Comision.cantidad, 0) > 0),
+                             func.coalesce(models.Comision.cantidad, 0) * models.Venta.cantidad
+                         ),
+                         else_=(
+                             func.coalesce(models.Comision.cantidad, 0) +
+                             case(
+                                 (models.Venta.tipo_venta == "Contado",  10),
+                                 (models.Venta.tipo_venta == "Pajoy",   100),
+                                 (models.Venta.tipo_venta == "Paguitos",110),
+                                 else_=0
+                             )
+                         ) * models.Venta.cantidad
                      )),
                     else_=0
                 )
@@ -153,23 +169,22 @@ def calcular_totales_comisiones(
     total_telefonos = 0.0
     total_chips = 0.0
 
-    comisiones_por_tipo = {
-        "Contado": 10,
-        "Paguitos": 110,
-        "Pajoy": 100
-    }
+    _extra_por_tipo = {"Contado": 10, "Paguitos": 110, "Pajoy": 100}
 
     for v in ventas:
         comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
         cantidad = getattr(v, "cantidad", 0) or 0
-        comision_total = comision_base * cantidad
 
         if v.tipo_producto == "telefono":
-            comision_total += comisiones_por_tipo.get(v.tipo_venta or "", 0)
+            tipo = v.tipo_venta or ""
+            if tipo == "Contado" and comision_base > 0:
+                comision_total = comision_base * cantidad
+            else:
+                comision_total = (comision_base + _extra_por_tipo.get(tipo, 0)) * cantidad
             total_telefonos += comision_total
 
         elif v.tipo_producto == "accesorios":
-            total_accesorios += comision_total
+            total_accesorios += comision_base * cantidad
 
     for v in ventas_chips:
         total_chips += float(getattr(v, "comision", 0) or 0)
