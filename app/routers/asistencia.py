@@ -289,10 +289,12 @@ def listar_notificaciones(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
-    if current_user.rol not in ("admin", "direccion"):
-        raise HTTPException(403, "Solo admin y dirección")
+    if current_user.rol not in ("admin", "direccion", "encargado"):
+        raise HTTPException(403, "Sin permiso para ver notificaciones")
 
     q = db.query(models.NotificacionAsistencia)
+    if current_user.rol == "encargado":
+        q = q.filter(models.NotificacionAsistencia.modulo_id == current_user.modulo_id)
     if solo_no_leidas:
         q = q.filter(models.NotificacionAsistencia.leida == False)  # noqa: E712
     return q.order_by(models.NotificacionAsistencia.creada_at.desc()).all()
@@ -304,14 +306,17 @@ def marcar_leida(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
-    if current_user.rol not in ("admin", "direccion"):
-        raise HTTPException(403, "Solo admin y dirección")
+    if current_user.rol not in ("admin", "direccion", "encargado"):
+        raise HTTPException(403, "Sin permiso para marcar notificaciones")
 
     notif = db.query(models.NotificacionAsistencia).filter(
         models.NotificacionAsistencia.id == notif_id
     ).first()
     if not notif:
         raise HTTPException(404, "Notificación no encontrada")
+
+    if current_user.rol == "encargado" and notif.modulo_id != current_user.modulo_id:
+        raise HTTPException(403, "Solo puedes marcar notificaciones de tu módulo")
 
     notif.leida = True
     db.commit()
