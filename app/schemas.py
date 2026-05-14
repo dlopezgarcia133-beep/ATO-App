@@ -572,6 +572,7 @@ class RecargaItemResponse(BaseModel):
     adicional_transporte: float
     adicional_otros: float
     adicional_mayoreo: float
+    adicional_mayoreo_para: Optional[str] = None
     recarga_revisada: bool
 
 

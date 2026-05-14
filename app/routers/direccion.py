@@ -1207,6 +1207,7 @@ def recargas_pendientes(
             adicional_transporte=c.adicional_transporte or 0,
             adicional_otros=c.adicional_otros or 0,
             adicional_mayoreo=c.adicional_mayoreo or 0,
+            adicional_mayoreo_para=c.adicional_mayoreo_para or None,
             recarga_revisada=False,
         )
         for c in cortes
@@ -1239,6 +1240,7 @@ def recargas_revisadas(
             adicional_transporte=c.adicional_transporte or 0,
             adicional_otros=c.adicional_otros or 0,
             adicional_mayoreo=c.adicional_mayoreo or 0,
+            adicional_mayoreo_para=c.adicional_mayoreo_para or None,
             recarga_revisada=True,
         )
         for c in cortes
