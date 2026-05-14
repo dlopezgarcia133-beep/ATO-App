@@ -1273,3 +1273,22 @@ def desmarcar_recarga_revisada(
     corte.recarga_revisada = False
     db.commit()
     return {"ok": True}
+
+
+@router.put("/cortes/{corte_id}/editar-recargas")
+def editar_recargas(
+    corte_id: int,
+    body: schemas.EditarRecargasBody,
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    corte = db.query(models.CorteDia).filter(models.CorteDia.id == corte_id).first()
+    if not corte:
+        raise HTTPException(404, "Corte no encontrado")
+    corte.adicional_recargas = body.adicional_recargas
+    corte.adicional_transporte = body.adicional_transporte
+    corte.adicional_otros = body.adicional_otros
+    corte.adicional_mayoreo = body.adicional_mayoreo
+    db.commit()
+    return {"ok": True}

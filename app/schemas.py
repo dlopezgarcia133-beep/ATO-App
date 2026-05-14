@@ -574,6 +574,14 @@ class RecargaItemResponse(BaseModel):
     adicional_mayoreo: float
     recarga_revisada: bool
 
+
+class EditarRecargasBody(BaseModel):
+    adicional_recargas: float = 0
+    adicional_transporte: float = 0
+    adicional_otros: float = 0
+    adicional_mayoreo: float = 0
+
+
 class ComisionInput(BaseModel):
     comision_manual: Optional[float] = None
     
