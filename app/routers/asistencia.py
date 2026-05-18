@@ -187,10 +187,29 @@ def check_asistencia(
     fecha_str = fecha_actual.isoformat()
     filename = f"{current_user.username}_{fecha_str}_{body.tipo}_{ts}.jpg"
 
-    raw_b64 = body.foto_base64
+    raw_b64 = body.foto_base64.strip()
     if "," in raw_b64:
-        raw_b64 = raw_b64.split(",", 1)[1]
-    img_bytes = base64.b64decode(raw_b64)
+        raw_b64 = raw_b64.split(",", 1)[1].strip()
+
+    if not raw_b64:
+        raise HTTPException(400, detail={
+            "codigo": "FOTO_INVALIDA",
+            "mensaje": "La foto no se capturó correctamente (imagen vacía). Intenta de nuevo.",
+        })
+
+    try:
+        img_bytes = base64.b64decode(raw_b64)
+    except Exception:
+        raise HTTPException(400, detail={
+            "codigo": "FOTO_INVALIDA",
+            "mensaje": "La foto no es válida (datos corruptos). Intenta de nuevo.",
+        })
+
+    if len(img_bytes) < 3072:
+        raise HTTPException(400, detail={
+            "codigo": "FOTO_INVALIDA",
+            "mensaje": "La foto no se capturó correctamente (imagen demasiado pequeña). Intenta de nuevo.",
+        })
 
     supabase.storage.from_("asistencia-fotos").upload(
         path=filename,
@@ -354,6 +373,31 @@ def modulos_con_ubicacion(
     if current_user.rol not in ("admin", "direccion"):
         raise HTTPException(403, "Solo admin y dirección")
     return db.query(models.Modulo).all()
+
+
+@modulos_router.get("/{modulo_id}/encargado", response_model=schemas.EncargadoResponse)
+def encargado_del_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    encargado = (
+        db.query(models.Usuario)
+        .filter(
+            models.Usuario.modulo_id == modulo_id,
+            models.Usuario.rol == "encargado",
+            models.Usuario.activo == True,  # noqa: E712
+        )
+        .first()
+    )
+    if not encargado:
+        raise HTTPException(404, "Este módulo no tiene encargado asignado")
+    return schemas.EncargadoResponse(
+        modulo_id=modulo_id,
+        usuario_id=encargado.id,
+        username=encargado.username,
+        nombre_completo=encargado.nombre_completo,
+    )
 
 
 # ── Endpoints de promotores Cadenas (ubicación por promotor) ─────────────────

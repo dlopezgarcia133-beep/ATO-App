@@ -5,13 +5,14 @@ import io
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
-from sqlalchemy import func
+from zoneinfo import ZoneInfo
+from sqlalchemy import func, text
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
 from app.utilidades import verificar_rol_requerido
 from sqlalchemy.orm import Session
-from app.models import InventarioGeneral, InventarioModulo
+from app.models import InventarioGeneral, InventarioModulo, EntradaMercancia
 from datetime import datetime
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
@@ -223,6 +224,20 @@ def entrada_mercancia(
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="No autorizado")
 
+    # Folio atómico: nextval es no-transaccional en Postgres, nunca se repite
+    folio = db.execute(
+        text("SELECT 'E' || nextval('entrada_folio_seq')")
+    ).scalar()
+
+    entrada = EntradaMercancia(
+        folio=folio,
+        modulo_id=data.modulo_id,
+        usuario_id=current_user.id,
+        fecha=datetime.now(ZoneInfo("America/Mexico_City")),
+    )
+    db.add(entrada)
+    db.flush()  # obtiene entrada.id antes del commit
+
     for item in data.productos:
         producto_base = (
             db.query(models.InventarioGeneral)
@@ -256,7 +271,6 @@ def entrada_mercancia(
             )
             db.add(nuevo)
 
-        # 🔥 SIEMPRE registrar kardex
         registrar_kardex(
             db=db,
             producto=producto_base.producto,
@@ -266,11 +280,11 @@ def entrada_mercancia(
             usuario_id=current_user.id,
             modulo_origen_id=None,
             modulo_destino_id=data.modulo_id,
-            referencia_id=None
+            referencia_id=entrada.id,
         )
 
     db.commit()
-    return {"ok": True, "message": "Entrada registrada correctamente"}
+    return {"ok": True, "folio": folio, "message": "Entrada registrada correctamente"}
 
 
 

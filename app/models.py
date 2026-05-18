@@ -435,3 +435,13 @@ class Plan(Base):
     modulo_id = Column(Integer, ForeignKey("modulos.id"))
     fecha_inicio = Column(Date, default=date.today)
     fecha = Column(DateTime, default=datetime.utcnow)
+
+
+class EntradaMercancia(Base):
+    __tablename__ = "entradas_mercancia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    folio = Column(String(20), nullable=False, unique=True)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    fecha = Column(DateTime(timezone=True), nullable=False)

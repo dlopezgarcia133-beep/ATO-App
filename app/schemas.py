@@ -634,6 +634,16 @@ class EntradaMercanciaRequest(BaseModel):
     productos: list[EntradaItem]
 
 
+class EncargadoResponse(BaseModel):
+    modulo_id: int
+    usuario_id: int
+    username: str
+    nombre_completo: str
+
+    class Config:
+        from_attributes = True
+
+
 
 
 class NominaPeriodoResponse(BaseModel):
