@@ -13,7 +13,7 @@ from app.database import get_db
 from app.utilidades import verificar_rol_requerido
 from sqlalchemy.orm import Session
 from app.models import InventarioGeneral, InventarioModulo, EntradaMercancia
-from datetime import datetime
+from datetime import datetime, date
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from io import BytesIO
@@ -286,6 +286,92 @@ def entrada_mercancia(
     db.commit()
     return {"ok": True, "folio": folio, "message": "Entrada registrada correctamente"}
 
+
+@router.get("/inventario/entradas")
+def listar_entradas_mercancia(
+    folio: Optional[str] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    modulo_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    ZONA = ZoneInfo("America/Mexico_City")
+
+    query = (
+        db.query(EntradaMercancia, models.Modulo, models.Usuario)
+        .join(models.Modulo, EntradaMercancia.modulo_id == models.Modulo.id)
+        .join(models.Usuario, EntradaMercancia.usuario_id == models.Usuario.id)
+    )
+
+    if folio:
+        query = query.filter(EntradaMercancia.folio.ilike(f"%{folio}%"))
+
+    if modulo_id:
+        query = query.filter(EntradaMercancia.modulo_id == modulo_id)
+
+    if fecha_desde:
+        dt_desde = datetime(
+            fecha_desde.year, fecha_desde.month, fecha_desde.day,
+            0, 0, 0, tzinfo=ZONA,
+        )
+        query = query.filter(EntradaMercancia.fecha >= dt_desde)
+
+    if fecha_hasta:
+        dt_hasta = datetime(
+            fecha_hasta.year, fecha_hasta.month, fecha_hasta.day,
+            23, 59, 59, tzinfo=ZONA,
+        )
+        query = query.filter(EntradaMercancia.fecha <= dt_hasta)
+
+    rows = (
+        query.order_by(EntradaMercancia.fecha.desc())
+        .limit(50)
+        .all()
+    )
+
+    resultado = []
+    for entrada, modulo, usuario in rows:
+        kardex_items = (
+            db.query(
+                models.KardexMovimiento.producto,
+                models.KardexMovimiento.cantidad,
+                models.InventarioGeneral.clave,
+            )
+            .outerjoin(
+                models.InventarioGeneral,
+                models.KardexMovimiento.producto == models.InventarioGeneral.producto,
+            )
+            .filter(
+                models.KardexMovimiento.referencia_id == entrada.id,
+                models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
+            )
+            .all()
+        )
+
+        resultado.append({
+            "id": entrada.id,
+            "folio": entrada.folio,
+            "fecha": entrada.fecha,
+            "modulo_id": modulo.id,
+            "modulo_nombre": modulo.nombre,
+            "usuario_id": usuario.id,
+            "usuario_username": usuario.username,
+            "usuario_nombre": usuario.nombre_completo,
+            "productos": [
+                {
+                    "clave": krow.clave or "",
+                    "producto": krow.producto,
+                    "cantidad": krow.cantidad,
+                }
+                for krow in kardex_items
+            ],
+        })
+
+    return resultado
 
 
 @router.post("/inventario/modulo", response_model=schemas.InventarioModuloResponse)

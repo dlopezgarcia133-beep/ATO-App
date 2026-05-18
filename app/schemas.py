@@ -644,6 +644,24 @@ class EncargadoResponse(BaseModel):
         from_attributes = True
 
 
+class ProductoEntradaDetalle(BaseModel):
+    clave: str
+    producto: str
+    cantidad: int
+
+
+class EntradaMercanciaListItem(BaseModel):
+    id: int
+    folio: str
+    fecha: datetime
+    modulo_id: int
+    modulo_nombre: str
+    usuario_id: int
+    usuario_username: str
+    usuario_nombre: str
+    productos: List[ProductoEntradaDetalle]
+
+
 
 
 class NominaPeriodoResponse(BaseModel):
