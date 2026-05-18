@@ -634,6 +634,10 @@ class EntradaMercanciaRequest(BaseModel):
     productos: list[EntradaItem]
 
 
+class EditarEntradaRequest(BaseModel):
+    productos: list[EntradaItem]
+
+
 class EncargadoResponse(BaseModel):
     modulo_id: int
     usuario_id: int

@@ -374,6 +374,235 @@ def listar_entradas_mercancia(
     return resultado
 
 
+@router.delete("/inventario/entradas/{entrada_id}")
+def eliminar_entrada_mercancia(
+    entrada_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    entrada = db.query(EntradaMercancia).filter(EntradaMercancia.id == entrada_id).first()
+    if not entrada:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+
+    kardex_items = (
+        db.query(models.KardexMovimiento)
+        .filter(
+            models.KardexMovimiento.referencia_id == entrada_id,
+            models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
+        )
+        .all()
+    )
+
+    # Cargar inventario de cada producto de una vez
+    inventario_map = {}
+    for k in kardex_items:
+        inv = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.producto == k.producto,
+                models.InventarioModulo.modulo_id == entrada.modulo_id,
+            )
+            .first()
+        )
+        inventario_map[k.producto] = inv
+
+    # Fase 1: validar todo ANTES de mutar nada
+    errores = []
+    for k in kardex_items:
+        inv = inventario_map.get(k.producto)
+        stock_actual = inv.cantidad if inv else 0
+        if stock_actual - k.cantidad < 0:
+            faltantes = k.cantidad - stock_actual
+            errores.append(
+                f"'{k.producto}': stock actual {stock_actual}, "
+                f"la entrada registró {k.cantidad}, faltan {faltantes} piezas"
+            )
+
+    if errores:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar la entrada porque quedaría stock negativo: "
+            + "; ".join(errores),
+        )
+
+    # Fase 2: bloquear la fila para serializar solicitudes concurrentes sobre la misma entrada
+    entrada = (
+        db.query(EntradaMercancia)
+        .filter(EntradaMercancia.id == entrada_id)
+        .with_for_update()
+        .first()
+    )
+    if not entrada:
+        raise HTTPException(status_code=404, detail="La entrada ya fue eliminada por otro proceso")
+
+    for k in kardex_items:
+        inv = inventario_map.get(k.producto)
+        if inv is None:
+            continue
+        inv.cantidad -= k.cantidad
+        registrar_kardex(
+            db=db,
+            producto=k.producto,
+            tipo_producto=k.tipo_producto,
+            cantidad=k.cantidad,
+            tipo_movimiento="AJUSTE_NEGATIVO",
+            usuario_id=current_user.id,
+            modulo_origen_id=entrada.modulo_id,
+            modulo_destino_id=None,
+            referencia_id=entrada_id,
+        )
+
+    db.delete(entrada)
+    db.commit()
+    return {"ok": True, "message": f"Entrada {entrada.folio} eliminada correctamente"}
+
+
+@router.put("/inventario/entradas/{entrada_id}")
+def editar_entrada_mercancia(
+    entrada_id: int,
+    data: schemas.EditarEntradaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if not data.productos:
+        raise HTTPException(status_code=400, detail="La entrada debe tener al menos un producto")
+
+    entrada = db.query(EntradaMercancia).filter(EntradaMercancia.id == entrada_id).first()
+    if not entrada:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+
+    kardex_original = (
+        db.query(models.KardexMovimiento)
+        .filter(
+            models.KardexMovimiento.referencia_id == entrada_id,
+            models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
+        )
+        .all()
+    )
+    # producto_nombre → (cantidad_original, tipo_producto)
+    mapa_original = {k.producto: (k.cantidad, k.tipo_producto) for k in kardex_original}
+
+    # Resolver cada producto nuevo desde inventario_general
+    # base_info: producto_nombre → (clave, precio, tipo_producto, nueva_cantidad)
+    base_info = {}
+    for item in data.productos:
+        base = (
+            db.query(models.InventarioGeneral)
+            .filter(models.InventarioGeneral.id == item.producto_id)
+            .first()
+        )
+        if not base:
+            raise HTTPException(status_code=404, detail=f"Producto ID {item.producto_id} no encontrado")
+        if item.cantidad <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cantidad para '{base.producto}' debe ser mayor a 0",
+            )
+        base_info[base.producto] = (base.clave, base.precio, base.tipo_producto, item.cantidad)
+
+    # Calcular deltas: producto_nombre → (delta, tipo_producto)
+    deltas = {}
+
+    for prod_nombre, (clave, precio, tipo_prod, nueva_cant) in base_info.items():
+        cant_orig, tipo_orig = mapa_original.get(prod_nombre, (0, tipo_prod))
+        delta = nueva_cant - cant_orig
+        if delta != 0:
+            deltas[prod_nombre] = (delta, tipo_prod)
+
+    # Productos eliminados: estaban en original, no están en nuevos
+    for prod_nombre, (cant_orig, tipo_prod) in mapa_original.items():
+        if prod_nombre not in base_info:
+            deltas[prod_nombre] = (-cant_orig, tipo_prod)
+
+    if not deltas:
+        return {"ok": True, "message": "Sin cambios que aplicar"}
+
+    # Fase 1: validar todos los deltas negativos ANTES de mutar nada
+    # (La Fase 2 adquirirá el lock con with_for_update antes de cualquier mutación)
+    errores = []
+    for prod_nombre, (delta, _) in deltas.items():
+        if delta < 0:
+            inv = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.producto == prod_nombre,
+                    models.InventarioModulo.modulo_id == entrada.modulo_id,
+                )
+                .first()
+            )
+            stock_actual = inv.cantidad if inv else 0
+            if stock_actual + delta < 0:
+                faltantes = abs(stock_actual + delta)
+                errores.append(
+                    f"'{prod_nombre}': stock actual {stock_actual}, "
+                    f"reducción de {abs(delta)}, faltan {faltantes} piezas"
+                )
+
+    if errores:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede editar la entrada porque quedaría stock negativo: "
+            + "; ".join(errores),
+        )
+
+    # Fase 2: bloquear la fila para serializar solicitudes concurrentes sobre la misma entrada
+    entrada = (
+        db.query(EntradaMercancia)
+        .filter(EntradaMercancia.id == entrada_id)
+        .with_for_update()
+        .first()
+    )
+    if not entrada:
+        raise HTTPException(status_code=404, detail="La entrada ya fue procesada por otro proceso")
+
+    for prod_nombre, (delta, tipo_prod) in deltas.items():
+        inv = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.producto == prod_nombre,
+                models.InventarioModulo.modulo_id == entrada.modulo_id,
+            )
+            .first()
+        )
+        if inv:
+            inv.cantidad += delta
+        else:
+            # Producto nuevo que no existía en este módulo (delta > 0 garantizado por validación)
+            clave, precio, _, _ = base_info[prod_nombre]
+            db.add(
+                models.InventarioModulo(
+                    producto=prod_nombre,
+                    clave=clave,
+                    precio=precio,
+                    tipo_producto=tipo_prod,
+                    cantidad=delta,
+                    modulo_id=entrada.modulo_id,
+                )
+            )
+
+        tipo_mov = "AJUSTE_POSITIVO" if delta > 0 else "AJUSTE_NEGATIVO"
+        registrar_kardex(
+            db=db,
+            producto=prod_nombre,
+            tipo_producto=tipo_prod,
+            cantidad=abs(delta),
+            tipo_movimiento=tipo_mov,
+            usuario_id=current_user.id,
+            modulo_origen_id=entrada.modulo_id if delta < 0 else None,
+            modulo_destino_id=entrada.modulo_id if delta > 0 else None,
+            referencia_id=entrada_id,
+        )
+
+    db.commit()
+    return {"ok": True, "message": "Entrada actualizada correctamente"}
+
+
 @router.post("/inventario/modulo", response_model=schemas.InventarioModuloResponse)
 def crear_producto_modulo(
     datos: schemas.InventarioModuloCreate,
