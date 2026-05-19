@@ -1,5 +1,6 @@
 import base64
 import os
+import traceback
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -344,81 +345,90 @@ def acumulado_semanal(
     if ciclo.weekday() != 0:
         raise HTTPException(400, "ciclo debe ser un lunes (weekday=0)")
 
-    lunes = ciclo
-    domingo = ciclo + timedelta(days=6)
+    try:
+        lunes = ciclo
+        domingo = ciclo + timedelta(days=6)
 
-    registros = (
-        db.query(models.Asistencia)
-        .filter(
-            models.Asistencia.fecha >= lunes,
-            models.Asistencia.fecha <= domingo,
+        registros = (
+            db.query(models.Asistencia)
+            .filter(
+                models.Asistencia.fecha >= lunes,
+                models.Asistencia.fecha <= domingo,
+            )
+            .all()
         )
-        .all()
-    )
-    resumenes = _agrupar(registros, include_user=True)
+        resumenes = _agrupar(registros, include_user=True)
 
-    por_username: Dict[str, Dict] = {}
-    for r in resumenes:
-        if r.username not in por_username:
-            por_username[r.username] = {}
-        por_username[r.username][r.fecha] = r
+        por_username: Dict[str, Dict] = {}
+        for r in resumenes:
+            if r.username not in por_username:
+                por_username[r.username] = {}
+            por_username[r.username][r.fecha] = r
 
-    empleados = (
-        db.query(models.Usuario)
-        .filter(models.Usuario.activo == True)  # noqa: E712
-        .filter(models.Usuario.rol.in_(["asesor", "encargado"]))
-        .order_by(models.Usuario.username)
-        .all()
-    )
+        empleados = (
+            db.query(models.Usuario)
+            .filter(models.Usuario.activo == True)  # noqa: E712
+            .filter(models.Usuario.rol.in_(["asesor", "encargado"]))
+            .order_by(models.Usuario.username)
+            .all()
+        )
 
-    ciclo_anterior = lunes - timedelta(days=7)
-    jornadas = (
-        db.query(models.JornadaAsistencia)
-        .filter(models.JornadaAsistencia.ciclo_inicio.in_([lunes, ciclo_anterior]))
-        .all()
-    )
-    jornada_map: Dict[tuple, float] = {
-        (j.usuario_id, j.ciclo_inicio): float(j.horas) for j in jornadas
-    }
+        ciclo_anterior = lunes - timedelta(days=7)
+        jornadas = (
+            db.query(models.JornadaAsistencia)
+            .filter(models.JornadaAsistencia.ciclo_inicio.in_([lunes, ciclo_anterior]))
+            .all()
+        )
+        jornada_map: Dict[tuple, float] = {
+            (j.usuario_id, j.ciclo_inicio): float(j.horas) for j in jornadas
+        }
 
-    resultado = []
-    for emp in empleados:
-        dias_emp = por_username.get(emp.username, {})
-        dias: Dict[str, Optional[schemas.DiaResumen]] = {}
-        total_horas = 0.0
+        resultado = []
+        for emp in empleados:
+            dias_emp = por_username.get(emp.username, {})
+            dias: Dict[str, Optional[schemas.DiaResumen]] = {}
+            total_horas = 0.0
 
-        for i in range(7):
-            dia = lunes + timedelta(days=i)
-            r = dias_emp.get(dia)
-            if r is not None:
-                dias[dia.isoformat()] = schemas.DiaResumen(
-                    entrada=r.entrada,
-                    salida=r.salida,
-                    horas=r.horas_trabajadas,
-                )
-                total_horas += r.horas_trabajadas
-            else:
-                dias[dia.isoformat()] = None
+            for i in range(7):
+                dia = lunes + timedelta(days=i)
+                r = dias_emp.get(dia)
+                if r is not None:
+                    dias[dia.isoformat()] = schemas.DiaResumen(
+                        entrada=r.entrada,
+                        salida=r.salida,
+                        horas=r.horas_trabajadas,
+                    )
+                    total_horas += r.horas_trabajadas
+                else:
+                    dias[dia.isoformat()] = None
 
-        total_horas = round(total_horas, 2)
+            total_horas = round(total_horas, 2)
 
-        jornada = jornada_map.get((emp.id, lunes))
-        if jornada is None:
-            jornada = jornada_map.get((emp.id, ciclo_anterior))
+            jornada = jornada_map.get((emp.id, lunes))
+            if jornada is None:
+                jornada = jornada_map.get((emp.id, ciclo_anterior))
 
-        horas_extra = round(total_horas - jornada, 2) if jornada is not None else None
+            horas_extra = round(total_horas - jornada, 2) if jornada is not None else None
 
-        resultado.append(schemas.EmpleadoAcumuladoSemanal(
-            usuario_id=emp.id,
-            username=emp.username,
-            nombre_completo=emp.nombre_completo,
-            dias=dias,
-            total_horas=total_horas,
-            jornada=jornada,
-            horas_extra=horas_extra,
-        ))
+            resultado.append(schemas.EmpleadoAcumuladoSemanal(
+                usuario_id=emp.id,
+                username=emp.username,
+                nombre_completo=emp.nombre_completo,
+                dias=dias,
+                total_horas=total_horas,
+                jornada=jornada,
+                horas_extra=horas_extra,
+            ))
 
-    return resultado
+        return resultado
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__}: {str(e)} | {traceback.format_exc()}",
+        )
 
 
 @router.put("/jornada")
