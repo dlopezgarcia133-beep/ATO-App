@@ -1015,3 +1015,18 @@ class SueldoEncargadoResponse(BaseModel):
     productos: List[ProductoResumen]
     desglose_diario: List[DiaDiario]
     sueldo_total: float
+
+
+class ResumenEmpleadoNomina(BaseModel):
+    nombre: str
+    rol: str
+    sueldo_base: float
+    horas_extras_pagadas: float
+    comisiones: float
+    total: float
+
+
+class ResumenModuloResponse(BaseModel):
+    nomina_inicio: date
+    nomina_fin: date
+    empleados: List[ResumenEmpleadoNomina]

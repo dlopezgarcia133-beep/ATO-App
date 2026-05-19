@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
+from app.services import obtener_comisiones_por_empleado_optimizado
 
 router = APIRouter()
 
@@ -214,4 +215,130 @@ def sueldos_encargados(
         productos=productos,
         desglose_diario=desglose,
         sueldo_total=sueldo_total,
+    )
+
+
+@router.get("/resumen-modulo", response_model=schemas.ResumenModuloResponse)
+def resumen_modulo(
+    modulo: str = Query(...),
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("direccion", "admin"):
+        raise HTTPException(status_code=403, detail="Solo dirección")
+
+    nomina_inicio = fecha_fin + timedelta(days=4)
+    nomina_fin = fecha_fin + timedelta(days=10)
+
+    # Empleados activos del módulo (asesores + encargados)
+    empleados = (
+        db.query(models.Usuario)
+        .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
+        .filter(
+            models.Modulo.nombre == modulo,
+            models.Usuario.activo == True,
+            models.Usuario.rol.in_(["asesor", "encargado"]),
+        )
+        .all()
+    )
+
+    # NominaHistorial guardado para la semana de pago
+    historial_map = {
+        h.usuario_id: h
+        for h in db.query(models.NominaHistorial)
+        .filter(models.NominaHistorial.semana_inicio == nomina_inicio)
+        .all()
+    }
+
+    # NominaPeriodo + NominaEmpleado como respaldo si no hay historial
+    periodo = (
+        db.query(models.NominaPeriodo)
+        .filter(models.NominaPeriodo.fecha_inicio == nomina_inicio)
+        .first()
+    )
+    nomina_emp_map: dict = {}
+    if periodo:
+        nomina_emp_map = {
+            n.usuario_id: n
+            for n in db.query(models.NominaEmpleado)
+            .filter(models.NominaEmpleado.periodo_id == periodo.id)
+            .all()
+        }
+
+    # Sueldo del encargado: misma lógica que /sueldos/encargados (ciclo viernes→jueves)
+    comision_mod = (
+        db.query(models.ComisionModulo)
+        .filter(models.ComisionModulo.modulo == modulo)
+        .first()
+    )
+    porcentaje = float(comision_mod.porcentaje) if comision_mod else 0.0
+
+    ventas_modulo = (
+        db.query(models.Venta)
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(
+            models.Modulo.nombre == modulo,
+            models.Venta.fecha >= fecha_inicio,
+            models.Venta.fecha <= fecha_fin,
+            models.Venta.cancelada == False,
+        )
+        .all()
+    )
+
+    sueldo_encargado = 0.0
+    for v in ventas_modulo:
+        nombre_norm = _normalizar(v.producto)
+        neto = round(v.precio_unitario * v.cantidad, 2)
+        comision, label = _calcular_comision(
+            nombre_norm, v.precio_unitario, v.cantidad, neto, porcentaje
+        )
+        if label != "excluido":
+            sueldo_encargado = round(sueldo_encargado + comision, 2)
+
+    # Comisiones asesores en vivo (fallback cuando no hay historial)
+    comisiones_vivo = obtener_comisiones_por_empleado_optimizado(db, nomina_inicio, nomina_fin)
+
+    asesores_list: List[schemas.ResumenEmpleadoNomina] = []
+    encargados_list: List[schemas.ResumenEmpleadoNomina] = []
+
+    for emp in empleados:
+        es_encargado = emp.username.upper().startswith("C")
+        hist = historial_map.get(emp.id)
+        nomina_e = nomina_emp_map.get(emp.id)
+
+        sueldo_base = float(hist.sueldo_base if hist else (emp.sueldo_base or 0))
+        pago_horas_extra = float(
+            hist.pago_horas_extra if hist
+            else (nomina_e.pago_horas_extra if nomina_e else 0)
+        )
+
+        if es_encargado:
+            comisiones = sueldo_encargado
+        else:
+            comisiones = float(
+                hist.comisiones_total if hist
+                else comisiones_vivo.get(emp.id, 0)
+            )
+
+        total = round(sueldo_base + pago_horas_extra + comisiones, 2)
+        nombre = emp.nombre_completo or emp.username
+
+        item = schemas.ResumenEmpleadoNomina(
+            nombre=nombre,
+            rol="encargado" if es_encargado else "asesor",
+            sueldo_base=sueldo_base,
+            horas_extras_pagadas=pago_horas_extra,
+            comisiones=comisiones,
+            total=total,
+        )
+        (encargados_list if es_encargado else asesores_list).append(item)
+
+    asesores_list.sort(key=lambda x: x.nombre)
+
+    return schemas.ResumenModuloResponse(
+        nomina_inicio=nomina_inicio,
+        nomina_fin=nomina_fin,
+        empleados=asesores_list + encargados_list,
     )
