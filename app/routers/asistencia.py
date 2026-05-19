@@ -1,7 +1,7 @@
 import base64
 import os
-from datetime import date, datetime
-from typing import List, Optional
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -300,6 +300,157 @@ def admin_historial(
         q = q.filter(models.Asistencia.fecha <= hasta)
 
     return _agrupar(q.all(), include_user=True)
+
+
+PRIMER_CICLO = date(2026, 5, 11)
+_MESES = ["ene", "feb", "mar", "abr", "may", "jun",
+          "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+@router.get("/ciclos", response_model=List[schemas.CicloSemana])
+def listar_ciclos(
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    hoy = datetime.now(ZONA).date()
+    lunes_actual = hoy - timedelta(days=hoy.weekday())
+
+    ciclos = []
+    lunes = PRIMER_CICLO
+    while lunes <= lunes_actual:
+        domingo = lunes + timedelta(days=6)
+        label = (
+            f"lun {lunes.day} de {_MESES[lunes.month - 1]}"
+            f" — dom {domingo.day} de {_MESES[domingo.month - 1]}"
+        )
+        ciclos.append(schemas.CicloSemana(inicio=lunes, fin=domingo, label=label))
+        lunes += timedelta(days=7)
+
+    ciclos.reverse()
+    return ciclos
+
+
+@router.get("/acumulado-semanal", response_model=List[schemas.EmpleadoAcumuladoSemanal])
+def acumulado_semanal(
+    ciclo: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    if ciclo.weekday() != 0:
+        raise HTTPException(400, "ciclo debe ser un lunes (weekday=0)")
+
+    lunes = ciclo
+    domingo = ciclo + timedelta(days=6)
+
+    registros = (
+        db.query(models.Asistencia)
+        .filter(
+            models.Asistencia.fecha >= lunes,
+            models.Asistencia.fecha <= domingo,
+        )
+        .all()
+    )
+    resumenes = _agrupar(registros, include_user=True)
+
+    por_username: Dict[str, Dict] = {}
+    for r in resumenes:
+        if r.username not in por_username:
+            por_username[r.username] = {}
+        por_username[r.username][r.fecha] = r
+
+    empleados = (
+        db.query(models.Usuario)
+        .filter(models.Usuario.activo == True)  # noqa: E712
+        .filter(models.Usuario.rol.in_(["asesor", "encargado"]))
+        .order_by(models.Usuario.username)
+        .all()
+    )
+
+    ciclo_anterior = lunes - timedelta(days=7)
+    jornadas = (
+        db.query(models.JornadaAsistencia)
+        .filter(models.JornadaAsistencia.ciclo_inicio.in_([lunes, ciclo_anterior]))
+        .all()
+    )
+    jornada_map: Dict[tuple, float] = {
+        (j.usuario_id, j.ciclo_inicio): float(j.horas) for j in jornadas
+    }
+
+    resultado = []
+    for emp in empleados:
+        dias_emp = por_username.get(emp.username, {})
+        dias: Dict[str, schemas.DiaResumen | None] = {}
+        total_horas = 0.0
+
+        for i in range(7):
+            dia = lunes + timedelta(days=i)
+            r = dias_emp.get(dia)
+            if r is not None:
+                dias[dia.isoformat()] = schemas.DiaResumen(
+                    entrada=r.entrada,
+                    salida=r.salida,
+                    horas=r.horas_trabajadas,
+                )
+                total_horas += r.horas_trabajadas
+            else:
+                dias[dia.isoformat()] = None
+
+        total_horas = round(total_horas, 2)
+
+        jornada = jornada_map.get((emp.id, lunes))
+        if jornada is None:
+            jornada = jornada_map.get((emp.id, ciclo_anterior))
+
+        horas_extra = round(total_horas - jornada, 2) if jornada is not None else None
+
+        resultado.append(schemas.EmpleadoAcumuladoSemanal(
+            usuario_id=emp.id,
+            username=emp.username,
+            nombre_completo=emp.nombre_completo,
+            dias=dias,
+            total_horas=total_horas,
+            jornada=jornada,
+            horas_extra=horas_extra,
+        ))
+
+    return resultado
+
+
+@router.put("/jornada")
+def upsert_jornada(
+    body: schemas.JornadaUpsert,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    existente = (
+        db.query(models.JornadaAsistencia)
+        .filter(
+            models.JornadaAsistencia.usuario_id == body.usuario_id,
+            models.JornadaAsistencia.ciclo_inicio == body.ciclo,
+        )
+        .first()
+    )
+
+    if existente:
+        existente.horas = body.horas
+        existente.updated_at = datetime.now(ZONA)
+    else:
+        db.add(models.JornadaAsistencia(
+            usuario_id=body.usuario_id,
+            ciclo_inicio=body.ciclo,
+            horas=body.horas,
+        ))
+
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/notificaciones", response_model=List[schemas.NotificacionResponse])

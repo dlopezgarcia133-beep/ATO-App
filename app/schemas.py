@@ -957,3 +957,33 @@ class TiempoRealResponse(BaseModel):
     accesorios: AccesoriosStats
     lista_telefonos_hoy: List[TelefonoHoyItem]
     por_modulo: List[ModuloTiempoRealItem]
+
+
+# ── Asistencia semanal / jornada ──────────────────────────────────────────────
+
+class CicloSemana(BaseModel):
+    inicio: date
+    fin: date
+    label: str
+
+
+class DiaResumen(BaseModel):
+    entrada: Optional[datetime] = None
+    salida: Optional[datetime] = None
+    horas: float = 0.0
+
+
+class EmpleadoAcumuladoSemanal(BaseModel):
+    usuario_id: int
+    username: str
+    nombre_completo: str
+    dias: Dict[str, Optional[DiaResumen]]
+    total_horas: float
+    jornada: Optional[float] = None
+    horas_extra: Optional[float] = None
+
+
+class JornadaUpsert(BaseModel):
+    usuario_id: int
+    ciclo: date
+    horas: float

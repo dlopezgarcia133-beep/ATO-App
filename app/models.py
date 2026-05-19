@@ -1,6 +1,6 @@
 import enum
 from sqlite3.dbapi2 import Timestamp
-from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Enum, DateTime, Time, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Date, Float, Integer, Numeric, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
 from datetime import date, datetime, timezone
@@ -445,3 +445,21 @@ class EntradaMercancia(Base):
     modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha = Column(DateTime(timezone=True), nullable=False)
+
+
+class JornadaAsistencia(Base):
+    __tablename__ = "jornada_asistencia"
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "ciclo_inicio", name="uq_jornada_usuario_ciclo"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    ciclo_inicio = Column(Date, nullable=False)
+    horas = Column(Numeric(6, 2), nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
