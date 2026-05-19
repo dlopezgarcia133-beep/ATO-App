@@ -1521,3 +1521,30 @@ def clientes_vip(db: Session = Depends(get_db)):
     telefonos = list({c.numero_telefono for c in clientes})
 
     return [{"telefono": tel} for tel in telefonos]
+
+
+@router.patch("/ventas/{venta_id}/precio")
+def editar_precio_venta(
+    venta_id: int,
+    data: schemas.EditarPrecioVentaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in (models.RolEnum.admin, models.RolEnum.direccion):
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    venta = db.query(models.Venta).filter(models.Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if venta.cancelada:
+        raise HTTPException(status_code=400, detail="No se puede editar el precio de una venta cancelada")
+
+    if data.nuevo_precio <= 0:
+        raise HTTPException(status_code=400, detail="El precio debe ser mayor a 0")
+
+    venta.precio_unitario = data.nuevo_precio
+    venta.total = data.nuevo_precio * venta.cantidad
+    db.commit()
+
+    return {"ok": True, "message": "Precio actualizado correctamente", "nuevo_total": venta.total}

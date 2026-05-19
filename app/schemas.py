@@ -638,6 +638,10 @@ class EditarEntradaRequest(BaseModel):
     productos: list[EntradaItem]
 
 
+class EditarPrecioVentaRequest(BaseModel):
+    nuevo_precio: float
+
+
 class EncargadoResponse(BaseModel):
     modulo_id: int
     usuario_id: int
