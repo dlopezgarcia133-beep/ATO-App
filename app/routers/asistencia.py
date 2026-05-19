@@ -384,7 +384,7 @@ def acumulado_semanal(
     resultado = []
     for emp in empleados:
         dias_emp = por_username.get(emp.username, {})
-        dias: Dict[str, schemas.DiaResumen | None] = {}
+        dias: Dict[str, Optional[schemas.DiaResumen]] = {}
         total_horas = 0.0
 
         for i in range(7):
