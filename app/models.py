@@ -447,6 +447,14 @@ class EntradaMercancia(Base):
     fecha = Column(DateTime(timezone=True), nullable=False)
 
 
+class ComisionModulo(Base):
+    __tablename__ = "comision_modulos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    modulo = Column(String, unique=True, nullable=False)
+    porcentaje = Column(Numeric(5, 2), nullable=False, default=0)
+
+
 class JornadaAsistencia(Base):
     __tablename__ = "jornada_asistencia"
     __table_args__ = (

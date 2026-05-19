@@ -987,3 +987,31 @@ class JornadaUpsert(BaseModel):
     usuario_id: int
     ciclo: date
     horas: float
+
+
+# ── Sueldos encargados ────────────────────────────────────────────────────────
+
+class ProductoResumen(BaseModel):
+    nombre: str
+    tipo: str  # "telefono" | "accesorio"
+    cantidad: int
+    neto: float
+    porcentaje_label: str  # "$10 fijo" | "7.00%"
+    comision: float
+
+
+class DiaDiario(BaseModel):
+    fecha: Optional[date] = None  # None en la fila TOTAL
+    label: str
+    equipos: int
+    accesorios: float
+
+
+class SueldoEncargadoResponse(BaseModel):
+    modulo: str
+    fecha_inicio: date
+    fecha_fin: date
+    porcentaje_modulo: float
+    productos: List[ProductoResumen]
+    desglose_diario: List[DiaDiario]
+    sueldo_total: float
