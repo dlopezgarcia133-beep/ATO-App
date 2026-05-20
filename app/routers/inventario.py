@@ -219,10 +219,10 @@ def obtener_inventario_general(
 def entrada_mercancia(
     data: schemas.EntradaMercanciaRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     # Folio atómico: nextval es no-transaccional en Postgres, nunca se repite
     folio = db.execute(
