@@ -764,23 +764,6 @@ def eliminar_producto_modulo(
     }
 
 
-@router.delete("/inventario/modulo/{producto}")
-def eliminar_producto_modulo(
-    producto: str,
-    modulo: str,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin]))
-):
-    item = db.query(models.InventarioModulo)\
-        .join(models.InventarioModulo.modulo)\
-        .filter(models.InventarioModulo.producto == producto)\
-        .filter(models.Modulo.nombre == modulo)\
-        .first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Producto no encontrado en ese módulo.")
-    db.delete(item)
-    db.commit()
-    return {"message": f"Producto '{producto}' eliminado del módulo '{modulo}'."}
 
 
 
@@ -1673,30 +1656,6 @@ def congelar_inventario(modulo_id: int, db: Session = Depends(get_db), current_u
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers
     )
-
-
-@router.get("/inventario/buscar")
-def buscar_producto(modulo_id: int, clave: str, db: Session = Depends(get_db)):
-
-    producto = (
-        db.query(InventarioModulo)
-        .filter(InventarioModulo.modulo_id == modulo_id)
-        .filter(InventarioModulo.clave.ilike(f"%{clave}%"))
-        .first()
-    )
-
-    if not producto:
-        return {"ok": False, "msg": "Producto no encontrado"}
-
-    return {
-        "ok": True,
-        "producto": {
-            "producto": producto.producto,   # <-- CAMBIO AQUÍ
-            "clave": producto.clave,
-            "cantidad_actual": producto.cantidad
-        }
-    }
-
 
 
 
