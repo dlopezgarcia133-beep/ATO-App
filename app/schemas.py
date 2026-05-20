@@ -133,8 +133,11 @@ class UsuarioCreate(BaseModel):
     username: str
     rol: RolEnum
     password: str
-    modulo_id: Optional[int] = None  # Cambiado de modulo:str a modulo_id:int
+    modulo_id: Optional[int] = None
     is_admin: Optional[bool] = False
+    forma_pago: Optional[str] = None
+    cuenta_clabe: Optional[str] = None
+    cuenta_interbancaria: Optional[str] = None
 
 # 👉 Este es para actualizar un usuario
 class UsuarioUpdate(BaseModel):
@@ -142,7 +145,11 @@ class UsuarioUpdate(BaseModel):
     rol: Optional[str] = None
     modulo_id: Optional[int] = None
     is_admin: Optional[bool] = None
-    password: Optional[str] = None 
+    password: Optional[str] = None
+    sueldo_base: Optional[float] = None
+    forma_pago: Optional[str] = None
+    cuenta_clabe: Optional[str] = None
+    cuenta_interbancaria: Optional[str] = None
 
 # 👉 Este para devolver la respuesta
 class ModuloOut(BaseModel):
@@ -154,11 +161,15 @@ class ModuloOut(BaseModel):
 
 class UsuarioResponse(BaseModel):
     id: int
-    
+    nombre_completo: str
     username: str
     rol: RolEnum
     is_admin: bool
-    modulo: Optional[ModuloOut] = None  
+    sueldo_base: float = 0
+    modulo: Optional[ModuloOut] = None
+    forma_pago: Optional[str] = None
+    cuenta_clabe: Optional[str] = None
+    cuenta_interbancaria: Optional[str] = None
 
     class Config:
         from_attributes = True

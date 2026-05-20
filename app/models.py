@@ -34,6 +34,9 @@ class Usuario(Base):
     latitud_promotor = Column(Float, nullable=True)
     longitud_promotor = Column(Float, nullable=True)
     radio_metros_promotor = Column(Integer, default=100)
+    forma_pago = Column(String, nullable=True)
+    cuenta_clabe = Column(String, nullable=True)
+    cuenta_interbancaria = Column(String, nullable=True)
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"
