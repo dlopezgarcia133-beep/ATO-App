@@ -221,16 +221,20 @@ def sueldos_encargados(
 @router.get("/resumen-modulo", response_model=schemas.ResumenModuloResponse)
 def resumen_modulo(
     modulo: str = Query(...),
-    fecha_inicio: date = Query(...),
-    fecha_fin: date = Query(...),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
     if current_user.rol not in ("direccion", "admin"):
         raise HTTPException(status_code=403, detail="Solo dirección")
 
-    nomina_inicio = fecha_fin + timedelta(days=4)
-    nomina_fin = fecha_fin + timedelta(days=10)
+    # Semana actual — misma lógica que calcularLunes() en Nomina.tsx
+    # today_mx.weekday(): 0=lun … 6=dom → restando weekday() se obtiene el lunes
+    today_mx = datetime.now(_ZONA).date()
+    lunes = today_mx - timedelta(days=today_mx.weekday())
+    domingo = lunes + timedelta(days=6)
+    # Grupo C: Nomina.tsx usa semanaInicio-9 → semanaInicio-3
+    lunes_c = lunes - timedelta(days=9)
+    domingo_c = lunes - timedelta(days=3)
 
     # Empleados activos del módulo (asesores + encargados)
     empleados = (
@@ -244,18 +248,18 @@ def resumen_modulo(
         .all()
     )
 
-    # NominaHistorial guardado para la semana de pago
+    # NominaHistorial para la semana actual (guardado por el admin)
     historial_map = {
         h.usuario_id: h
         for h in db.query(models.NominaHistorial)
-        .filter(models.NominaHistorial.semana_inicio == nomina_inicio)
+        .filter(models.NominaHistorial.semana_inicio == lunes)
         .all()
     }
 
-    # NominaPeriodo + NominaEmpleado como respaldo si no hay historial
+    # NominaPeriodo activo + NominaEmpleado (fallback si no hay historial)
     periodo = (
         db.query(models.NominaPeriodo)
-        .filter(models.NominaPeriodo.fecha_inicio == nomina_inicio)
+        .filter(models.NominaPeriodo.fecha_inicio == lunes)
         .first()
     )
     nomina_emp_map: dict = {}
@@ -267,38 +271,9 @@ def resumen_modulo(
             .all()
         }
 
-    # Sueldo del encargado: misma lógica que /sueldos/encargados (ciclo viernes→jueves)
-    comision_mod = (
-        db.query(models.ComisionModulo)
-        .filter(models.ComisionModulo.modulo == modulo)
-        .first()
-    )
-    porcentaje = float(comision_mod.porcentaje) if comision_mod else 0.0
-
-    ventas_modulo = (
-        db.query(models.Venta)
-        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
-        .filter(
-            models.Modulo.nombre == modulo,
-            models.Venta.fecha >= fecha_inicio,
-            models.Venta.fecha <= fecha_fin,
-            models.Venta.cancelada == False,
-        )
-        .all()
-    )
-
-    sueldo_encargado = 0.0
-    for v in ventas_modulo:
-        nombre_norm = _normalizar(v.producto)
-        neto = round(v.precio_unitario * v.cantidad, 2)
-        comision, label = _calcular_comision(
-            nombre_norm, v.precio_unitario, v.cantidad, neto, porcentaje
-        )
-        if label != "excluido":
-            sueldo_encargado = round(sueldo_encargado + comision, 2)
-
-    # Comisiones asesores en vivo (fallback cuando no hay historial)
-    comisiones_vivo = obtener_comisiones_por_empleado_optimizado(db, nomina_inicio, nomina_fin)
+    # Comisiones en vivo — misma función que usa /nomina/resumen
+    comisiones_a = obtener_comisiones_por_empleado_optimizado(db, lunes, domingo)
+    comisiones_c = obtener_comisiones_por_empleado_optimizado(db, lunes_c, domingo_c)
 
     asesores_list: List[schemas.ResumenEmpleadoNomina] = []
     encargados_list: List[schemas.ResumenEmpleadoNomina] = []
@@ -314,13 +289,12 @@ def resumen_modulo(
             else (nomina_e.pago_horas_extra if nomina_e else 0)
         )
 
-        if es_encargado:
-            comisiones = sueldo_encargado
+        if hist:
+            comisiones = float(hist.comisiones_total)
+        elif es_encargado:
+            comisiones = float(comisiones_c.get(emp.id, 0))
         else:
-            comisiones = float(
-                hist.comisiones_total if hist
-                else comisiones_vivo.get(emp.id, 0)
-            )
+            comisiones = float(comisiones_a.get(emp.id, 0))
 
         total = round(sueldo_base + pago_horas_extra + comisiones, 2)
         nombre = emp.nombre_completo or emp.username
@@ -338,7 +312,7 @@ def resumen_modulo(
     asesores_list.sort(key=lambda x: x.nombre)
 
     return schemas.ResumenModuloResponse(
-        nomina_inicio=nomina_inicio,
-        nomina_fin=nomina_fin,
+        nomina_inicio=lunes,
+        nomina_fin=domingo,
         empleados=asesores_list + encargados_list,
     )
