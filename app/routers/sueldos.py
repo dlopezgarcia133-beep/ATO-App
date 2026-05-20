@@ -227,14 +227,33 @@ def resumen_modulo(
     if current_user.rol not in ("direccion", "admin"):
         raise HTTPException(status_code=403, detail="Solo dirección")
 
-    # Semana actual — misma lógica que calcularLunes() en Nomina.tsx
-    # today_mx.weekday(): 0=lun … 6=dom → restando weekday() se obtiene el lunes
-    today_mx = datetime.now(_ZONA).date()
-    lunes = today_mx - timedelta(days=today_mx.weekday())
-    domingo = lunes + timedelta(days=6)
+    # Semana de nómina: usa el NominaPeriodo activo (igual que la pantalla de nómina)
+    # El admin crea el periodo con fecha_inicio = lunes de la semana que está procesando,
+    # y el historial se guarda con semana_inicio = ese mismo lunes.
+    periodo_activo = (
+        db.query(models.NominaPeriodo)
+        .filter(models.NominaPeriodo.activa == True)
+        .first()
+    )
+
+    if periodo_activo:
+        lunes = periodo_activo.fecha_inicio
+        domingo = periodo_activo.fecha_fin
+    else:
+        # Fallback: semana calendárica actual en zona México
+        today_mx = datetime.now(_ZONA).date()
+        lunes = today_mx - timedelta(days=today_mx.weekday())
+        domingo = lunes + timedelta(days=6)
+
     # Grupo C: Nomina.tsx usa semanaInicio-9 → semanaInicio-3
     lunes_c = lunes - timedelta(days=9)
     domingo_c = lunes - timedelta(days=3)
+
+    print(
+        f"[RESUMEN-MOD] hoy={datetime.now(_ZONA).date()} "
+        f"periodo_activo={periodo_activo.id if periodo_activo else None} "
+        f"lunes={lunes} domingo={domingo} lunes_c={lunes_c} domingo_c={domingo_c}"
+    )
 
     # Empleados activos del módulo (asesores + encargados)
     empleados = (
@@ -248,7 +267,7 @@ def resumen_modulo(
         .all()
     )
 
-    # NominaHistorial para la semana actual (guardado por el admin)
+    # NominaHistorial guardado por el admin para esta semana
     historial_map = {
         h.usuario_id: h
         for h in db.query(models.NominaHistorial)
@@ -256,18 +275,13 @@ def resumen_modulo(
         .all()
     }
 
-    # NominaPeriodo activo + NominaEmpleado (fallback si no hay historial)
-    periodo = (
-        db.query(models.NominaPeriodo)
-        .filter(models.NominaPeriodo.fecha_inicio == lunes)
-        .first()
-    )
+    # NominaEmpleado del periodo activo (fallback si no hay historial)
     nomina_emp_map: dict = {}
-    if periodo:
+    if periodo_activo:
         nomina_emp_map = {
             n.usuario_id: n
             for n in db.query(models.NominaEmpleado)
-            .filter(models.NominaEmpleado.periodo_id == periodo.id)
+            .filter(models.NominaEmpleado.periodo_id == periodo_activo.id)
             .all()
         }
 
