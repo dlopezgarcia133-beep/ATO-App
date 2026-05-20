@@ -1,5 +1,5 @@
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -40,7 +40,7 @@ def crear_traspaso(
         modulo_destino=traspaso.modulo_destino,
         solicitado_por=current_user.id,
 
-        fecha=datetime.now(timezone.utc)  # ✅ UTC con hora
+        fecha=datetime.now(zona_horaria)
     )
 
     db.add(nuevo)
