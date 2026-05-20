@@ -278,25 +278,41 @@ def cancelar_venta(
         if current_user.rol != models.RolEnum.encargado or venta.modulo_id != current_user.modulo_id:
             raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
 
-    # Reintegrar inventario
-    inventario = (
-        db.query(models.InventarioModulo)
-        .filter(
-            models.InventarioModulo.producto == venta.producto,
-            models.InventarioModulo.modulo_id == venta.modulo_id
-        )
+    # Reintegrar inventario — lookup por clave para evitar duplicados por variación de nombre
+    prod_general = (
+        db.query(models.InventarioGeneral)
+        .filter(models.InventarioGeneral.producto == venta.producto)
         .first()
     )
-
-    if not inventario:
-        inventario = models.InventarioModulo(
-            producto=venta.producto,
-            cantidad=venta.cantidad,
-            modulo_id=venta.modulo_id
+    inventario = None
+    if prod_general:
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.clave     == prod_general.clave,
+                models.InventarioModulo.modulo_id == venta.modulo_id
+            )
+            .first()
         )
-        db.add(inventario)
-    else:
+    if not inventario:
+        # Fallback: intentar por nombre exacto
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.producto  == venta.producto,
+                models.InventarioModulo.modulo_id == venta.modulo_id
+            )
+            .first()
+        )
+
+    if inventario:
         inventario.cantidad += venta.cantidad
+    else:
+        print(
+            f"[ALERTA cancelación] Venta {venta.id} (producto '{venta.producto}', "
+            f"módulo {venta.modulo_id}) no tiene fila en inventario_modulo. "
+            f"Stock NO devuelto, revisar manualmente."
+        )
 
     # Marcar cancelada
     venta.cancelada = True

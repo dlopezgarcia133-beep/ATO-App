@@ -251,15 +251,16 @@ def entrada_mercancia(
         registro = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.producto == producto_base.producto,
-                models.InventarioModulo.clave == producto_base.clave,
+                models.InventarioModulo.clave     == producto_base.clave,
                 models.InventarioModulo.modulo_id == data.modulo_id
             )
             .first()
         )
 
         if registro:
-            registro.cantidad += item.cantidad
+            registro.cantidad  += item.cantidad
+            registro.producto   = producto_base.producto
+            registro.precio     = producto_base.precio
         else:
             nuevo = models.InventarioModulo(
                 producto=producto_base.producto,
@@ -396,17 +397,27 @@ def eliminar_entrada_mercancia(
         .all()
     )
 
-    # Cargar inventario de cada producto de una vez
+    # Cargar inventario de cada producto de una vez — lookup por clave si disponible
     inventario_map = {}
     for k in kardex_items:
-        inv = (
-            db.query(models.InventarioModulo)
-            .filter(
-                models.InventarioModulo.producto == k.producto,
-                models.InventarioModulo.modulo_id == entrada.modulo_id,
+        if k.clave:
+            inv = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.clave     == k.clave,
+                    models.InventarioModulo.modulo_id == entrada.modulo_id,
+                )
+                .first()
             )
-            .first()
-        )
+        else:
+            inv = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.producto  == k.producto,
+                    models.InventarioModulo.modulo_id == entrada.modulo_id,
+                )
+                .first()
+            )
         inventario_map[k.producto] = inv
 
     # Fase 1: validar todo ANTES de mutar nada
@@ -562,10 +573,11 @@ def editar_entrada_mercancia(
         raise HTTPException(status_code=404, detail="La entrada ya fue procesada por otro proceso")
 
     for prod_nombre, (delta, tipo_prod) in deltas.items():
+        clave, precio, _, _ = base_info[prod_nombre]
         inv = (
             db.query(models.InventarioModulo)
             .filter(
-                models.InventarioModulo.producto == prod_nombre,
+                models.InventarioModulo.clave     == clave,
                 models.InventarioModulo.modulo_id == entrada.modulo_id,
             )
             .first()
@@ -574,7 +586,6 @@ def editar_entrada_mercancia(
             inv.cantidad += delta
         else:
             # Producto nuevo que no existía en este módulo (delta > 0 garantizado por validación)
-            clave, precio, _, _ = base_info[prod_nombre]
             db.add(
                 models.InventarioModulo(
                     producto=prod_nombre,

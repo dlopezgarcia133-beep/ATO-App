@@ -80,9 +80,9 @@ def actualizar_estado_traspaso(
         if not modulo_origen or not modulo_destino:
             raise HTTPException(status_code=404, detail="Módulo origen o destino no encontrado")
 
-        # Inventario origen
+        # Inventario origen — lookup por clave para evitar duplicados por variación de nombre
         inv_origen = db.query(models.InventarioModulo).filter(
-            models.InventarioModulo.producto == traspaso.producto,
+            models.InventarioModulo.clave     == traspaso.clave,
             models.InventarioModulo.modulo_id == modulo_origen.id
         ).first()
 
@@ -91,24 +91,24 @@ def actualizar_estado_traspaso(
         if inv_origen.cantidad < traspaso.cantidad:
             raise HTTPException(status_code=400, detail="Inventario insuficiente en módulo origen")
 
-        # Inventario destino
+        # Inventario destino — lookup por clave para no crear duplicado si ya existe
         inv_destino = db.query(models.InventarioModulo).filter(
-            models.InventarioModulo.producto == traspaso.producto,
+            models.InventarioModulo.clave     == traspaso.clave,
             models.InventarioModulo.modulo_id == modulo_destino.id
         ).first()
 
         # Restar origen
         inv_origen.cantidad -= traspaso.cantidad
 
-
         if inv_destino:
             inv_destino.cantidad += traspaso.cantidad
         else:
             nuevo = models.InventarioModulo(
                 cantidad=traspaso.cantidad,
-                clave=inv_origen.clave,
-                producto=inv_origen.producto,
-                precio=inv_origen.precio,
+                clave=traspaso.clave,
+                producto=traspaso.producto,
+                precio=traspaso.precio,
+                tipo_producto=traspaso.tipo_producto,
                 modulo_id=modulo_destino.id
             )
             db.add(nuevo)
