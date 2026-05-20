@@ -295,10 +295,10 @@ def listar_entradas_mercancia(
     fecha_hasta: Optional[date] = Query(None),
     modulo_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    ),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     ZONA = ZoneInfo("America/Mexico_City")
 
@@ -379,10 +379,10 @@ def listar_entradas_mercancia(
 def eliminar_entrada_mercancia(
     entrada_id: int,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    ),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     entrada = db.query(EntradaMercancia).filter(EntradaMercancia.id == entrada_id).first()
     if not entrada:
@@ -476,10 +476,10 @@ def editar_entrada_mercancia(
     entrada_id: int,
     data: schemas.EditarEntradaRequest,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    ),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     if not data.productos:
         raise HTTPException(status_code=400, detail="La entrada debe tener al menos un producto")
@@ -1441,11 +1441,10 @@ async def upload_inventario(file: UploadFile = File(...), db: Session = Depends(
 def guardar_conteo(
     data: schemas.ConteoInventarioRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
 ):
-    # 🔐 Solo admins
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="No autorizado")
 
     if not data.productos:
         raise HTTPException(status_code=400, detail="No hay productos para guardar")
@@ -1590,23 +1589,13 @@ def eliminar_telefono(
 
 
 @router.get("/inventario/congelar/{modulo_id}")
-def congelar_inventario(modulo_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    """
-    Genera un Excel con las cantidades actuales y luego pone a 0 las cantidades
-    del módulo. Solo accesible para admins.
-    """
-
-    # --- 1) Validar permiso de admin ---
-    # Ajusta la comprobación según tu modelo de usuario real.
-    is_admin = False
-    if hasattr(current_user, "is_admin"):
-        is_admin = bool(getattr(current_user, "is_admin"))
-    elif hasattr(current_user, "role"):
-        is_admin = getattr(current_user, "role") in ("admin", "superadmin", "owner")
-    # Si tu user tiene otro campo, reemplaza la lógica anterior.
-    if not is_admin:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden congelar el inventario")
-
+def congelar_inventario(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    )
+):
     # --- 2) Leer inventario del módulo ---
     inventario = (
         db.query(InventarioModulo)
