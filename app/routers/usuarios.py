@@ -162,7 +162,8 @@ def editar_usuario(
 @router.delete("/usuarios/{usuario_id}")
 def desactivar_usuario(
     usuario_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion]))
 ):
     usuario = db.query(models.Usuario).filter(
         models.Usuario.id == usuario_id

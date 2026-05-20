@@ -846,7 +846,8 @@ def mover_producto_a_modulo(
 @router.post("/replicar", response_model=dict)
 def agregar_o_actualizar_producto_todos_modulos(
     datos: schemas.InventarioGlobalCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion]))
 ):
     # 1️⃣ Obtener todos los módulos registrados
     modulos = db.query(models.Modulo).all()
@@ -891,7 +892,8 @@ def agregar_o_actualizar_producto_todos_modulos(
 def actualizar_producto_en_todos_los_modulos(
     producto: str,
     datos: schemas.InventarioGlobalUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion]))
 ):
     # Buscar todos los productos con esa producto
     productos = db.query(models.InventarioModulo).filter_by(producto=producto).all()
@@ -916,7 +918,8 @@ def actualizar_producto_en_todos_los_modulos(
 @router.delete("/eliminar_todos/{clave}", response_model=dict)
 def eliminar_producto_en_todos_los_modulos(
     clave: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion]))
 ):
     # Buscar todos los registros con la clave dada
     productos = db.query(models.InventarioModulo).filter_by(clave=clave).all()
