@@ -9,6 +9,7 @@ from app.models import Usuario
 from app.config import get_current_user
 from app.services import calcular_totales_comisiones, obtener_comisiones_por_empleado_optimizado
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import openpyxl
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
@@ -632,7 +633,7 @@ def obtener_mi_historial(
     else:
         # Devolver la semana cuya fecha de pago (semana_inicio + 9 días = miércoles)
         # sea la más reciente que ya llegó o ya pasó respecto a hoy.
-        cutoff = date.today() - timedelta(days=9)
+        cutoff = datetime.now(ZoneInfo("America/Mexico_City")).date() - timedelta(days=9)
         query = (
             query
             .filter(NominaHistorial.semana_inicio <= cutoff)

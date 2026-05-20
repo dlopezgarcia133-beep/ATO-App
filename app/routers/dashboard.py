@@ -4,7 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from sqlalchemy import  case
 from app.database import get_db
 from app import models
@@ -16,7 +17,7 @@ router = APIRouter()
 @router.get("/ventas-dia")
 def ventas_dia(db: Session = Depends(get_db)):
 
-    hoy = date.today()
+    hoy = datetime.now(ZoneInfo("America/Mexico_City")).date()
 
     data = db.query(
         models.Modulo.nombre.label("modulo"),
@@ -36,7 +37,7 @@ def ventas_dia(db: Session = Depends(get_db)):
 @router.get("/comisiones-semana")
 def comisiones_semana(db: Session = Depends(get_db)):
 
-    hoy = date.today()
+    hoy = datetime.now(ZoneInfo("America/Mexico_City")).date()
     inicio = hoy - timedelta(days=hoy.weekday())
 
     data = db.query(
@@ -268,7 +269,7 @@ def metricas_empleados(
     modulo_id: int | None = Query(None),
     db: Session = Depends(get_db)
 ):
-    hoy = date.today()
+    hoy = datetime.now(ZoneInfo("America/Mexico_City")).date()
 
     if fecha_inicio and fecha_fin:
         inicio = fecha_inicio
@@ -576,7 +577,7 @@ def crear_plan(data: schemas.PlanCreate, db: Session = Depends(get_db)):
         tipo_plan=data.tipo_plan,
         empleado_id=data.empleado_id,
         modulo_id=data.modulo_id,
-        fecha_inicio=date.today(),
+        fecha_inicio=datetime.now(ZoneInfo("America/Mexico_City")).date(),
 
     )
 

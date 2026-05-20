@@ -9,7 +9,8 @@ from app.config import get_current_user
 from app.models import KardexMovimiento
 from sqlalchemy import func
 from sqlalchemy import text as sql_text
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from pyexpat import model
 
@@ -118,8 +119,8 @@ def obtener_kardex(
 
     # 🔹 si no mandan fechas, usar últimos 7 días
     if not fecha_inicio and not fecha_fin:
-        fecha_inicio = date.today() - timedelta(days=7)
-        fecha_fin = date.today()
+        fecha_inicio = datetime.now(ZoneInfo("America/Mexico_City")).date() - timedelta(days=7)
+        fecha_fin = datetime.now(ZoneInfo("America/Mexico_City")).date()
 
     if fecha_inicio and fecha_fin:
         query = query.filter(
