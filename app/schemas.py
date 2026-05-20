@@ -161,7 +161,7 @@ class ModuloOut(BaseModel):
 
 class UsuarioResponse(BaseModel):
     id: int
-    nombre_completo: str
+    nombre_completo: Optional[str] = None
     username: str
     rol: RolEnum
     is_admin: bool
@@ -657,7 +657,7 @@ class EncargadoResponse(BaseModel):
     modulo_id: int
     usuario_id: int
     username: str
-    nombre_completo: str
+    nombre_completo: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -987,7 +987,7 @@ class DiaResumen(BaseModel):
 class EmpleadoAcumuladoSemanal(BaseModel):
     usuario_id: int
     username: str
-    nombre_completo: str
+    nombre_completo: Optional[str] = None
     dias: Dict[str, Optional[DiaResumen]]
     total_horas: float
     jornada: Optional[float] = None
