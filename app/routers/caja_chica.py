@@ -1,5 +1,6 @@
 
-from datetime import date
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -36,11 +37,23 @@ def guardar_caja_chica(
     data: schemas.CajaChicaCreate,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(
-        verificar_rol_requerido([models.RolEnum.direccion])
+        verificar_rol_requerido([models.RolEnum.direccion, models.RolEnum.encargado, models.RolEnum.asesor])
     ),
 ):
     if data.monto < 0:
         raise HTTPException(status_code=400, detail="El monto no puede ser negativo")
+
+    if current_user.rol == models.RolEnum.direccion:
+        pass
+    elif current_user.rol in (models.RolEnum.encargado, models.RolEnum.asesor):
+        if data.modulo_id != current_user.modulo_id:
+            raise HTTPException(status_code=403, detail="Solo puede modificar caja chica de su propio módulo")
+        hoy_mx = datetime.now(ZoneInfo("America/Mexico_City")).date()
+        manana_mx = hoy_mx + timedelta(days=1)
+        if data.fecha not in (hoy_mx, manana_mx):
+            raise HTTPException(status_code=403, detail=f"Solo puede capturar caja chica para hoy ({hoy_mx}) o el día siguiente ({manana_mx})")
+    else:
+        raise HTTPException(status_code=403, detail="No autorizado")
 
     registro = (
         db.query(models.CajaChica)
