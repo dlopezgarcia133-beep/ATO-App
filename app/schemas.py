@@ -553,6 +553,7 @@ class CorteDiaResponse(BaseModel):
     revisado_direccion: bool = False
     revisado_por: Optional[str] = None
     revisado_at: Optional[datetime] = None
+    caja_chica: float = 0.0
 
     class Config:
         from_attributes = True

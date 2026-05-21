@@ -1296,7 +1296,15 @@ def obtener_corte_hoy(
         models.CorteDia.modulo_id == user.modulo_id
     ).first()
     print(f"[cortes/hoy] resultado_fecha={getattr(resultado, 'fecha', None)!r}")
-    return resultado
+    if resultado is None:
+        return None
+    cc = db.query(models.CajaChica).filter(
+        models.CajaChica.modulo_id == resultado.modulo_id,
+        models.CajaChica.fecha == resultado.fecha,
+    ).first()
+    data = schemas.CorteDiaResponse.model_validate(resultado).model_dump()
+    data["caja_chica"] = float(cc.monto) if cc else 0.0
+    return data
 
 
 @router.patch("/cortes/hoy/recargas", response_model=schemas.CorteDiaResponse)
@@ -1322,7 +1330,13 @@ def guardar_recargas(
     corte.adicional_mayoreo_para = data.adicional_mayoreo_para
     db.commit()
     db.refresh(corte)
-    return corte
+    cc = db.query(models.CajaChica).filter(
+        models.CajaChica.modulo_id == corte.modulo_id,
+        models.CajaChica.fecha == corte.fecha,
+    ).first()
+    result = schemas.CorteDiaResponse.model_validate(corte).model_dump()
+    result["caja_chica"] = float(cc.monto) if cc else 0.0
+    return result
 
 
 @router.patch("/cortes/hoy/salida", response_model=schemas.CorteDiaResponse)
@@ -1345,7 +1359,13 @@ def guardar_salida(
     corte.nota_salida = data.nota_salida
     db.commit()
     db.refresh(corte)
-    return corte
+    cc = db.query(models.CajaChica).filter(
+        models.CajaChica.modulo_id == corte.modulo_id,
+        models.CajaChica.fecha == corte.fecha,
+    ).first()
+    result = schemas.CorteDiaResponse.model_validate(corte).model_dump()
+    result["caja_chica"] = float(cc.monto) if cc else 0.0
+    return result
 
 
 @router.post("/cortes/hoy/enviar")

@@ -90,9 +90,14 @@ def obtener_corte_direccion(
         for v in ventas_db
     ]
 
-    base = schemas.CorteDiaResponse.model_validate(corte)
+    cc = db.query(models.CajaChica).filter(
+        models.CajaChica.modulo_id == modulo_id,
+        models.CajaChica.fecha == fecha,
+    ).first()
+    base_data = schemas.CorteDiaResponse.model_validate(corte).model_dump()
+    base_data["caja_chica"] = float(cc.monto) if cc else 0.0
     return schemas.DireccionCorteResponse(
-        **base.model_dump(),
+        **base_data,
         chips_count=len(chips),
         chips_por_tipo=chips_por_tipo,
         ventas=ventas_list,
