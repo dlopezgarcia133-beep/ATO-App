@@ -1297,7 +1297,40 @@ def obtener_corte_hoy(
     ).first()
     print(f"[cortes/hoy] resultado_fecha={getattr(resultado, 'fecha', None)!r}")
     if resultado is None:
-        return None
+        cc = db.query(models.CajaChica).filter(
+            models.CajaChica.modulo_id == user.modulo_id,
+            models.CajaChica.fecha == target,
+        ).first()
+        caja_chica_monto = float(cc.monto) if cc else 0.0
+        if caja_chica_monto == 0.0:
+            return None
+        return {
+            "id": 0,
+            "fecha": target,
+            "modulo_id": user.modulo_id,
+            "accesorios_efectivo": 0.0,
+            "accesorios_tarjeta": 0.0,
+            "accesorios_total": 0.0,
+            "telefonos_efectivo": 0.0,
+            "telefonos_tarjeta": 0.0,
+            "telefonos_total": 0.0,
+            "total_efectivo": 0.0,
+            "total_tarjeta": 0.0,
+            "total_sistema": 0.0,
+            "total_general": 0.0,
+            "adicional_recargas": 0.0,
+            "adicional_transporte": 0.0,
+            "adicional_otros": 0.0,
+            "adicional_mayoreo": 0.0,
+            "adicional_mayoreo_para": None,
+            "salida_efectivo": 0.0,
+            "nota_salida": None,
+            "enviado": False,
+            "revisado_direccion": False,
+            "revisado_por": None,
+            "revisado_at": None,
+            "caja_chica": caja_chica_monto,
+        }
     cc = db.query(models.CajaChica).filter(
         models.CajaChica.modulo_id == resultado.modulo_id,
         models.CajaChica.fecha == resultado.fecha,

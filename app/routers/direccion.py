@@ -45,7 +45,43 @@ def obtener_corte_direccion(
     )
 
     if corte is None:
-        return None
+        cc = db.query(models.CajaChica).filter(
+            models.CajaChica.modulo_id == modulo_id,
+            models.CajaChica.fecha == fecha,
+        ).first()
+        caja_chica_monto = float(cc.monto) if cc else 0.0
+        if caja_chica_monto == 0.0:
+            return None
+        return schemas.DireccionCorteResponse(
+            id=0,
+            fecha=fecha,
+            modulo_id=modulo_id,
+            accesorios_efectivo=0.0,
+            accesorios_tarjeta=0.0,
+            accesorios_total=0.0,
+            telefonos_efectivo=0.0,
+            telefonos_tarjeta=0.0,
+            telefonos_total=0.0,
+            total_efectivo=0.0,
+            total_tarjeta=0.0,
+            total_sistema=0.0,
+            total_general=0.0,
+            adicional_recargas=0.0,
+            adicional_transporte=0.0,
+            adicional_otros=0.0,
+            adicional_mayoreo=0.0,
+            adicional_mayoreo_para=None,
+            salida_efectivo=0.0,
+            nota_salida=None,
+            enviado=False,
+            revisado_direccion=False,
+            revisado_por=None,
+            revisado_at=None,
+            caja_chica=caja_chica_monto,
+            chips_count=0,
+            chips_por_tipo={},
+            ventas=[],
+        )
 
     chips = (
         db.query(models.VentaChip)
