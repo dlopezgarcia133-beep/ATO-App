@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, Date, Float, Integer, Numeric, String, E
 import sqlalchemy
 from .database import Base
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -473,4 +474,26 @@ class JornadaAsistencia(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class CajaChica(Base):
+    __tablename__ = "caja_chica"
+
+    id = Column(Integer, primary_key=True)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
+    fecha = Column(Date, nullable=False)
+    monto = Column(Numeric(10, 2), nullable=False, default=0)
+    creado_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(ZoneInfo("America/Mexico_City"))
+    )
+    actualizado_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(ZoneInfo("America/Mexico_City")),
+        onupdate=lambda: datetime.now(ZoneInfo("America/Mexico_City"))
+    )
+
+    __table_args__ = (
+        UniqueConstraint("modulo_id", "fecha", name="caja_chica_modulo_fecha_unique"),
     )

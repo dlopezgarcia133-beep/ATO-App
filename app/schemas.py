@@ -1041,3 +1041,19 @@ class ResumenModuloResponse(BaseModel):
     nomina_inicio: date
     nomina_fin: date
     empleados: List[ResumenEmpleadoNomina]
+
+
+class CajaChicaCreate(BaseModel):
+    modulo_id: int
+    fecha: date
+    monto: float
+
+
+class CajaChicaResponse(BaseModel):
+    id: int
+    modulo_id: int
+    fecha: date
+    monto: float
+
+    class Config:
+        from_attributes = True
