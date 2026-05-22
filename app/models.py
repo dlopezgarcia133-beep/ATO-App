@@ -38,6 +38,7 @@ class Usuario(Base):
     forma_pago = Column(String, nullable=True)
     cuenta_clabe = Column(String, nullable=True)
     cuenta_interbancaria = Column(String, nullable=True)
+    nombre_englobado = Column(String(50), nullable=True, index=True)
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"
