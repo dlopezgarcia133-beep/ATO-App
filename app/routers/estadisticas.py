@@ -11,9 +11,9 @@ from sqlalchemy.orm import Session
 from app import models
 from app.config import get_current_user
 from app.database import get_db
+from app.routers.direccion import MODULOS_EXCLUIR_SQL  # fuente única — mantener sincronizado
 
 ZONA = ZoneInfo("America/Mexico_City")
-CADENAS = "Cadenas Comerciales"
 
 router = APIRouter()
 
@@ -44,7 +44,7 @@ def ranking_modulos(
             models.Venta.fecha >= primer_dia,
             models.Venta.fecha <= hoy,
             models.Venta.cancelada.isnot(True),
-            models.Modulo.nombre != CADENAS,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.Modulo.nombre, models.Venta.tipo_producto, models.Venta.tipo_venta)
         .all()
@@ -63,7 +63,7 @@ def ranking_modulos(
             models.VentaChip.fecha >= primer_dia,
             models.VentaChip.fecha <= hoy,
             models.VentaChip.cancelada.isnot(True),
-            models.Modulo.nombre != CADENAS,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.Modulo.nombre)
         .all()
@@ -81,7 +81,7 @@ def ranking_modulos(
         .filter(
             models.Plan.fecha >= dt_inicio,
             models.Plan.fecha <= dt_fin,
-            models.Modulo.nombre != CADENAS,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.Modulo.nombre)
         .all()
@@ -116,7 +116,7 @@ def ranking_modulos(
             models.Venta.fecha >= hist_oldest,
             models.Venta.fecha <= hist_newest_end,
             models.Venta.cancelada.isnot(True),
-            models.Modulo.nombre != CADENAS,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(
             models.Modulo.nombre,
