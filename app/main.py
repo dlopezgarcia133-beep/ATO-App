@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import Base, SessionLocal, engine
 from app import models
 from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
-from app.routers import dashboard, direccion, sueldos, caja_chica
+from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas
 from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -59,4 +59,5 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(direccion.router, prefix="/direccion", tags=["Dirección"])
 app.include_router(sueldos.router, prefix="/sueldos", tags=["Sueldos"])
 app.include_router(caja_chica.router, tags=["Caja Chica"])
+app.include_router(estadisticas.router, prefix="/estadisticas", tags=["Estadísticas"])
 
