@@ -1138,7 +1138,7 @@ def tiempo_real(
             total_mxn_h = sum(v["total"] for v in meses.values())
             total_dias_h = sum(v["dias"] for v in meses.values())
             promedio_diario = total_mxn_h / total_dias_h if total_dias_h > 0 else 0.0
-            meta = promedio_diario * (horas_transcurridas / 12.0)
+            meta = (promedio_diario * FACTOR_CRECIMIENTO) * (horas_transcurridas / 12.0)
             total_actual = modulo_map_tr[mod]["total_mxn"]
             pct = round((total_actual / meta) * 100, 1) if meta > 0 else None
             diario_map[mod] = {
