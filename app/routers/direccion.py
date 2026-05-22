@@ -15,6 +15,8 @@ from app.database import get_db
 ZONA = ZoneInfo("America/Mexico_City")
 MODULOS_EXCLUIR = {"v2", "cadenas c.", "mi2", "bo", "prueba"}
 MODULOS_EXCLUIR_SQL = ["V2", "Cadenas C.", "MI2", "BO", "prueba"]
+# IMPORTANTE: si cambias este valor, actualiza también el de estadisticas.py
+FACTOR_CRECIMIENTO = 1.03
 
 router = APIRouter()
 
@@ -674,7 +676,7 @@ def estadisticas_mes(
         else:
             total_hist = sum(meses_datos.values())
             promedio = total_hist / n
-            meta = promedio * (dias_transcurridos / ultimo_dia)
+            meta = (promedio * FACTOR_CRECIMIENTO) * (dias_transcurridos / ultimo_dia)
             pct = round((vals["total_mxn"] / meta) * 100, 1) if meta > 0 else None
             prod_map[mod] = {"promedio": round(promedio, 2), "meta": round(meta, 2), "pct": pct, "meses_considerados": n}
 

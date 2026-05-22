@@ -14,6 +14,8 @@ from app.database import get_db
 from app.routers.direccion import MODULOS_EXCLUIR_SQL  # fuente única — mantener sincronizado
 
 ZONA = ZoneInfo("America/Mexico_City")
+# IMPORTANTE: si cambias este valor, actualiza también el de direccion.py
+FACTOR_CRECIMIENTO = 1.03
 
 router = APIRouter()
 
@@ -176,7 +178,7 @@ def ranking_modulos(
         n = len(meses_datos)
         if n > 0:
             promedio = sum(meses_datos.values()) / n
-            meta = promedio * (dias_transcurridos / ultimo_dia)
+            meta = (promedio * FACTOR_CRECIMIENTO) * (dias_transcurridos / ultimo_dia)
             productividad = round((vals["total_mxn"] / meta) * 100, 1) if meta > 0 else 0.0
         else:
             productividad = 0.0
