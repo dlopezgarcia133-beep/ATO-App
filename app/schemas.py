@@ -142,6 +142,7 @@ class UsuarioCreate(BaseModel):
 
 # 👉 Este es para actualizar un usuario
 class UsuarioUpdate(BaseModel):
+    nombre_completo: Optional[str] = None
     username: Optional[str] = None
     rol: Optional[str] = None
     modulo_id: Optional[int] = None

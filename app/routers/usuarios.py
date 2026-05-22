@@ -115,6 +115,8 @@ def editar_usuario(
         if not usuario_db:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+        if "nombre_completo" in datos.model_fields_set:
+            usuario_db.nombre_completo = datos.nombre_completo or None
         if datos.username and datos.username != usuario_db.username:
             duplicado = db.query(models.Usuario).filter(
                 models.Usuario.username == datos.username,
