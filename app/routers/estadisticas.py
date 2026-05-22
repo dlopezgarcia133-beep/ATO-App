@@ -181,14 +181,13 @@ def ranking_modulos(
         else:
             productividad = 0.0
 
-        cnt_acc = vals["cnt_acc"]
-        promedio_acc = round(vals["monto_acc"] / cnt_acc, 2) if cnt_acc > 0 else 0.0
+        promedio_acc = round(vals["monto_acc"] / dias_transcurridos, 2) if dias_transcurridos > 0 else 0.0
 
         ranking.append({
             "posicion": 0,
             "codigo_modulo": modulo,
             "promedio_venta_accesorios": promedio_acc,
-            "total_accesorios": cnt_acc,
+            "total_accesorios": vals["cnt_acc"],
             "contado": vals["contado"],
             "payjoy": vals["payjoy"],
             "paguitos": vals["paguitos"],
