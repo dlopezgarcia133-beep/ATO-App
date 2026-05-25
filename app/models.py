@@ -501,3 +501,16 @@ class CajaChica(Base):
     __table_args__ = (
         UniqueConstraint("modulo_id", "fecha", name="caja_chica_modulo_fecha_unique"),
     )
+
+
+class CicloGuardado(Base):
+    __tablename__ = "ciclos_guardados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    concepto = Column(String(50), nullable=False, index=True)
+    etiqueta = Column(String(100), nullable=False)
+    fecha_inicio = Column(Date, nullable=False)
+    fecha_fin = Column(Date, nullable=False)
+    datos = Column(JSON, nullable=False, default=list)
+    creado_por = Column(String(100), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())

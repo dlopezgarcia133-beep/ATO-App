@@ -1074,3 +1074,25 @@ class CajaChicaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CicloGuardadoCreate(BaseModel):
+    concepto: str
+    etiqueta: str
+    fecha_inicio: date
+    fecha_fin: date
+    datos: List[Dict]
+
+
+class CicloGuardadoResponse(BaseModel):
+    id: int
+    concepto: str
+    etiqueta: str
+    fecha_inicio: date
+    fecha_fin: date
+    datos: List[Dict]
+    creado_por: str
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True

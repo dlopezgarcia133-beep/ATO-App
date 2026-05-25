@@ -1,11 +1,12 @@
 from collections import defaultdict
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import models
+from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
 
@@ -208,3 +209,44 @@ def update_horario(
 
     db.commit()
     return {"ok": True, "jornada_fija": jornada_total}
+
+
+@router.post("/ciclos-guardados", response_model=schemas.CicloGuardadoResponse)
+def crear_ciclo_guardado(
+    data: schemas.CicloGuardadoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    if not data.etiqueta.strip():
+        raise HTTPException(400, "La etiqueta no puede estar vacía")
+
+    registro = models.CicloGuardado(
+        concepto=data.concepto,
+        etiqueta=data.etiqueta.strip(),
+        fecha_inicio=data.fecha_inicio,
+        fecha_fin=data.fecha_fin,
+        datos=data.datos,
+        creado_por=current_user.username,
+    )
+    db.add(registro)
+    db.commit()
+    db.refresh(registro)
+    return registro
+
+
+@router.get("/ciclos-guardados", response_model=list[schemas.CicloGuardadoResponse])
+def listar_ciclos_guardados(
+    concepto: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    return (
+        db.query(models.CicloGuardado)
+        .filter(models.CicloGuardado.concepto == concepto)
+        .order_by(models.CicloGuardado.creado_en.desc())
+        .all()
+    )
