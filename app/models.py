@@ -1,6 +1,6 @@
 import enum
 from sqlite3.dbapi2 import Timestamp
-from sqlalchemy import Boolean, Column, Date, Float, Integer, Numeric, String, Enum, DateTime, Time, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Date, Float, Integer, JSON, Numeric, String, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
 from datetime import date, datetime, timezone
@@ -40,6 +40,8 @@ class Usuario(Base):
     cuenta_interbancaria = Column(String, nullable=True)
     nombre_englobado = Column(String(50), nullable=True, index=True)
     jornada_fija = Column(Numeric(5, 2), default=0)
+    horario_semanal = Column(JSON, default=list)
+    dia_descanso = Column(String(10), nullable=True)
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"

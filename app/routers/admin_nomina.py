@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -27,6 +27,26 @@ class EnglobadoUpdate(BaseModel):
 
 class JornadaFijaUpdate(BaseModel):
     jornada: float
+
+
+class DiaTrabajo(BaseModel):
+    dia: str
+    entrada: Optional[str] = None
+    salida: Optional[str] = None
+    descanso: bool = False
+
+
+class HorarioUpdate(BaseModel):
+    horario_semanal: List[DiaTrabajo]
+    dia_descanso: Optional[str] = None
+
+
+def _calcular_horas(entrada: str, salida: str) -> float:
+    """Misma fórmula que frontend: diff en minutos / 60."""
+    eh, em = map(int, entrada.split(":"))
+    sh, sm = map(int, salida.split(":"))
+    diff_min = (sh * 60 + sm) - (eh * 60 + em)
+    return 0.0 if diff_min <= 0 else diff_min / 60
 
 
 def _solo_admin(user: models.Usuario) -> None:
@@ -160,3 +180,31 @@ def update_jornada_fija(
     usuario.jornada_fija = data.jornada
     db.commit()
     return {"ok": True}
+
+
+@router.put("/usuarios/{usuario_id}/horario")
+def update_horario(
+    usuario_id: int,
+    data: HorarioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    usuario = db.query(models.Usuario).filter_by(id=usuario_id).first()
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    jornada_total = sum(
+        _calcular_horas(d.entrada, d.salida)
+        for d in data.horario_semanal
+        if not d.descanso and d.entrada and d.salida
+    )
+    jornada_total = round(jornada_total, 2)
+
+    usuario.horario_semanal = [d.model_dump() for d in data.horario_semanal]
+    usuario.dia_descanso = data.dia_descanso or None
+    usuario.jornada_fija = jornada_total
+
+    db.commit()
+    return {"ok": True, "jornada_fija": jornada_total}

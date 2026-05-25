@@ -140,6 +140,8 @@ class UsuarioCreate(BaseModel):
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
     jornada_fija: Optional[float] = 0
+    horario_semanal: Optional[List[Dict]] = []
+    dia_descanso: Optional[str] = None
 
 # 👉 Este es para actualizar un usuario
 class UsuarioUpdate(BaseModel):
@@ -155,6 +157,8 @@ class UsuarioUpdate(BaseModel):
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
     jornada_fija: Optional[float] = None
+    horario_semanal: Optional[List[Dict]] = None
+    dia_descanso: Optional[str] = None
 
 # 👉 Este para devolver la respuesta
 class ModuloOut(BaseModel):
@@ -177,6 +181,8 @@ class UsuarioResponse(BaseModel):
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
     jornada_fija: Optional[float] = 0
+    horario_semanal: Optional[List[Dict]] = []
+    dia_descanso: Optional[str] = None
 
     class Config:
         from_attributes = True
