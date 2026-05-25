@@ -39,6 +39,7 @@ class Usuario(Base):
     cuenta_clabe = Column(String, nullable=True)
     cuenta_interbancaria = Column(String, nullable=True)
     nombre_englobado = Column(String(50), nullable=True, index=True)
+    jornada_fija = Column(Numeric(5, 2), default=0)
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"

@@ -419,6 +419,7 @@ def acumulado_semanal(
                 total_horas=total_horas,
                 jornada=jornada,
                 horas_extra=horas_extra,
+                jornada_fija=float(emp.jornada_fija) if emp.jornada_fija is not None else 0.0,
             ))
 
         return resultado

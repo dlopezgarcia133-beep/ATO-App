@@ -25,6 +25,10 @@ class EnglobadoUpdate(BaseModel):
     nombre_englobado: Optional[str] = None
 
 
+class JornadaFijaUpdate(BaseModel):
+    jornada: float
+
+
 def _solo_admin(user: models.Usuario) -> None:
     if user.rol != "admin":
         raise HTTPException(status_code=403, detail="No autorizado")
@@ -136,5 +140,23 @@ def assign_nombre_englobado(
         raise HTTPException(404, "Usuario no encontrado")
 
     usuario.nombre_englobado = data.nombre_englobado or None
+    db.commit()
+    return {"ok": True}
+
+
+@router.put("/usuarios/{usuario_id}/jornada-fija")
+def update_jornada_fija(
+    usuario_id: int,
+    data: JornadaFijaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    usuario = db.query(models.Usuario).filter_by(id=usuario_id).first()
+    if not usuario:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    usuario.jornada_fija = data.jornada
     db.commit()
     return {"ok": True}
