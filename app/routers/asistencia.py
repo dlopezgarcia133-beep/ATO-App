@@ -414,6 +414,7 @@ def acumulado_semanal(
                 usuario_id=emp.id,
                 username=emp.username,
                 nombre_completo=emp.nombre_completo or emp.username,
+                nombre_englobado=emp.nombre_englobado,
                 dias=dias,
                 total_horas=total_horas,
                 jornada=jornada,

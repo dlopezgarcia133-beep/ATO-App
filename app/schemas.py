@@ -993,6 +993,7 @@ class EmpleadoAcumuladoSemanal(BaseModel):
     usuario_id: int
     username: str
     nombre_completo: Optional[str] = None
+    nombre_englobado: Optional[str] = None
     dias: Dict[str, Optional[DiaResumen]]
     total_horas: float
     jornada: Optional[float] = None
