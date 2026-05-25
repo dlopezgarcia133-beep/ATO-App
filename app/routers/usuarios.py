@@ -59,6 +59,7 @@ def registrar_usuario(
             cuenta_clabe=usuario.cuenta_clabe or None,
             cuenta_interbancaria=usuario.cuenta_interbancaria or None,
             nombre_englobado=usuario.nombre_englobado or None,
+            jornada_fija=usuario.jornada_fija or 0,
         )
         db.add(usuario_nuevo)
         db.commit()
@@ -148,6 +149,8 @@ def editar_usuario(
             usuario_db.cuenta_interbancaria = datos.cuenta_interbancaria or None
         if "nombre_englobado" in datos.model_fields_set:
             usuario_db.nombre_englobado = datos.nombre_englobado or None
+        if datos.jornada_fija is not None:
+            usuario_db.jornada_fija = datos.jornada_fija
 
         db.commit()
         db.refresh(usuario_db)

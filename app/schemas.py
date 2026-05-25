@@ -139,6 +139,7 @@ class UsuarioCreate(BaseModel):
     cuenta_clabe: Optional[str] = None
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
+    jornada_fija: Optional[float] = 0
 
 # 👉 Este es para actualizar un usuario
 class UsuarioUpdate(BaseModel):
@@ -153,6 +154,7 @@ class UsuarioUpdate(BaseModel):
     cuenta_clabe: Optional[str] = None
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
+    jornada_fija: Optional[float] = None
 
 # 👉 Este para devolver la respuesta
 class ModuloOut(BaseModel):
@@ -174,6 +176,7 @@ class UsuarioResponse(BaseModel):
     cuenta_clabe: Optional[str] = None
     cuenta_interbancaria: Optional[str] = None
     nombre_englobado: Optional[str] = None
+    jornada_fija: Optional[float] = 0
 
     class Config:
         from_attributes = True
