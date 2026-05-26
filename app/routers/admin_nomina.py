@@ -610,3 +610,343 @@ def descargar_nomina_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ── Nóminas de Incubadora ─────────────────────────────────────────────────────
+
+@router.get("/chips-incubadora-pendientes")
+def get_chips_incubadora_pendientes(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    chips = (
+        db.query(models.VentaChip)
+        .filter(
+            models.VentaChip.es_incubadora == True,
+            models.VentaChip.validado == True,
+            models.VentaChip.comision_pagada == False,
+            models.VentaChip.cancelada == False,
+            models.VentaChip.numero_telefono.isnot(None),
+        )
+        .all()
+    )
+
+    # Agrupar por empleado_id para luego colapsar por nombre_englobado
+    by_user: dict = defaultdict(list)
+    for c in chips:
+        by_user[c.empleado_id].append(c)
+
+    # Cargar usuarios relevantes en un solo query
+    user_ids = list(by_user.keys())
+    usuarios = {
+        u.id: u
+        for u in db.query(models.Usuario).filter(models.Usuario.id.in_(user_ids)).all()
+    }
+
+    # Agrupar por nombre_englobado
+    groups: dict = defaultdict(lambda: {"perfiles": [], "chips": []})
+    for uid, chip_list in by_user.items():
+        u = usuarios.get(uid)
+        if not u:
+            continue
+        key = u.nombre_englobado or u.username
+        groups[key]["perfiles"].append(u)
+        groups[key]["chips"].extend(chip_list)
+
+    result = []
+    for group_name, gdata in sorted(groups.items()):
+        perfiles = gdata["perfiles"]
+        group_chips = gdata["chips"]
+        total = sum(float(c.comision or 0) for c in group_chips)
+        nombre = next((p.nombre_completo for p in perfiles if p.nombre_completo), group_name)
+        usuario_ids = sorted({p.id for p in perfiles})
+
+        result.append({
+            "empleado": group_name,
+            "nombre_completo": nombre,
+            "usuario_ids": usuario_ids,
+            "chips_count": len(group_chips),
+            "total_chips_incubadora": round(total, 2),
+            "pago_total": round(total, 2),
+            "detalle": [
+                {
+                    "chip_id": c.id,
+                    "tipo_chip": c.tipo_chip,
+                    "numero_telefono": c.numero_telefono,
+                    "comision": round(float(c.comision or 0), 2),
+                    "fecha_venta": str(c.fecha),
+                }
+                for c in sorted(group_chips, key=lambda x: x.fecha)
+            ],
+        })
+
+    return result
+
+
+@router.post("/nominas-incubadora", response_model=schemas.NominaIncubadoraResponse)
+def crear_nomina_incubadora(
+    data: schemas.NominaIncubadoraCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    if not data.etiqueta.strip():
+        raise HTTPException(400, "La etiqueta no puede estar vacía")
+    if not data.datos:
+        raise HTTPException(400, "La nómina no tiene empleados")
+
+    # Extraer todos los chip_ids del snapshot
+    chip_ids = [d["chip_id"] for item in data.datos for d in item.get("detalle", [])]
+    if not chip_ids:
+        raise HTTPException(400, "No hay chips en el detalle de la nómina")
+
+    # Guard anti-duplicado: verificar que ningún chip ya esté pagado
+    ya_pagados = (
+        db.query(models.VentaChip.id)
+        .filter(
+            models.VentaChip.id.in_(chip_ids),
+            models.VentaChip.comision_pagada == True,
+        )
+        .all()
+    )
+    if ya_pagados:
+        ids_str = ", ".join(str(r.id) for r in ya_pagados)
+        raise HTTPException(409, f"Los chips {ids_str} ya fueron pagados en una nómina anterior")
+
+    total = sum(float(item.get("pago_total", 0)) for item in data.datos)
+
+    try:
+        nomina = models.NominaIncubadora(
+            etiqueta=data.etiqueta.strip(),
+            total_pago=round(total, 2),
+            datos=data.datos,
+            creado_por=current_user.username,
+        )
+        db.add(nomina)
+        db.flush()  # obtener el id antes del commit
+
+        db.query(models.VentaChip).filter(
+            models.VentaChip.id.in_(chip_ids),
+            models.VentaChip.comision_pagada == False,
+        ).update({"comision_pagada": True}, synchronize_session=False)
+
+        db.commit()
+        db.refresh(nomina)
+        return nomina
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Error al guardar la nómina; se revirtió la transacción")
+
+
+@router.get("/nominas-incubadora", response_model=list[schemas.NominaIncubadoraListItem])
+def listar_nominas_incubadora(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+    return (
+        db.query(models.NominaIncubadora)
+        .order_by(models.NominaIncubadora.creado_en.desc())
+        .all()
+    )
+
+
+@router.get("/nominas-incubadora/{nomina_id}", response_model=schemas.NominaIncubadoraResponse)
+def detalle_nomina_incubadora(
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+    nomina = db.query(models.NominaIncubadora).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina de incubadora no encontrada")
+    return nomina
+
+
+@router.get("/nominas-incubadora/{nomina_id}/excel")
+def descargar_nomina_incubadora_excel(
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+    nomina = db.query(models.NominaIncubadora).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina de incubadora no encontrada")
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = Workbook()
+    hf = Font(bold=True, color="FFFFFF")
+    hfill = PatternFill("solid", fgColor="7C3AED")
+    tf = Font(bold=True)
+    center = Alignment(horizontal="center")
+
+    # ── Hoja 1: Resumen ──
+    ws1 = wb.active
+    ws1.title = "Resumen"
+    for col, (h, w) in enumerate(
+        zip(["Empleado", "Nombre completo", "N° Chips", "Total"], [22, 32, 12, 16]),
+        start=1,
+    ):
+        cell = ws1.cell(row=1, column=col, value=h)
+        cell.font = hf
+        cell.fill = hfill
+        cell.alignment = center
+        ws1.column_dimensions[cell.column_letter].width = w
+
+    for i, item in enumerate(nomina.datos, start=2):
+        ws1.cell(row=i, column=1, value=item.get("empleado", ""))
+        ws1.cell(row=i, column=2, value=item.get("nombre_completo", ""))
+        ws1.cell(row=i, column=3, value=item.get("chips_count", 0))
+        ws1.cell(row=i, column=4, value=round(float(item.get("pago_total", 0)), 2))
+
+    total_row = len(nomina.datos) + 2
+    ws1.cell(row=total_row, column=1, value="TOTAL").font = tf
+    ws1.cell(row=total_row, column=4, value=float(nomina.total_pago)).font = tf
+
+    # ── Hoja 2: Detalle ──
+    ws2 = wb.create_sheet(title="Detalle")
+    det_headers = ["Empleado", "Nombre completo", "Tipo Chip", "Número", "Comisión", "Fecha Venta"]
+    det_widths  = [22, 32, 18, 16, 14, 14]
+    for col, (h, w) in enumerate(zip(det_headers, det_widths), start=1):
+        cell = ws2.cell(row=1, column=col, value=h)
+        cell.font = hf
+        cell.fill = hfill
+        cell.alignment = center
+        ws2.column_dimensions[cell.column_letter].width = w
+
+    row_idx = 2
+    for item in nomina.datos:
+        emp = item.get("empleado", "")
+        nombre = item.get("nombre_completo", "")
+        for chip in item.get("detalle", []):
+            ws2.cell(row=row_idx, column=1, value=emp)
+            ws2.cell(row=row_idx, column=2, value=nombre)
+            ws2.cell(row=row_idx, column=3, value=chip.get("tipo_chip", ""))
+            ws2.cell(row=row_idx, column=4, value=chip.get("numero_telefono", ""))
+            ws2.cell(row=row_idx, column=5, value=round(float(chip.get("comision", 0)), 2))
+            ws2.cell(row=row_idx, column=6, value=chip.get("fecha_venta", ""))
+            row_idx += 1
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fname = f"incubadora_{_safe_filename(nomina.etiqueta)}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/nominas-incubadora/{nomina_id}/pdf")
+def descargar_nomina_incubadora_pdf(
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+    nomina = db.query(models.NominaIncubadora).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina de incubadora no encontrada")
+
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=40, rightMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    purple = colors.HexColor("#7C3AED")
+
+    h1 = ParagraphStyle("h1", parent=styles["Heading1"], textColor=purple, spaceAfter=2)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], textColor=purple, fontSize=11, spaceAfter=4)
+
+    elements = []
+    elements.append(Paragraph(f"NÓMINA DE INCUBADORA — {nomina.etiqueta}", h1))
+    creado_str = nomina.creado_en.strftime("%d/%m/%Y %H:%M") if nomina.creado_en else ""
+    elements.append(Paragraph(f"Creado por: {nomina.creado_por}  |  {creado_str}", styles["Normal"]))
+    elements.append(Spacer(1, 10))
+
+    # ── Resumen ──
+    elements.append(Paragraph("Resumen", h2))
+    res_data = [["Empleado", "Nombre completo", "N° Chips", "Total"]]
+    for item in nomina.datos:
+        res_data.append([
+            item.get("empleado", ""),
+            item.get("nombre_completo", ""),
+            str(item.get("chips_count", 0)),
+            f"${float(item.get('pago_total', 0)):.2f}",
+        ])
+    res_data.append(["TOTAL", "", "", f"${float(nomina.total_pago):.2f}"])
+
+    t_res = Table(res_data, colWidths=[90, 160, 70, 80])
+    t_res.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), purple),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("ALIGN", (1, 1), (1, -1), "LEFT"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#f5f3ff")]),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(t_res)
+
+    # ── Detalle por empleado ──
+    elements.append(Spacer(1, 12))
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
+    elements.append(Spacer(1, 6))
+    elements.append(Paragraph("Detalle por Empleado", h2))
+
+    for item in nomina.datos:
+        if not item.get("detalle"):
+            continue
+        elements.append(Paragraph(
+            f"<b>{item.get('empleado','')} — {item.get('nombre_completo','')}</b>",
+            styles["Normal"],
+        ))
+        elements.append(Spacer(1, 3))
+
+        det_data = [["Tipo Chip", "Número", "Comisión", "Fecha Venta"]]
+        for chip in item.get("detalle", []):
+            det_data.append([
+                chip.get("tipo_chip", ""),
+                chip.get("numero_telefono", ""),
+                f"${float(chip.get('comision', 0)):.2f}",
+                chip.get("fecha_venta", ""),
+            ])
+
+        t_det = Table(det_data, colWidths=[110, 120, 80, 90])
+        t_det.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ede9fe")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e2e8f0")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        elements.append(t_det)
+        elements.append(Spacer(1, 6))
+
+    doc.build(elements)
+    buf.seek(0)
+
+    fname = f"incubadora_{_safe_filename(nomina.etiqueta)}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

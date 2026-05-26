@@ -1138,3 +1138,30 @@ class NominaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class NominaIncubadoraCreate(BaseModel):
+    etiqueta: str
+    datos: List[Dict]
+
+
+class NominaIncubadoraListItem(BaseModel):
+    id: int
+    etiqueta: str
+    total_pago: float
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NominaIncubadoraResponse(BaseModel):
+    id: int
+    etiqueta: str
+    total_pago: float
+    datos: List[Dict]
+    creado_por: str
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True

@@ -536,3 +536,14 @@ class Nomina(Base):
 
     ciclo_horas_extras = relationship("CicloGuardado", foreign_keys=[ciclo_horas_extras_id])
     ciclo_comisiones = relationship("CicloGuardado", foreign_keys=[ciclo_comisiones_id])
+
+
+class NominaIncubadora(Base):
+    __tablename__ = "nominas_incubadora"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    etiqueta   = Column(String(200), nullable=False)
+    total_pago = Column(Numeric(12, 2), nullable=False, default=0)
+    datos      = Column(JSON, nullable=False, default=list)
+    creado_por = Column(String(100), nullable=False)
+    creado_en  = Column(DateTime(timezone=True), server_default=func.now())
