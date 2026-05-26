@@ -313,6 +313,8 @@ def get_comisiones_por_grupo(
             "seccion": cfg["seccion"],
             "empleado": group_name,
             "nombre_completo": nombre,
+            "usuario_ids": sorted({p.id for p in perfiles}),
+            "sueldo_base": round(sum(p.sueldo_base or 0 for p in perfiles), 2),
             "comisiones_accesorios": round(acc, 2),
             "comisiones_telefonos": round(tel, 2),
             "comisiones_chips": round(chips, 2),

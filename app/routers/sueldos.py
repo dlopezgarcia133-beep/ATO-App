@@ -73,6 +73,34 @@ def _es_telefono(nombre_norm: str) -> bool:
     return nombre_norm.startswith("TELEFONO")
 
 
+def _sueldo_total_modulo(db: Session, modulo_nombre: str, fecha_inicio: date, fecha_fin: date) -> float:
+    comision_mod = (
+        db.query(models.ComisionModulo)
+        .filter(models.ComisionModulo.modulo == modulo_nombre)
+        .first()
+    )
+    porcentaje = float(comision_mod.porcentaje) if comision_mod else 0.0
+    ventas = (
+        db.query(models.Venta)
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(
+            models.Modulo.nombre == modulo_nombre,
+            models.Venta.fecha >= fecha_inicio,
+            models.Venta.fecha <= fecha_fin,
+            models.Venta.cancelada == False,
+        )
+        .all()
+    )
+    total = 0.0
+    for v in ventas:
+        nombre_norm = _normalizar(v.producto)
+        neto = round(v.precio_unitario * v.cantidad, 2)
+        comision, label = _calcular_comision(nombre_norm, v.precio_unitario, v.cantidad, neto, porcentaje)
+        if label != "excluido":
+            total += comision
+    return round(total, 2)
+
+
 @router.get("/encargados", response_model=schemas.SueldoEncargadoResponse)
 def sueldos_encargados(
     modulo: str = Query(..., description="Nombre exacto del módulo"),
@@ -216,6 +244,55 @@ def sueldos_encargados(
         desglose_diario=desglose,
         sueldo_total=sueldo_total,
     )
+
+
+@router.get("/encargados-todos")
+def sueldos_encargados_todos(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("direccion", "admin"):
+        raise HTTPException(status_code=403, detail="Solo dirección")
+
+    encargados = (
+        db.query(models.Usuario)
+        .filter(
+            models.Usuario.activo == True,
+            models.Usuario.rol == models.RolEnum.encargado,
+            models.Usuario.username.op("~*")("^A[0-9]"),
+        )
+        .all()
+    )
+
+    groups: dict = defaultdict(list)
+    for u in encargados:
+        key = u.nombre_englobado or u.username
+        groups[key].append(u)
+
+    result = []
+    for group_name, perfiles in sorted(groups.items()):
+        sueldo_total = 0.0
+        modulos: list = []
+        for p in perfiles:
+            modulo_nombre = p.modulo.nombre if p.modulo else None
+            if modulo_nombre:
+                sueldo_total += _sueldo_total_modulo(db, modulo_nombre, fecha_inicio, fecha_fin)
+                modulos.append(modulo_nombre)
+
+        nombre = next((p.nombre_completo for p in perfiles if p.nombre_completo), group_name)
+        usuario_ids = sorted({p.id for p in perfiles})
+
+        result.append({
+            "empleado": group_name,
+            "nombre_completo": nombre,
+            "modulo": ", ".join(sorted(modulos)),
+            "usuario_ids": usuario_ids,
+            "sueldo_total": round(sueldo_total, 2),
+        })
+
+    return result
 
 
 @router.get("/resumen-modulo", response_model=schemas.ResumenModuloResponse)
