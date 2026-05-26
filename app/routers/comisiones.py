@@ -95,8 +95,9 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
 
     ventas_chips = db.query(models.VentaChip).filter(
         models.VentaChip.empleado_id == empleado_id,
-        models.VentaChip.numero_telefono.isnot(None),
+        models.VentaChip.cancelada == False,
         models.VentaChip.validado == True,
+        models.VentaChip.numero_telefono.isnot(None),
         models.VentaChip.fecha >= datetime.combine(inicio, datetime.min.time()),
         models.VentaChip.fecha <= datetime.combine(fin, datetime.max.time()),
     ).all()
@@ -121,14 +122,13 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
         cantidad = getattr(v, "cantidad", 0) or 0
         tipo_venta = (getattr(v, "tipo_venta", "") or "").strip().lower()
 
-        comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
-        comision_total = comision_base * cantidad
-
         if getattr(v, "tipo_producto", "") == "telefono":
-
-            comision_total += comision_extra
+            if tipo_venta == "contado" and comision_base > 0:
+                comision_total = comision_base * cantidad
+            else:
+                comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
+                comision_total = (comision_base + comision_extra) * cantidad
             total_telefonos += comision_total
-
             telefonos.append({
                 "producto": v.producto,
                 "cantidad": cantidad,
@@ -136,13 +136,12 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision_total": comision_total,
                 "tipo_venta": tipo_venta,
                 "fecha": v.fecha if v.fecha else None,
-                "hora": v.hora if v.hora else None
+                "hora": v.hora if v.hora else None,
             })
 
         elif getattr(v, "tipo_producto", "") == "accesorios":
-
+            comision_total = comision_base * cantidad
             total_accesorios += comision_total
-
             accesorios.append({
                 "producto": v.producto,
                 "cantidad": cantidad,
@@ -150,29 +149,22 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "tipo_venta": tipo_venta,
                 "comision_total": comision_total,
                 "fecha": v.fecha if v.fecha else None,
-                "hora": v.hora if v.hora else None
+                "hora": v.hora if v.hora else None,
             })
 
     for v in ventas_chips:
-
-        comision = getattr(v, "comision", 0) or 0
-        comision_manual = getattr(v, "comision_manual", 0) or 0
-        total = comision + comision_manual
-
-        total_chips += total
-
+        comision = float(v.comision or 0)
+        total_chips += comision
         chips.append({
             "tipo_chip": v.tipo_chip,
             "numero_telefono": v.numero_telefono,
-            "comision": total,
+            "comision": comision,
             "es_incubadora": bool(v.es_incubadora),
             "fecha": v.fecha if v.fecha else None,
-            "hora": v.hora if v.hora else None
+            "hora": v.hora if v.hora else None,
         })
 
     total_general = total_accesorios + total_telefonos + total_chips
-
-    print("RESULTADO FINAL:", total_general)
     return {
         "inicio_ciclo": inicio,
         "fin_ciclo": fin,
