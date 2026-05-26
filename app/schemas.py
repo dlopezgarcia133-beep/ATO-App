@@ -280,9 +280,18 @@ class VentaChipResponse(VentaChipCreate):
 class PagarComisionesInput(BaseModel):
     numeros: list[str]
 
+class DetalleIncubadoraItem(BaseModel):
+    numero: str
+    empleado: str
+    comision: float
+
 class PagarComisionesResponse(BaseModel):
-    pagados: int
-    no_encontrados: list[str]
+    chips_normales_pagados: int
+    chips_incubadora_validados: int
+    chips_no_encontrados: int
+    total_pagado_normales: float
+    total_pendiente_incubadora: float
+    detalle_incubadora: list[DetalleIncubadoraItem]
 
 
 class ComisionCreate(BaseModel):

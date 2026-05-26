@@ -690,13 +690,15 @@ def pagar_comisiones(
     current_user: models.Usuario = Depends(get_current_user)
 ):
     try:
-        no_encontrados = []
-        pagados = 0
+        no_encontrados: list[str] = []
+        normales_pagados = 0
+        incubadora_validados = 0
+        total_pagado_normales = 0.0
+        total_pendiente_incubadora = 0.0
+        detalle_incubadora: list[dict] = []
 
-        # Limpiar números de entrada
         numeros_limpios = [n.strip().split()[0] for n in data.numeros]
 
-        # Consultar comisiones directamente vía SQLAlchemy
         comision_telcel: dict[str, float] = {}
         if numeros_limpios:
             rows = db.execute(
@@ -716,15 +718,41 @@ def pagar_comisiones(
                 None
             )
             if chip is None:
-                no_encontrados.append(numero)
+                no_encontrados.append(numero_limpio)
+                continue
+
+            if chip.cancelada:
+                no_encontrados.append(numero_limpio)
+                continue
+
+            comision_nueva = comision_telcel.get(numero_limpio, chip.comision or 0)
+            chip.comision = comision_nueva
+
+            if chip.es_incubadora:
+                chip.validado = True
+                chip.descripcion_rechazo = None
+                incubadora_validados += 1
+                total_pendiente_incubadora += comision_nueva
+                detalle_incubadora.append({
+                    "numero": numero_limpio,
+                    "empleado": chip.empleado.username if chip.empleado else "—",
+                    "comision": comision_nueva,
+                })
             else:
                 chip.validado = True
                 chip.comision_pagada = True
-                chip.comision = comision_telcel.get(numero_limpio, chip.comision or 0)
-                pagados += 1
+                normales_pagados += 1
+                total_pagado_normales += comision_nueva
 
         db.commit()
-        return {"pagados": pagados, "no_encontrados": no_encontrados}
+        return {
+            "chips_normales_pagados": normales_pagados,
+            "chips_incubadora_validados": incubadora_validados,
+            "chips_no_encontrados": len(no_encontrados),
+            "total_pagado_normales": round(total_pagado_normales, 2),
+            "total_pendiente_incubadora": round(total_pendiente_incubadora, 2),
+            "detalle_incubadora": detalle_incubadora,
+        }
 
     except Exception as e:
         db.rollback()
