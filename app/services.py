@@ -51,7 +51,8 @@ def obtener_comisiones_por_empleado_optimizado(db: Session, inicio: date, fin: d
             func.sum(models.VentaChip.comision).label("total_chips")
         )
         .filter(
-            models.VentaChip.cancelada == False,
+            models.VentaChip.validado == True,
+            models.VentaChip.numero_telefono.isnot(None),
             models.VentaChip.fecha.between(inicio, fin)
         )
         .group_by(models.VentaChip.empleado_id)
@@ -121,7 +122,11 @@ def obtener_desglose_comisiones_por_empleado(db: Session, inicio: date, fin: dat
             models.VentaChip.empleado_id,
             func.sum(models.VentaChip.comision).label("total_chips")
         )
-        .filter(models.VentaChip.cancelada == False, models.VentaChip.fecha.between(inicio, fin))
+        .filter(
+            models.VentaChip.validado == True,
+            models.VentaChip.numero_telefono.isnot(None),
+            models.VentaChip.fecha.between(inicio, fin)
+        )
         .group_by(models.VentaChip.empleado_id)
         .all()
     )
