@@ -1096,3 +1096,33 @@ class CicloGuardadoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class NominaCreate(BaseModel):
+    etiqueta: str
+    ciclo_horas_extras_id: Optional[int] = None
+    datos: List[Dict]
+
+
+class NominaListItem(BaseModel):
+    id: int
+    etiqueta: str
+    total_pago: float
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NominaResponse(BaseModel):
+    id: int
+    etiqueta: str
+    ciclo_horas_extras_id: Optional[int] = None
+    ciclo_comisiones_id: Optional[int] = None
+    total_pago: float
+    datos: List[Dict]
+    creado_por: str
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True

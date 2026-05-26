@@ -514,3 +514,19 @@ class CicloGuardado(Base):
     datos = Column(JSON, nullable=False, default=list)
     creado_por = Column(String(100), nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Nomina(Base):
+    __tablename__ = "nominas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    etiqueta = Column(String(200), nullable=False)
+    ciclo_horas_extras_id = Column(Integer, ForeignKey("ciclos_guardados.id"), nullable=True)
+    ciclo_comisiones_id = Column(Integer, ForeignKey("ciclos_guardados.id"), nullable=True)
+    total_pago = Column(Numeric(12, 2), nullable=False, default=0)
+    datos = Column(JSON, nullable=False, default=list)
+    creado_por = Column(String(100), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    ciclo_horas_extras = relationship("CicloGuardado", foreign_keys=[ciclo_horas_extras_id])
+    ciclo_comisiones = relationship("CicloGuardado", foreign_keys=[ciclo_comisiones_id])
