@@ -55,7 +55,7 @@ def _calcular_horas(entrada: str, salida: str) -> float:
 
 
 def _solo_admin(user: models.Usuario) -> None:
-    if user.rol != "admin":
+    if user.rol not in ("admin", "direccion"):
         raise HTTPException(status_code=403, detail="No autorizado")
 
 
