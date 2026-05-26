@@ -338,8 +338,8 @@ def descargar_nomina_excel(
     header_fill = PatternFill("solid", fgColor="FF6600")
     total_font = Font(bold=True)
 
-    headers = ["Empleado", "Nombre completo", "Pago H. Extras", "Total Pago"]
-    col_widths = [20, 30, 18, 18]
+    headers = ["Empleado", "Nombre completo", "H. Extra", "Pago H. Extras", "Total Pago"]
+    col_widths = [20, 30, 14, 18, 18]
 
     for col, (h, w) in enumerate(zip(headers, col_widths), start=1):
         cell = ws.cell(row=1, column=col, value=h)
@@ -349,14 +349,17 @@ def descargar_nomina_excel(
         ws.column_dimensions[cell.column_letter].width = w
 
     for row_idx, item in enumerate(nomina.datos, start=2):
+        he = item.get("horas_extra_redondeo")
+        he_str = "—" if he is None else (f"+{he}h" if float(he) > 0 else f"{he}h")
         ws.cell(row=row_idx, column=1, value=item.get("empleado", ""))
         ws.cell(row=row_idx, column=2, value=item.get("nombre_completo", ""))
-        ws.cell(row=row_idx, column=3, value=round(float(item.get("pago_horas_extras", 0)), 2))
-        ws.cell(row=row_idx, column=4, value=round(float(item.get("pago_total", 0)), 2))
+        ws.cell(row=row_idx, column=3, value=he_str)
+        ws.cell(row=row_idx, column=4, value=round(float(item.get("pago_horas_extras", 0)), 2))
+        ws.cell(row=row_idx, column=5, value=round(float(item.get("pago_total", 0)), 2))
 
     total_row = len(nomina.datos) + 2
     ws.cell(row=total_row, column=1, value="TOTAL").font = total_font
-    ws.cell(row=total_row, column=4, value=float(nomina.total_pago)).font = total_font
+    ws.cell(row=total_row, column=5, value=float(nomina.total_pago)).font = total_font
 
     buf = BytesIO()
     wb.save(buf)
@@ -401,17 +404,20 @@ def descargar_nomina_pdf(
     elements.append(Paragraph(f"Creado por: {nomina.creado_por}  |  {creado_str}", styles["Normal"]))
     elements.append(Spacer(1, 12))
 
-    table_data = [["Empleado", "Nombre completo", "Pago H. Extras", "Total Pago"]]
+    table_data = [["Empleado", "Nombre completo", "H. Extra", "Pago H. Extras", "Total Pago"]]
     for item in nomina.datos:
+        he = item.get("horas_extra_redondeo")
+        he_str = "—" if he is None else (f"+{he}h" if float(he) > 0 else f"{he}h")
         table_data.append([
             item.get("empleado", ""),
             item.get("nombre_completo", ""),
+            he_str,
             f"${float(item.get('pago_horas_extras', 0)):.2f}",
             f"${float(item.get('pago_total', 0)):.2f}",
         ])
-    table_data.append(["TOTAL", "", "", f"${float(nomina.total_pago):.2f}"])
+    table_data.append(["TOTAL", "", "", "", f"${float(nomina.total_pago):.2f}"])
 
-    col_widths_pdf = [100, 180, 100, 100]
+    col_widths_pdf = [90, 160, 70, 90, 90]
     t = Table(table_data, colWidths=col_widths_pdf)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), ato_orange),
