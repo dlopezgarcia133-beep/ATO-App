@@ -1101,6 +1101,12 @@ class CicloGuardadoResponse(BaseModel):
 class NominaCreate(BaseModel):
     etiqueta: str
     ciclo_horas_extras_id: Optional[int] = None
+    fecha_inicio_asesores: Optional[date] = None
+    fecha_fin_asesores: Optional[date] = None
+    fecha_inicio_encargados: Optional[date] = None
+    fecha_fin_encargados: Optional[date] = None
+    fecha_inicio_cadenas: Optional[date] = None
+    fecha_fin_cadenas: Optional[date] = None
     datos: List[Dict]
 
 
@@ -1119,6 +1125,12 @@ class NominaResponse(BaseModel):
     etiqueta: str
     ciclo_horas_extras_id: Optional[int] = None
     ciclo_comisiones_id: Optional[int] = None
+    fecha_inicio_asesores: Optional[date] = None
+    fecha_fin_asesores: Optional[date] = None
+    fecha_inicio_encargados: Optional[date] = None
+    fecha_fin_encargados: Optional[date] = None
+    fecha_inicio_cadenas: Optional[date] = None
+    fecha_fin_cadenas: Optional[date] = None
     total_pago: float
     datos: List[Dict]
     creado_por: str
