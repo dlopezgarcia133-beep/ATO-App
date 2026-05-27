@@ -7,27 +7,24 @@ from app.routers import asistencias, asistencia, auth, comisiones, inventario, i
 from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas, admin_nomina
 from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
-
 Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://atosistema.vercel.app",
+        "https://atosistema-omega.vercel.app",
         "http://localhost:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 ALLOWED_ORIGINS = [
     "https://atosistema.vercel.app",
+    "https://atosistema-omega.vercel.app",
     "http://localhost:3000",
 ]
-
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     origin = request.headers.get("origin", "")
@@ -40,7 +37,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc)},
         headers=headers,
     )
-
 # Incluir los routers
 app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 app.include_router(usuarios.router, prefix="/registro", tags=["Usuarios"])
@@ -61,4 +57,3 @@ app.include_router(sueldos.router, prefix="/sueldos", tags=["Sueldos"])
 app.include_router(caja_chica.router, tags=["Caja Chica"])
 app.include_router(estadisticas.router, prefix="/estadisticas", tags=["Estadísticas"])
 app.include_router(admin_nomina.router, prefix="/admin", tags=["Admin"])
-
