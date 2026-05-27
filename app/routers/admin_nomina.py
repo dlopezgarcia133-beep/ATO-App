@@ -634,6 +634,123 @@ def descargar_nomina_excel(
     )
 
 
+@router.get("/nominas/{nomina_id}/excel-rh")
+def descargar_nomina_excel_rh(
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    nomina = db.query(models.Nomina).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina no encontrada")
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    # Un solo query para todos los usuarios necesarios (primer id de cada fila)
+    all_ids = {fila["usuario_ids"][0] for fila in nomina.datos if fila.get("usuario_ids")}
+    usuarios_map: dict = {}
+    if all_ids:
+        usuarios_map = {
+            u.id: u
+            for u in db.query(models.Usuario).filter(models.Usuario.id.in_(all_ids)).all()
+        }
+
+    # Construir filas enriquecidas con datos bancarios
+    filas = []
+    for fila in nomina.datos:
+        ids = fila.get("usuario_ids", [])
+        u = usuarios_map.get(ids[0]) if ids else None
+        forma = (u.forma_pago or "").strip() if u else ""
+        filas.append({
+            "empleado":      fila.get("empleado", ""),
+            "grupo":         forma if forma else "SIN BANCO",
+            "clabe":         (u.cuenta_clabe or "").strip() or "—" if u else "—",
+            "interbancaria": (u.cuenta_interbancaria or "").strip() or "—" if u else "—",
+            "deposito":      float(fila.get("deposito", 0)),
+        })
+
+    # Agrupar: grupos normales alfabéticos, SIN BANCO siempre al final
+    grupos_dict: dict = {}
+    for f in filas:
+        grupos_dict.setdefault(f["grupo"], []).append(f)
+
+    grupos_ordenados = sorted(g for g in grupos_dict if g != "SIN BANCO")
+    if "SIN BANCO" in grupos_dict:
+        grupos_ordenados.append("SIN BANCO")
+
+    for g in grupos_dict:
+        grupos_dict[g].sort(key=lambda x: x["empleado"])
+
+    # Estilos
+    header_font   = Font(bold=True, color="FFFFFF")
+    header_fill   = PatternFill("solid", fgColor="F97316")
+    sub_font      = Font(bold=True)
+    sub_fill      = PatternFill("solid", fgColor="FFF7ED")
+    total_font    = Font(bold=True, color="FFFFFF")
+    total_fill    = PatternFill("solid", fgColor="F97316")
+    center        = Alignment(horizontal="center")
+    money_fmt     = '"$"#,##0.00'
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Resumen RH"
+
+    headers = ["Empleado", "Forma de pago", "Cuenta CLABE", "Cuenta interbancaria", "Depósito"]
+    ws.append(headers)
+    for col in range(1, 6):
+        c = ws.cell(row=1, column=col)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = center
+
+    row_idx = 2
+    total_general = 0.0
+
+    for grupo in grupos_ordenados:
+        subtotal = 0.0
+        for f in grupos_dict[grupo]:
+            ws.append([f["empleado"], grupo, f["clabe"], f["interbancaria"], f["deposito"]])
+            ws.cell(row=row_idx, column=5).number_format = money_fmt
+            subtotal += f["deposito"]
+            row_idx += 1
+
+        ws.append([f"TOTAL {grupo.upper()}", "", "", "", subtotal])
+        for col in range(1, 6):
+            c = ws.cell(row=row_idx, column=col)
+            c.font = sub_font
+            c.fill = sub_fill
+        ws.cell(row=row_idx, column=5).number_format = money_fmt
+        row_idx += 1
+        total_general += subtotal
+
+    ws.append(["TOTAL GENERAL", "", "", "", total_general])
+    for col in range(1, 6):
+        c = ws.cell(row=row_idx, column=col)
+        c.font = total_font
+        c.fill = total_fill
+    ws.cell(row=row_idx, column=5).number_format = money_fmt
+
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 24
+    ws.column_dimensions["D"].width = 24
+    ws.column_dimensions["E"].width = 14
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fname = f"nomina_rh_{_safe_filename(nomina.etiqueta)}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 def _pdf_table_horas_extras(datos, colors, ato_orange):
     from reportlab.platypus import Table, TableStyle
     rows = [d for d in datos if d.get("seccion") == "horas_extras"]
