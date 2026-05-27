@@ -428,12 +428,12 @@ def _excel_sheet_unificada(wb, datos, header_font, header_fill, total_font):
     ws = wb.active
     ws.title = "Nómina Unificada"
     headers = [
-        "Empleado", "Nombre", "Sueldo", "H.Extra", "$Pago HE",
+        "Empleado", "Sueldo", "H.Extra", "$Pago HE",
         "Accesorios", "Teléfonos", "Chips", "Incubadora",
-        "Planes", "Pendientes", "Bonos", "Subtotal", "Total",
+        "Planes tarifarios", "Com. pendientes", "Bonos", "Subtotal",
         "Sanciones", "Depósito",
     ]
-    col_widths = [15, 22, 12, 9, 12, 13, 13, 11, 13, 11, 13, 11, 13, 13, 13, 13]
+    col_widths = [15, 12, 9, 12, 13, 13, 11, 13, 17, 17, 11, 13, 13, 13]
     for col, (h, w) in enumerate(zip(headers, col_widths), start=1):
         cell = ws.cell(row=1, column=col, value=h)
         cell.font = header_font
@@ -447,7 +447,6 @@ def _excel_sheet_unificada(wb, datos, header_font, header_fill, total_font):
         he_str = "—" if he is None else (f"+{he}h" if float(he) > 0 else f"{he}h")
         vals = [
             item.get("empleado", ""),
-            item.get("nombre_completo", ""),
             round(float(item.get("sueldo", 0)), 2),
             he_str,
             round(float(item.get("pago_he", 0)), 2),
@@ -459,19 +458,18 @@ def _excel_sheet_unificada(wb, datos, header_font, header_fill, total_font):
             round(float(item.get("pendientes", 0)), 2),
             round(float(item.get("bonos", 0)), 2),
             round(float(item.get("subtotal", 0)), 2),
-            round(float(item.get("total", 0)), 2),
             round(float(item.get("sanciones", 0)), 2),
             round(float(item.get("deposito", 0)), 2),
         ]
         for col, val in enumerate(vals, start=1):
             cell = ws.cell(row=row_idx, column=col, value=val)
-            if col > 2 and col != 4:
+            if col > 1 and col != 3:
                 cell.alignment = Alignment(horizontal="right")
 
     total_row = len(rows) + 2
     ws.cell(row=total_row, column=1, value="TOTAL").font = total_font
     deposito_total = round(sum(float(d.get("deposito", 0)) for d in rows), 2)
-    cell = ws.cell(row=total_row, column=16, value=deposito_total)
+    cell = ws.cell(row=total_row, column=14, value=deposito_total)
     cell.font = total_font
     cell.alignment = Alignment(horizontal="right")
 
@@ -480,9 +478,9 @@ def _pdf_table_unificada(datos, colors, ato_orange):
     from reportlab.platypus import Table, TableStyle
     rows = [d for d in datos if d.get("seccion") in {"asesor", "encargado", "cadena"}]
     headers = [
-        "Empleado", "Nombre", "Sueldo", "H.E.", "PagoHE",
+        "Empleado", "Sueldo", "H.E.", "PagoHE",
         "Acces.", "Telef.", "Chips", "Incub.",
-        "Planes", "Pend.", "Bonos", "Subtot.", "Total",
+        "Planes", "Pend.", "Bonos", "Subtot.",
         "Sanc.", "Depósito",
     ]
     table_data = [headers]
@@ -492,15 +490,14 @@ def _pdf_table_unificada(datos, colors, ato_orange):
         def fmt(k): return f"${float(item.get(k, 0)):.2f}"
         table_data.append([
             item.get("empleado", ""),
-            item.get("nombre_completo", ""),
             fmt("sueldo"), he_str, fmt("pago_he"),
             fmt("accesorios"), fmt("telefonos"), fmt("chips"), fmt("incubadora"),
             fmt("planes"), fmt("pendientes"), fmt("bonos"),
-            fmt("subtotal"), fmt("total"), fmt("sanciones"), fmt("deposito"),
+            fmt("subtotal"), fmt("sanciones"), fmt("deposito"),
         ])
     total_dep = sum(float(d.get("deposito", 0)) for d in rows)
-    table_data.append(["TOTAL"] + [""] * 14 + [f"${total_dep:.2f}"])
-    col_widths = [48, 65, 43, 33, 43, 43, 43, 38, 43, 38, 43, 38, 46, 43, 43, 46]
+    table_data.append(["TOTAL"] + [""] * 12 + [f"${total_dep:.2f}"])
+    col_widths = [55, 48, 33, 48, 46, 46, 40, 46, 46, 46, 38, 50, 46, 54]
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), ato_orange),
@@ -508,7 +505,6 @@ def _pdf_table_unificada(datos, colors, ato_orange):
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 7),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("ALIGN", (1, 1), (1, -1), "LEFT"),
         ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#f8fafc")]),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
