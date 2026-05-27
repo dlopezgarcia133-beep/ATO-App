@@ -909,9 +909,13 @@ def motivo_rechazo_chip(
     venta = db.query(models.VentaChip).filter_by(id=venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    
-    venta.descripcion_rechazo = descripcion
-    venta.es_incubadora = True
+
+    if descripcion.strip():
+        venta.descripcion_rechazo = descripcion
+        venta.es_incubadora = True
+    else:
+        venta.descripcion_rechazo = None
+        venta.es_incubadora = False
     db.commit()
     return {"mensaje": "Motivo de rechazo registrado"}
 
