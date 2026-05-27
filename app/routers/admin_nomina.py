@@ -429,6 +429,31 @@ def publicar_nomina(
     return {"ok": True}
 
 
+class NominaEditarBody(BaseModel):
+    etiqueta: str
+    datos: List[dict]
+
+
+@router.put("/nominas/{nomina_id}/editar")
+def editar_nomina(
+    nomina_id: int,
+    body: NominaEditarBody,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    nomina = db.query(models.Nomina).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina no encontrada")
+
+    nomina.etiqueta = body.etiqueta
+    nomina.datos = body.datos
+    nomina.total_pago = sum(float(r.get("deposito", 0)) for r in body.datos)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/nominas/{nomina_id}", response_model=schemas.NominaResponse)
 def detalle_nomina(
     nomina_id: int,
