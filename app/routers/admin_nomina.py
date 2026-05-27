@@ -345,23 +345,50 @@ def crear_nomina(
 
     total = sum(float(item.get("pago_total", 0)) for item in data.datos)
 
-    nomina = models.Nomina(
-        etiqueta=data.etiqueta.strip(),
-        ciclo_horas_extras_id=data.ciclo_horas_extras_id,
-        fecha_inicio_asesores=data.fecha_inicio_asesores,
-        fecha_fin_asesores=data.fecha_fin_asesores,
-        fecha_inicio_encargados=data.fecha_inicio_encargados,
-        fecha_fin_encargados=data.fecha_fin_encargados,
-        fecha_inicio_cadenas=data.fecha_inicio_cadenas,
-        fecha_fin_cadenas=data.fecha_fin_cadenas,
-        total_pago=round(total, 2),
-        datos=data.datos,
-        creado_por=current_user.username,
-    )
-    db.add(nomina)
-    db.commit()
-    db.refresh(nomina)
-    return nomina
+    try:
+        nomina = models.Nomina(
+            etiqueta=data.etiqueta.strip(),
+            ciclo_horas_extras_id=data.ciclo_horas_extras_id,
+            fecha_inicio_asesores=data.fecha_inicio_asesores,
+            fecha_fin_asesores=data.fecha_fin_asesores,
+            fecha_inicio_encargados=data.fecha_inicio_encargados,
+            fecha_fin_encargados=data.fecha_fin_encargados,
+            fecha_inicio_cadenas=data.fecha_inicio_cadenas,
+            fecha_fin_cadenas=data.fecha_fin_cadenas,
+            total_pago=round(total, 2),
+            datos=data.datos,
+            creado_por=current_user.username,
+        )
+        db.add(nomina)
+        db.flush()
+
+        if data.chip_ids_incubadora:
+            ya_pagados = (
+                db.query(models.VentaChip.id)
+                .filter(
+                    models.VentaChip.id.in_(data.chip_ids_incubadora),
+                    models.VentaChip.comision_pagada == True,
+                )
+                .all()
+            )
+            if ya_pagados:
+                ids_str = ", ".join(str(r.id) for r in ya_pagados)
+                raise HTTPException(409, f"Los chips {ids_str} ya fueron pagados en una nómina anterior")
+
+            db.query(models.VentaChip).filter(
+                models.VentaChip.id.in_(data.chip_ids_incubadora),
+                models.VentaChip.comision_pagada == False,
+            ).update({"comision_pagada": True}, synchronize_session=False)
+
+        db.commit()
+        db.refresh(nomina)
+        return nomina
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Error al guardar la nómina; se revirtió la transacción")
 
 
 @router.get("/nominas", response_model=list[schemas.NominaListItem])
@@ -390,6 +417,105 @@ def detalle_nomina(
     if not nomina:
         raise HTTPException(404, "Nómina no encontrada")
     return nomina
+
+
+def _es_formato_unificado(datos: list) -> bool:
+    return any(d.get("seccion") in {"asesor", "encargado", "cadena"} for d in datos)
+
+
+def _excel_sheet_unificada(wb, datos, header_font, header_fill, total_font):
+    from openpyxl.styles import Alignment
+    ws = wb.active
+    ws.title = "Nómina Unificada"
+    headers = [
+        "Empleado", "Nombre", "Sueldo", "H.Extra", "$Pago HE",
+        "Accesorios", "Teléfonos", "Chips", "Incubadora",
+        "Planes", "Pendientes", "Bonos", "Subtotal", "Total",
+        "Sanciones", "Depósito",
+    ]
+    col_widths = [15, 22, 12, 9, 12, 13, 13, 11, 13, 11, 13, 11, 13, 13, 13, 13]
+    for col, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        ws.column_dimensions[cell.column_letter].width = w
+
+    rows = [d for d in datos if d.get("seccion") in {"asesor", "encargado", "cadena"}]
+    for row_idx, item in enumerate(rows, start=2):
+        he = item.get("horas_extra")
+        he_str = "—" if he is None else (f"+{he}h" if float(he) > 0 else f"{he}h")
+        vals = [
+            item.get("empleado", ""),
+            item.get("nombre_completo", ""),
+            round(float(item.get("sueldo", 0)), 2),
+            he_str,
+            round(float(item.get("pago_he", 0)), 2),
+            round(float(item.get("accesorios", 0)), 2),
+            round(float(item.get("telefonos", 0)), 2),
+            round(float(item.get("chips", 0)), 2),
+            round(float(item.get("incubadora", 0)), 2),
+            round(float(item.get("planes", 0)), 2),
+            round(float(item.get("pendientes", 0)), 2),
+            round(float(item.get("bonos", 0)), 2),
+            round(float(item.get("subtotal", 0)), 2),
+            round(float(item.get("total", 0)), 2),
+            round(float(item.get("sanciones", 0)), 2),
+            round(float(item.get("deposito", 0)), 2),
+        ]
+        for col, val in enumerate(vals, start=1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            if col > 2 and col != 4:
+                cell.alignment = Alignment(horizontal="right")
+
+    total_row = len(rows) + 2
+    ws.cell(row=total_row, column=1, value="TOTAL").font = total_font
+    deposito_total = round(sum(float(d.get("deposito", 0)) for d in rows), 2)
+    cell = ws.cell(row=total_row, column=16, value=deposito_total)
+    cell.font = total_font
+    cell.alignment = Alignment(horizontal="right")
+
+
+def _pdf_table_unificada(datos, colors, ato_orange):
+    from reportlab.platypus import Table, TableStyle
+    rows = [d for d in datos if d.get("seccion") in {"asesor", "encargado", "cadena"}]
+    headers = [
+        "Empleado", "Nombre", "Sueldo", "H.E.", "PagoHE",
+        "Acces.", "Telef.", "Chips", "Incub.",
+        "Planes", "Pend.", "Bonos", "Subtot.", "Total",
+        "Sanc.", "Depósito",
+    ]
+    table_data = [headers]
+    for item in rows:
+        he = item.get("horas_extra")
+        he_str = "—" if he is None else (f"+{he}h" if float(he) > 0 else f"{he}h")
+        def fmt(k): return f"${float(item.get(k, 0)):.2f}"
+        table_data.append([
+            item.get("empleado", ""),
+            item.get("nombre_completo", ""),
+            fmt("sueldo"), he_str, fmt("pago_he"),
+            fmt("accesorios"), fmt("telefonos"), fmt("chips"), fmt("incubadora"),
+            fmt("planes"), fmt("pendientes"), fmt("bonos"),
+            fmt("subtotal"), fmt("total"), fmt("sanciones"), fmt("deposito"),
+        ])
+    total_dep = sum(float(d.get("deposito", 0)) for d in rows)
+    table_data.append(["TOTAL"] + [""] * 14 + [f"${total_dep:.2f}"])
+    col_widths = [48, 65, 43, 33, 43, 43, 43, 38, 43, 38, 43, 38, 46, 43, 43, 46]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), ato_orange),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("ALIGN", (1, 1), (1, -1), "LEFT"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#f8fafc")]),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    return t
 
 
 def _excel_sheet_horas_extras(wb, datos, header_font, header_fill, total_font):
@@ -465,14 +591,16 @@ def descargar_nomina_excel(
 
     secciones_presentes = {d.get("seccion") for d in nomina.datos}
 
-    _excel_sheet_horas_extras(wb, nomina.datos, header_font, header_fill, total_font)
-
-    if "comisiones_asesores" in secciones_presentes:
-        _excel_sheet_comisiones(wb, "Comisiones Asesores", "comisiones_asesores", nomina.datos, header_font, header_fill, total_font)
-    if "comisiones_encargados" in secciones_presentes:
-        _excel_sheet_comisiones(wb, "Comisiones Encargados", "comisiones_encargados", nomina.datos, header_font, header_fill, total_font)
-    if "comisiones_cadenas" in secciones_presentes:
-        _excel_sheet_comisiones(wb, "Comisiones Cadenas", "comisiones_cadenas", nomina.datos, header_font, header_fill, total_font)
+    if _es_formato_unificado(nomina.datos):
+        _excel_sheet_unificada(wb, nomina.datos, header_font, header_fill, total_font)
+    else:
+        _excel_sheet_horas_extras(wb, nomina.datos, header_font, header_fill, total_font)
+        if "comisiones_asesores" in secciones_presentes:
+            _excel_sheet_comisiones(wb, "Comisiones Asesores", "comisiones_asesores", nomina.datos, header_font, header_fill, total_font)
+        if "comisiones_encargados" in secciones_presentes:
+            _excel_sheet_comisiones(wb, "Comisiones Encargados", "comisiones_encargados", nomina.datos, header_font, header_fill, total_font)
+        if "comisiones_cadenas" in secciones_presentes:
+            _excel_sheet_comisiones(wb, "Comisiones Cadenas", "comisiones_cadenas", nomina.datos, header_font, header_fill, total_font)
 
     buf = BytesIO()
     wb.save(buf)
@@ -568,8 +696,18 @@ def descargar_nomina_pdf(
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
+    from reportlab.lib.pagesizes import landscape as landscape_ps
+
+    es_unificado = _es_formato_unificado(nomina.datos)
+    page_size = landscape_ps(letter) if es_unificado else letter
+    margins = (30, 30, 30, 30) if es_unificado else (40, 40, 40, 40)
+
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=40, rightMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(
+        buf, pagesize=page_size,
+        leftMargin=margins[0], rightMargin=margins[1],
+        topMargin=margins[2], bottomMargin=margins[3],
+    )
     styles = getSampleStyleSheet()
     ato_orange = colors.HexColor("#FF6600")
 
@@ -582,23 +720,25 @@ def descargar_nomina_pdf(
     elements.append(Paragraph(f"Creado por: {nomina.creado_por}  |  {creado_str}", styles["Normal"]))
     elements.append(Spacer(1, 10))
 
-    secciones_presentes = {d.get("seccion") for d in nomina.datos}
+    if es_unificado:
+        elements.append(_pdf_table_unificada(nomina.datos, colors, ato_orange))
+    else:
+        secciones_presentes = {d.get("seccion") for d in nomina.datos}
+        elements.append(Paragraph("Horas Extras", h2))
+        elements.append(_pdf_table_horas_extras(nomina.datos, colors, ato_orange))
 
-    elements.append(Paragraph("Horas Extras", h2))
-    elements.append(_pdf_table_horas_extras(nomina.datos, colors, ato_orange))
-
-    secciones_comisiones = [
-        ("comisiones_asesores",   "Comisiones Asesores"),
-        ("comisiones_encargados", "Comisiones Encargados"),
-        ("comisiones_cadenas",    "Comisiones Cadenas"),
-    ]
-    for key, titulo in secciones_comisiones:
-        if key in secciones_presentes:
-            elements.append(Spacer(1, 10))
-            elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
-            elements.append(Spacer(1, 6))
-            elements.append(Paragraph(titulo, h2))
-            elements.append(_pdf_table_comisiones(key, nomina.datos, colors, ato_orange))
+        secciones_comisiones = [
+            ("comisiones_asesores",   "Comisiones Asesores"),
+            ("comisiones_encargados", "Comisiones Encargados"),
+            ("comisiones_cadenas",    "Comisiones Cadenas"),
+        ]
+        for key, titulo in secciones_comisiones:
+            if key in secciones_presentes:
+                elements.append(Spacer(1, 10))
+                elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e2e8f0")))
+                elements.append(Spacer(1, 6))
+                elements.append(Paragraph(titulo, h2))
+                elements.append(_pdf_table_comisiones(key, nomina.datos, colors, ato_orange))
 
     elements.append(Spacer(1, 10))
     elements.append(Paragraph(f"<b>TOTAL NÓMINA: ${float(nomina.total_pago):.2f}</b>", styles["Normal"]))

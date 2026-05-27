@@ -1110,6 +1110,7 @@ class CicloGuardadoResponse(BaseModel):
 class NominaCreate(BaseModel):
     etiqueta: str
     ciclo_horas_extras_id: Optional[int] = None
+    chip_ids_incubadora: Optional[List[int]] = None
     fecha_inicio_asesores: Optional[date] = None
     fecha_fin_asesores: Optional[date] = None
     fecha_inicio_encargados: Optional[date] = None
