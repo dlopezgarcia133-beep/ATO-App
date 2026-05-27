@@ -272,6 +272,7 @@ class VentaChipResponse(VentaChipCreate):
     validado: bool
     comision_pagada: bool = False
     descripcion_rechazo: Optional[str] = None
+    es_incubadora: bool = False
 
     class Config:
         from_attributes = True
