@@ -362,6 +362,12 @@ def crear_nomina(
         db.add(nomina)
         db.flush()
 
+        # Despublicar todas y publicar la nueva
+        db.query(models.Nomina).filter(models.Nomina.id != nomina.id).update(
+            {"publicada": False}, synchronize_session=False
+        )
+        nomina.publicada = True
+
         if data.chip_ids_incubadora:
             ya_pagados = (
                 db.query(models.VentaChip.id)
@@ -403,6 +409,24 @@ def listar_nominas(
         .order_by(models.Nomina.creado_en.desc())
         .all()
     )
+
+
+@router.put("/nominas/{nomina_id}/publicar")
+def publicar_nomina(
+    nomina_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    nomina = db.query(models.Nomina).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina no encontrada")
+
+    db.query(models.Nomina).update({"publicada": False}, synchronize_session=False)
+    nomina.publicada = True
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/nominas/{nomina_id}", response_model=schemas.NominaResponse)

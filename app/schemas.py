@@ -1124,6 +1124,7 @@ class NominaListItem(BaseModel):
     id: int
     etiqueta: str
     total_pago: float
+    publicada: bool = False
     creado_en: datetime
 
     class Config:
@@ -1143,6 +1144,7 @@ class NominaResponse(BaseModel):
     fecha_fin_cadenas: Optional[date] = None
     total_pago: float
     datos: List[Dict]
+    publicada: bool = False
     creado_por: str
     creado_en: datetime
 
