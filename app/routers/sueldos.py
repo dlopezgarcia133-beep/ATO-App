@@ -275,11 +275,14 @@ def sueldos_encargados_todos(
     for group_name, perfiles in sorted(groups.items()):
         sueldo_total = 0.0
         modulos: list = []
+        modulos_sueldo: list = []
         for p in perfiles:
             modulo_nombre = p.modulo.nombre if p.modulo else None
             if modulo_nombre:
-                sueldo_total += _sueldo_total_modulo(db, modulo_nombre, fecha_inicio, fecha_fin)
+                monto = _sueldo_total_modulo(db, modulo_nombre, fecha_inicio, fecha_fin)
+                sueldo_total += monto
                 modulos.append(modulo_nombre)
+                modulos_sueldo.append({"modulo": modulo_nombre, "monto": round(monto, 2)})
 
         nombre = next((p.nombre_completo for p in perfiles if p.nombre_completo), group_name)
         usuario_ids = sorted({p.id for p in perfiles})
@@ -290,6 +293,7 @@ def sueldos_encargados_todos(
             "modulo": ", ".join(sorted(modulos)),
             "usuario_ids": usuario_ids,
             "sueldo_total": round(sueldo_total, 2),
+            "modulos_sueldo": sorted(modulos_sueldo, key=lambda x: x["modulo"]),
         })
 
     return result
