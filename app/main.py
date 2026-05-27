@@ -5,22 +5,21 @@ from app.database import Base, SessionLocal, engine
 from app import models
 from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
 from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas, admin_nomina
-from . import schemas
 from fastapi.middleware.cors import CORSMiddleware
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-ALLOWED_ORIGINS = [
-    "https://atosistema.vercel.app",
-    "https://atosistema-omega.vercel.app",
-    "http://localhost:3000",
-]
+
+@app.get("/")
+def health_check():
+    return {"status": "ok"}
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     origin = request.headers.get("origin", "")
