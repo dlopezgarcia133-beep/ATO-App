@@ -480,6 +480,7 @@ def editar_entrada_mercancia(
         verificar_rol_requerido([models.RolEnum.admin])
     ),
 ):
+    print(f"[PUT/entradas/{entrada_id}] v3 START productos={len(data.productos)}", flush=True)
 
     if not data.productos:
         raise HTTPException(status_code=400, detail="La entrada debe tener al menos un producto")
@@ -531,7 +532,9 @@ def editar_entrada_mercancia(
         if prod_nombre not in base_info:
             deltas[prod_nombre] = (-cant_orig, tipo_prod)
 
+    print(f"[PUT/entradas/{entrada_id}] deltas={len(deltas)} mapa_orig={len(mapa_original)} base_info={len(base_info)}", flush=True)
     if not deltas:
+        print(f"[PUT/entradas/{entrada_id}] SIN CAMBIOS - regresando temprano", flush=True)
         return {"ok": True, "message": "Sin cambios que aplicar"}
 
     # Fase 1: validar todos los deltas negativos ANTES de mutar nada
@@ -624,10 +627,12 @@ def editar_entrada_mercancia(
         )
 
     # Actualizar el registro histórico: reemplazar filas ENTRADA del kardex con los productos nuevos
-    db.query(models.KardexMovimiento).filter(
+    print(f"[PUT/entradas/{entrada_id}] eliminando kardex ENTRADA", flush=True)
+    deleted = db.query(models.KardexMovimiento).filter(
         models.KardexMovimiento.referencia_id == entrada_id,
         models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
     ).delete(synchronize_session=False)
+    print(f"[PUT/entradas/{entrada_id}] eliminadas {deleted} filas ENTRADA", flush=True)
 
     for prod_nombre, (clave, precio, tipo_prod, nueva_cant) in base_info.items():
         registrar_kardex(
@@ -641,8 +646,10 @@ def editar_entrada_mercancia(
             modulo_destino_id=entrada.modulo_id,
             referencia_id=entrada_id,
         )
+    print(f"[PUT/entradas/{entrada_id}] insertadas {len(base_info)} filas ENTRADA", flush=True)
 
     db.commit()
+    print(f"[PUT/entradas/{entrada_id}] COMMIT OK", flush=True)
     return {"ok": True, "message": "Entrada actualizada correctamente"}
 
 
