@@ -623,6 +623,25 @@ def editar_entrada_mercancia(
             referencia_id=entrada_id,
         )
 
+    # Actualizar el registro histórico: reemplazar filas ENTRADA del kardex con los productos nuevos
+    db.query(models.KardexMovimiento).filter(
+        models.KardexMovimiento.referencia_id == entrada_id,
+        models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
+    ).delete(synchronize_session=False)
+
+    for prod_nombre, (clave, precio, tipo_prod, nueva_cant) in base_info.items():
+        registrar_kardex(
+            db=db,
+            producto=prod_nombre,
+            tipo_producto=tipo_prod,
+            cantidad=nueva_cant,
+            tipo_movimiento="ENTRADA",
+            usuario_id=current_user.id,
+            modulo_origen_id=None,
+            modulo_destino_id=entrada.modulo_id,
+            referencia_id=entrada_id,
+        )
+
     db.commit()
     return {"ok": True, "message": "Entrada actualizada correctamente"}
 
