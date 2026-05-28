@@ -573,7 +573,20 @@ def editar_entrada_mercancia(
         raise HTTPException(status_code=404, detail="La entrada ya fue procesada por otro proceso")
 
     for prod_nombre, (delta, tipo_prod) in deltas.items():
-        clave, precio, _, _ = base_info[prod_nombre]
+        if prod_nombre in base_info:
+            clave, precio, _, _ = base_info[prod_nombre]
+        else:
+            # Producto eliminado: no está en base_info; obtener clave/precio del inventario del módulo
+            _inv_ref = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.producto == prod_nombre,
+                    models.InventarioModulo.modulo_id == entrada.modulo_id,
+                )
+                .first()
+            )
+            clave = _inv_ref.clave if _inv_ref else ""
+            precio = _inv_ref.precio if _inv_ref else 0
         inv = (
             db.query(models.InventarioModulo)
             .filter(
