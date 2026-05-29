@@ -1,7 +1,7 @@
 
-from datetime import datetime
+from datetime import datetime, date
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -156,16 +156,40 @@ def actualizar_estado_traspaso(
 
 @router.get("/traspasos", response_model=list[schemas.TraspasoResponse])
 def listar_traspasos(
-    folio: str | None = None,
+    folio: str | None = Query(default=None),
+    fecha_desde: date | None = Query(default=None),
+    fecha_hasta: date | None = Query(default=None),
+    modulo_origen: str | None = Query(default=None),
+    modulo_destino: str | None = Query(default=None),
+    estado: str | None = Query(default=None),
+    incluir_archivados: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),   # C1 — auth requerida
 ):
     query = db.query(models.Traspaso)
 
-    if folio and folio.strip():
-        query = query.filter(models.Traspaso.folio.ilike(f"%{folio}%"))
-    else:
+    if not incluir_archivados:
         query = query.filter(models.Traspaso.visible_en_pendientes == True)
+
+    if folio and folio.strip():
+        query = query.filter(models.Traspaso.folio.ilike(f"%{folio.strip()}%"))
+
+    if fecha_desde:
+        desde_dt = datetime.combine(fecha_desde, datetime.min.time()).replace(tzinfo=zona_horaria)
+        query = query.filter(models.Traspaso.fecha >= desde_dt)
+
+    if fecha_hasta:
+        hasta_dt = datetime.combine(fecha_hasta, datetime.max.time()).replace(tzinfo=zona_horaria)
+        query = query.filter(models.Traspaso.fecha <= hasta_dt)
+
+    if modulo_origen and modulo_origen.strip():
+        query = query.filter(models.Traspaso.modulo_origen == modulo_origen.strip())
+
+    if modulo_destino and modulo_destino.strip():
+        query = query.filter(models.Traspaso.modulo_destino == modulo_destino.strip())
+
+    if estado and estado.strip():
+        query = query.filter(models.Traspaso.estado == estado.strip())
 
     return query.order_by(models.Traspaso.fecha.desc()).all()
 
