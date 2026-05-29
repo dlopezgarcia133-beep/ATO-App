@@ -337,7 +337,6 @@ class TraspasoCreate(TraspasoBase):
 
 class TraspasoUpdate(BaseModel):
     estado: Literal["aprobado", "rechazado"]
-    folio: Optional[str] = None
 
 
 class TraspasoResponse(TraspasoBase):
@@ -1175,6 +1174,46 @@ class NominaIncubadoraResponse(BaseModel):
     datos: List[Dict]
     creado_por: str
     creado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Ajustes de Inventario ────────────────────────────────────────────────────
+
+class AjusteItemCreate(BaseModel):
+    clave: str
+    cantidad_nueva: int
+
+
+class AjusteInventarioCreate(BaseModel):
+    modulo_id: int
+    motivo: Optional[str] = None
+    productos: List[AjusteItemCreate]
+
+
+class AjusteItemResponse(BaseModel):
+    id: int
+    clave: str
+    producto: str
+    cantidad_anterior: int
+    cantidad_nueva: int
+    delta: int
+
+    class Config:
+        from_attributes = True
+
+
+class AjusteInventarioResponse(BaseModel):
+    id: int
+    folio: str
+    modulo_id: int
+    modulo_nombre: str
+    usuario_id: int
+    usuario_nombre: str
+    fecha: datetime
+    motivo: Optional[str] = None
+    items: List[AjusteItemResponse]
 
     class Config:
         from_attributes = True

@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.database import Base, SessionLocal, engine
 from app import models
-from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina
+from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina, ajustes
 from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas, admin_nomina, nomina_empleado, configuracion
 from fastapi.middleware.cors import CORSMiddleware
 Base.metadata.create_all(bind=engine)
@@ -53,3 +53,4 @@ app.include_router(estadisticas.router, prefix="/estadisticas", tags=["Estadíst
 app.include_router(admin_nomina.router, prefix="/admin", tags=["Admin"])
 app.include_router(nomina_empleado.router, prefix="/nomina", tags=["Nomina Empleado"])
 app.include_router(configuracion.router, tags=["Configuración"])
+app.include_router(ajustes.router, prefix="/ajustes", tags=["Ajustes de Inventario"])

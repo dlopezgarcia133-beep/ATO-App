@@ -406,6 +406,7 @@ class TipoMovimientoEnum(str, enum.Enum):
     AJUSTE_POSITIVO = "AJUSTE_POSITIVO"
     AJUSTE_NEGATIVO = "AJUSTE_NEGATIVO"
     CANCELACION_VENTA = "CANCELACION_VENTA"
+    AJUSTE_INVENTARIO = "AJUSTE_INVENTARIO"
 
     
 
@@ -547,4 +548,34 @@ class NominaIncubadora(Base):
     total_pago = Column(Numeric(12, 2), nullable=False, default=0)
     datos      = Column(JSON, nullable=False, default=list)
     creado_por = Column(String(100), nullable=False)
+    creado_en  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AjusteInventario(Base):
+    __tablename__ = "ajustes_inventario"
+
+    id        = Column(Integer, primary_key=True, index=True)
+    folio     = Column(String(20), nullable=False, unique=True)
+    modulo_id = Column(Integer, ForeignKey("modulos.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    fecha     = Column(DateTime(timezone=True), nullable=False)
+    motivo    = Column(String, nullable=True)
+
+    modulo  = relationship("Modulo")
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    items   = relationship("AjusteInventarioItem", back_populates="ajuste", cascade="all, delete-orphan")
+
+
+class AjusteInventarioItem(Base):
+    __tablename__ = "ajustes_inventario_items"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    ajuste_id         = Column(Integer, ForeignKey("ajustes_inventario.id"), nullable=False)
+    producto          = Column(String, nullable=False)
+    clave             = Column(String, nullable=False)
+    cantidad_anterior = Column(Integer, nullable=False)
+    cantidad_nueva    = Column(Integer, nullable=False)
+    delta             = Column(Integer, nullable=False)
+
+    ajuste = relationship("AjusteInventario", back_populates="items")
     creado_en  = Column(DateTime(timezone=True), server_default=func.now())
