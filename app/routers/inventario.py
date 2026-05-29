@@ -224,6 +224,23 @@ def entrada_mercancia(
     )
 ):
 
+    if not data.productos:
+        raise HTTPException(status_code=400, detail="La entrada debe tener al menos un producto")
+
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == data.modulo_id).first()
+    if not modulo:
+        raise HTTPException(status_code=400, detail=f"Módulo ID {data.modulo_id} no existe")
+
+    # Deduplicar: si el mismo producto_id aparece más de una vez, sumar cantidades
+    dedup: dict[int, int] = {}
+    for item in data.productos:
+        if item.cantidad <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cantidad para el producto ID {item.producto_id} debe ser mayor a 0",
+            )
+        dedup[item.producto_id] = dedup.get(item.producto_id, 0) + item.cantidad
+
     # Folio atómico: nextval es no-transaccional en Postgres, nunca se repite
     folio = db.execute(
         text("SELECT 'E' || nextval('entrada_folio_seq')")
@@ -238,15 +255,15 @@ def entrada_mercancia(
     db.add(entrada)
     db.flush()  # obtiene entrada.id antes del commit
 
-    for item in data.productos:
+    for producto_id, cantidad in dedup.items():
         producto_base = (
             db.query(models.InventarioGeneral)
-            .filter(models.InventarioGeneral.id == item.producto_id)
+            .filter(models.InventarioGeneral.id == producto_id)
             .first()
         )
 
         if not producto_base:
-            raise HTTPException(status_code=404, detail="Producto no encontrado")
+            raise HTTPException(status_code=404, detail=f"Producto ID {producto_id} no encontrado")
 
         registro = (
             db.query(models.InventarioModulo)
@@ -258,7 +275,7 @@ def entrada_mercancia(
         )
 
         if registro:
-            registro.cantidad  += item.cantidad
+            registro.cantidad  += cantidad
             registro.producto   = producto_base.producto
             registro.precio     = producto_base.precio
         else:
@@ -267,7 +284,7 @@ def entrada_mercancia(
                 clave=producto_base.clave,
                 precio=producto_base.precio,
                 tipo_producto=producto_base.tipo_producto,
-                cantidad=item.cantidad,
+                cantidad=cantidad,
                 modulo_id=data.modulo_id
             )
             db.add(nuevo)
@@ -276,7 +293,7 @@ def entrada_mercancia(
             db=db,
             producto=producto_base.producto,
             tipo_producto=producto_base.tipo_producto,
-            cantidad=item.cantidad,
+            cantidad=cantidad,
             tipo_movimiento="ENTRADA",
             usuario_id=current_user.id,
             modulo_origen_id=None,
@@ -375,6 +392,52 @@ def listar_entradas_mercancia(
     return resultado
 
 
+@router.get("/inventario/entradas/{entrada_id}")
+def obtener_detalle_entrada(
+    entrada_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin])
+    ),
+):
+    entrada = db.query(EntradaMercancia).filter(EntradaMercancia.id == entrada_id).first()
+    if not entrada:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+
+    rows = (
+        db.query(
+            models.KardexMovimiento.producto,
+            models.KardexMovimiento.cantidad,
+            models.KardexMovimiento.tipo_producto,
+            models.InventarioGeneral.id.label("producto_id"),
+            models.InventarioGeneral.clave,
+        )
+        .outerjoin(
+            models.InventarioGeneral,
+            models.KardexMovimiento.producto == models.InventarioGeneral.producto,
+        )
+        .filter(
+            models.KardexMovimiento.referencia_id == entrada_id,
+            models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
+        )
+        .all()
+    )
+
+    return {
+        "id": entrada.id,
+        "folio": entrada.folio,
+        "productos": [
+            {
+                "producto_id": r.producto_id,
+                "clave": r.clave or "",
+                "producto": r.producto,
+                "cantidad": r.cantidad,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.delete("/inventario/entradas/{entrada_id}")
 def eliminar_entrada_mercancia(
     entrada_id: int,
@@ -449,6 +512,12 @@ def eliminar_entrada_mercancia(
     if not entrada:
         raise HTTPException(status_code=404, detail="La entrada ya fue eliminada por otro proceso")
 
+    # Limpiar todos los kardex de esta entrada (ENTRADA originales + AJUSTEs de ediciones)
+    # antes de registrar el AJUSTE_NEGATIVO de auditoría de esta eliminación
+    db.query(models.KardexMovimiento).filter(
+        models.KardexMovimiento.referencia_id == entrada_id,
+    ).delete(synchronize_session=False)
+
     for k in kardex_items:
         inv = inventario_map.get(k.producto)
         if inv is None:
@@ -480,8 +549,6 @@ def editar_entrada_mercancia(
         verificar_rol_requerido([models.RolEnum.admin])
     ),
 ):
-    print(f"[PUT/entradas/{entrada_id}] v3 START productos={len(data.productos)}", flush=True)
-
     if not data.productos:
         raise HTTPException(status_code=400, detail="La entrada debe tener al menos un producto")
 
@@ -532,9 +599,7 @@ def editar_entrada_mercancia(
         if prod_nombre not in base_info:
             deltas[prod_nombre] = (-cant_orig, tipo_prod)
 
-    print(f"[PUT/entradas/{entrada_id}] deltas={len(deltas)} mapa_orig={len(mapa_original)} base_info={len(base_info)}", flush=True)
     if not deltas:
-        print(f"[PUT/entradas/{entrada_id}] SIN CAMBIOS - regresando temprano", flush=True)
         return {"ok": True, "message": "Sin cambios que aplicar"}
 
     # Fase 1: validar todos los deltas negativos ANTES de mutar nada
@@ -627,12 +692,10 @@ def editar_entrada_mercancia(
         )
 
     # Actualizar el registro histórico: reemplazar filas ENTRADA del kardex con los productos nuevos
-    print(f"[PUT/entradas/{entrada_id}] eliminando kardex ENTRADA", flush=True)
-    deleted = db.query(models.KardexMovimiento).filter(
+    db.query(models.KardexMovimiento).filter(
         models.KardexMovimiento.referencia_id == entrada_id,
         models.KardexMovimiento.tipo_movimiento == models.TipoMovimientoEnum.ENTRADA,
     ).delete(synchronize_session=False)
-    print(f"[PUT/entradas/{entrada_id}] eliminadas {deleted} filas ENTRADA", flush=True)
 
     for prod_nombre, (clave, precio, tipo_prod, nueva_cant) in base_info.items():
         registrar_kardex(
@@ -646,10 +709,8 @@ def editar_entrada_mercancia(
             modulo_destino_id=entrada.modulo_id,
             referencia_id=entrada_id,
         )
-    print(f"[PUT/entradas/{entrada_id}] insertadas {len(base_info)} filas ENTRADA", flush=True)
 
     db.commit()
-    print(f"[PUT/entradas/{entrada_id}] COMMIT OK", flush=True)
     return {"ok": True, "message": "Entrada actualizada correctamente"}
 
 
