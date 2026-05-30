@@ -217,6 +217,53 @@ def obtener_inventario_general(
     return query.all()
 
 
+@router.get("/productos-catalogo")
+def catalogo_productos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    existencia_subq = (
+        db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
+        .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
+        .filter(
+            models.InventarioModulo.clave == models.InventarioGeneral.clave,
+            models.Modulo.nombre != "BO",
+        )
+        .correlate(models.InventarioGeneral)
+        .scalar_subquery()
+    )
+
+    rows = (
+        db.query(
+            models.InventarioGeneral.clave,
+            models.InventarioGeneral.producto,
+            models.InventarioGeneral.precio,
+            models.InventarioGeneral.tipo_producto,
+            models.Comision.cantidad.label("comision"),
+            existencia_subq.label("existencia_real"),
+        )
+        .outerjoin(
+            models.Comision,
+            (models.Comision.producto == models.InventarioGeneral.producto)
+            & (models.Comision.activo == True),
+        )
+        .order_by(models.InventarioGeneral.producto)
+        .all()
+    )
+
+    return [
+        {
+            "clave": r.clave,
+            "producto": r.producto,
+            "precio": r.precio,
+            "tipo_producto": r.tipo_producto,
+            "comision": r.comision,
+            "existencia_real": int(r.existencia_real),
+        }
+        for r in rows
+    ]
+
+
 
 @router.post("/inventario/entrada_mercancia")
 def entrada_mercancia(
