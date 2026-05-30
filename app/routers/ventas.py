@@ -43,7 +43,8 @@ def crear_ventas(
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
             .first()
         )
-        comision_id = None if item.skip_comision else (com.id if com else None)
+        comision_id    = None if item.skip_comision else (com.id if com else None)
+        comision_monto = None if item.skip_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo_id
 
         inventario = (
@@ -88,6 +89,7 @@ def crear_ventas(
             total=total,
             cancelada=False,
             comision_id=comision_id,
+            comision_monto=comision_monto,
             chip_casado=item.chip_casado,
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
@@ -126,7 +128,9 @@ def crear_ventas(
             metodo_pago=v.metodo_pago, 
             chip_casado=v.chip_casado,
             total=v.precio_unitario * v.cantidad,
-            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            comision=(v.comision_monto if v.comision_monto is not None
+                      else (db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad
+                            if v.comision_id else None)),
             fecha=v.fecha,
             hora=v.hora,
             cancelada=v.cancelada
@@ -449,7 +453,8 @@ def crear_ventas_multiples(
             .filter(models.Comision.activo == True)
             .first()
         )
-        comision_id = None if item.skip_comision else (com.id if com else None)
+        comision_id    = None if item.skip_comision else (com.id if com else None)
+        comision_monto = None if item.skip_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo.id
 
         inventario = (
@@ -486,6 +491,7 @@ def crear_ventas_multiples(
             total=item.cantidad * item.precio_unitario,
             metodo_pago=venta.metodo_pago,
             comision_id=comision_id,
+            comision_monto=comision_monto,
             tipo_producto=tipo_producto,
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
@@ -613,7 +619,9 @@ def crear_ventas_multiples(
             precio_unitario=v.precio_unitario,
             metodo_pago=v.metodo_pago,
             total=v.precio_unitario * v.cantidad,
-            comision=db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad if v.comision_id else None,
+            comision=(v.comision_monto if v.comision_monto is not None
+                      else (db.query(models.Comision).filter_by(id=v.comision_id).first().cantidad
+                            if v.comision_id else None)),
             fecha=v.fecha,
             hora=v.hora,
             cancelada=v.cancelada

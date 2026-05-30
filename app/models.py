@@ -104,7 +104,8 @@ class Venta(Base):
     precio_unitario = Column(Float, nullable=False)
     tipo_venta = Column(String, nullable=False)  
     total = Column(Float, nullable=True) 
-    comision_id = Column(Integer, ForeignKey("comisions.id"), nullable=True)
+    comision_id    = Column(Integer, ForeignKey("comisions.id"), nullable=True)
+    comision_monto = Column(Float, nullable=True)
     metodo_pago = Column(String)
     cancelada = Column(Boolean, default=False)
     chip_casado = Column(String, nullable=True)  # Para relacionar venta de teléfono con venta de chip
