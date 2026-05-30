@@ -75,11 +75,20 @@ def actualizar_estado_traspaso(
     traspaso_id: int,
     estado: schemas.TraspasoUpdate,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+    current_user: models.Usuario = Depends(get_current_user),
 ):
     traspaso = db.query(models.Traspaso).filter_by(id=traspaso_id).first()
     if not traspaso:
         raise HTTPException(status_code=404, detail="Traspaso no encontrado")
+
+    es_admin = current_user.rol == models.RolEnum.admin
+    es_destino = (
+        current_user.rol == models.RolEnum.encargado
+        and current_user.modulo is not None
+        and current_user.modulo.nombre == traspaso.modulo_destino
+    )
+    if not es_admin and not es_destino:
+        raise HTTPException(status_code=403, detail="Sin permiso para aprobar este traspaso")
 
     if traspaso.estado != "pendiente":
         raise HTTPException(status_code=400, detail="Este traspaso ya fue procesado")
