@@ -28,10 +28,12 @@ def crear_producto_inventario_general(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
 ):
-    existente = db.query(models.InventarioGeneral).filter_by(producto=producto.producto).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="El producto ya existe en el inventario general.")
-    
+    if producto.precio <= 0:
+        raise HTTPException(status_code=400, detail="El precio debe ser mayor a 0.")
+    if db.query(models.InventarioGeneral).filter_by(clave=producto.clave).first():
+        raise HTTPException(status_code=400, detail="Ya existe un producto con esa clave.")
+    if db.query(models.InventarioGeneral).filter_by(producto=producto.producto).first():
+        raise HTTPException(status_code=400, detail="Ya existe un producto con ese nombre.")
     nuevo = models.InventarioGeneral(**producto.dict())
     db.add(nuevo)
     db.commit()
