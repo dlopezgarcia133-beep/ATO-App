@@ -119,7 +119,8 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
 
     for v in ventas:
 
-        comision_base = getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0
+        comision_base = (v.comision_monto if v.comision_monto is not None
+                         else getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0)
         cantidad = getattr(v, "cantidad", 0) or 0
         tipo_venta = (getattr(v, "tipo_venta", "") or "").strip().lower()
 
