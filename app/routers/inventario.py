@@ -222,14 +222,13 @@ def catalogo_productos(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
 ):
-    MODULOS_EXCLUIDOS = ["BO", "V2", "MI2", "prueba"]
-
     existencia_subq = (
         db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
         .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
         .filter(
             models.InventarioModulo.clave == models.InventarioGeneral.clave,
-            models.Modulo.nombre.notin_(MODULOS_EXCLUIDOS),
+            models.Modulo.activo == True,
+            models.Modulo.nombre != "BO",
         )
         .correlate(models.InventarioGeneral)
         .scalar_subquery()
