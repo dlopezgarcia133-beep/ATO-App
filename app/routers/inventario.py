@@ -205,68 +205,6 @@ def produtos_inventario(
     return producto_db
 
 
-@router.get("/diagnostico-ada120")
-def diagnostico_ada120(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
-):
-    # 1. Desglose de ADA120 por módulo (todos, incluyendo BO)
-    desglose = db.execute(text("""
-        SELECT m.nombre, m.id, im.cantidad
-        FROM inventario_modulo im
-        JOIN modulos m ON m.id = im.modulo_id
-        WHERE im.clave = 'ADA120'
-        ORDER BY im.cantidad DESC
-    """)).fetchall()
-
-    # 2. Módulos activos (excl. BO, V2, MI2, prueba)
-    modulos = db.execute(text("""
-        SELECT id, nombre FROM modulos
-        WHERE nombre NOT IN ('BO','V2','MI2','prueba')
-        ORDER BY nombre
-    """)).fetchall()
-
-    # 3. Módulos con conteo físico (tabla puede no existir en esta instancia)
-    modulos_con_cf = set()
-    cf_disponible = False
-    try:
-        cf_rows = db.execute(text("""
-            SELECT DISTINCT modulo_id FROM conteos_fisicos
-            WHERE modulo_id IS NOT NULL
-        """)).fetchall()
-        modulos_con_cf = {r[0] for r in cf_rows}
-        cf_disponible = True
-    except Exception:
-        db.rollback()
-
-    ids_activos = {m[0] for m in modulos}
-    total_sin_bo = sum(r[2] for r in desglose if r[1] in ids_activos)
-    total_con_bo = sum(r[2] for r in desglose)
-
-    return {
-        "ada120_desglose": [
-            {"modulo_nombre": r[0], "modulo_id": r[1], "cantidad": r[2]}
-            for r in desglose
-        ],
-        "ada120_total_con_bo": total_con_bo,
-        "ada120_total_sin_bo": total_sin_bo,
-        "modulos_activos": [
-            {
-                "id": m[0],
-                "nombre": m[1],
-                "tiene_conteo_fisico": m[0] in modulos_con_cf if cf_disponible else None,
-            }
-            for m in modulos
-        ],
-        "resumen": {
-            "total_modulos_activos": len(modulos),
-            "cf_disponible": cf_disponible,
-            "modulos_con_cf": len(modulos_con_cf & ids_activos),
-            "modulos_sin_cf": len(ids_activos - modulos_con_cf),
-        },
-    }
-
-
 @router.get("/inventario/general", response_model=list[schemas.InventarioGeneralResponse])
 def obtener_inventario_general(
     tipo: Optional[str] = None,
@@ -284,12 +222,14 @@ def catalogo_productos(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
 ):
+    MODULOS_EXCLUIDOS = ["BO", "V2", "MI2", "prueba"]
+
     existencia_subq = (
         db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
         .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
         .filter(
             models.InventarioModulo.clave == models.InventarioGeneral.clave,
-            models.Modulo.nombre != "BO",
+            models.Modulo.nombre.notin_(MODULOS_EXCLUIDOS),
         )
         .correlate(models.InventarioGeneral)
         .scalar_subquery()
