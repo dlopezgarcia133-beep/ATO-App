@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Form
 from fastapi.params import File
 from zoneinfo import ZoneInfo
-from sqlalchemy import func, text
+from sqlalchemy import func, text, or_
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
@@ -162,24 +162,27 @@ def obtener_productos_nombres(
 
     return [p.producto for p in productos]
 
-@router.get("/buscar", response_model=List[str])
+@router.get("/buscar")
 def autocomplete_telefonos(
     query: str = Query(..., min_length=1, description="Texto a buscar"),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     productos = (
-        db.query(models.InventarioModulo.producto)
+        db.query(models.InventarioModulo.clave, models.InventarioModulo.producto)
         .filter(
             models.InventarioModulo.tipo_producto == "telefono",
             models.InventarioModulo.modulo_id == current_user.modulo_id,
-            models.func.upper(models.InventarioModulo.producto).ilike(f"%{query.upper()}%")
+            or_(
+                models.InventarioModulo.clave.ilike(f"%{query}%"),
+                models.InventarioModulo.producto.ilike(f"%{query}%"),
+            )
         )
         .limit(10)
         .all()
     )
 
-    return [p[0] for p in productos]
+    return [{"clave": p.clave, "producto": p.producto} for p in productos]
 
 
 
