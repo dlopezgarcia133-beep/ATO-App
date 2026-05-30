@@ -371,6 +371,10 @@ class InventarioGeneralUpdate(BaseModel):
     cantidad: int
 
 
+class InventarioGeneralPrecioUpdate(BaseModel):
+    precio: int
+
+
 class InventarioGeneralResponse(BaseModel):
     id: int
     producto: str

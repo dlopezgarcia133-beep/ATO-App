@@ -205,6 +205,23 @@ def produtos_inventario(
     return producto_db
 
 
+@router.patch("/inventario/general/{clave}/precio")
+def actualizar_precio_producto(
+    clave: str,
+    datos: schemas.InventarioGeneralPrecioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    if datos.precio < 0:
+        raise HTTPException(status_code=400, detail="El precio no puede ser negativo")
+    producto = db.query(models.InventarioGeneral).filter_by(clave=clave).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    producto.precio = datos.precio
+    db.commit()
+    return {"ok": True, "clave": producto.clave, "precio": producto.precio}
+
+
 @router.get("/inventario/general", response_model=list[schemas.InventarioGeneralResponse])
 def obtener_inventario_general(
     tipo: Optional[str] = None,
