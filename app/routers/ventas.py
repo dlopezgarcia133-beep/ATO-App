@@ -817,7 +817,8 @@ def obtener_ventas_chips(
 def validar_chip(
     id: int,
     data: schemas.ComisionInput = Body(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
 ):
     chip = db.query(models.VentaChip).filter(models.VentaChip.id == id).first()
     if not chip:
@@ -830,6 +831,8 @@ def validar_chip(
         chip.validado = True
         chip.comision_pagada = True
         chip.comision = 50.00
+        chip.fecha_validacion = datetime.now(zona_horaria)
+        chip.validado_por_id = current_user.id
         db.commit()
         db.refresh(chip)
         return chip
@@ -903,6 +906,8 @@ def validar_chip(
         chip.comision = comision_asignada
 
     chip.validado = True
+    chip.fecha_validacion = datetime.now(zona_horaria)
+    chip.validado_por_id = current_user.id
 
     db.commit()
     db.refresh(chip)
@@ -960,7 +965,9 @@ def obtener_chips_rechazados(
 def validar_chip_incubadora(
     chip_id: int,
     data: schemas.ValidarChipIncubadoraRequest,
-    db: Session = Depends(get_db)):
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
 
     chip = db.query(models.VentaChip).filter(
         models.VentaChip.id == chip_id
@@ -1047,6 +1054,8 @@ def validar_chip_incubadora(
 
     # 🔹 Validar
     chip.validado = True
+    chip.fecha_validacion = datetime.now(zona_horaria)
+    chip.validado_por_id = current_user.id
 
     db.commit()
     db.refresh(chip)

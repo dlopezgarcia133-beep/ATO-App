@@ -135,7 +135,8 @@ class VentaChip(Base):
     comision_pagada = Column(Boolean, default=False)
     descripcion_rechazo = Column(String, nullable=True)
     es_incubadora = Column(Boolean, default=False,  nullable=False)
-
+    fecha_validacion = Column(DateTime(timezone=True), nullable=True)
+    validado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
     empleado = relationship("Usuario")
 
