@@ -705,35 +705,27 @@ def pagar_comisiones(
         total_pendiente_incubadora = 0.0
         detalle_incubadora: list[dict] = []
 
-        numeros_limpios = [n.strip().split()[0] for n in data.numeros]
+        for chip_id in data.chip_ids:
+            chip = db.query(models.VentaChip).filter(
+                models.VentaChip.id == chip_id
+            ).first()
 
-        comision_telcel: dict[str, float] = {}
-        if numeros_limpios:
-            rows = db.execute(
-                text("SELECT numero, comision_telcel FROM comisiones_telcel WHERE numero = ANY(:nums)"),
-                {"nums": numeros_limpios}
-            ).fetchall()
-            for row in rows:
-                comision_telcel[str(row[0]).strip()] = float(row[1] or 0)
-
-        for numero in data.numeros:
-            numero_limpio = numero.strip().split()[0]
-            candidatos = db.query(models.VentaChip).filter(
-                models.VentaChip.numero_telefono.like(f"{numero_limpio}%")
-            ).all()
-            chip = next(
-                (c for c in candidatos if c.numero_telefono.strip().split()[0] == numero_limpio),
-                None
-            )
             if chip is None:
-                no_encontrados.append(numero_limpio)
+                no_encontrados.append(str(chip_id))
                 continue
-
             if chip.cancelada:
-                no_encontrados.append(numero_limpio)
+                no_encontrados.append(chip.numero_telefono)
+                continue
+            if chip.comision_pagada:
+                no_encontrados.append(chip.numero_telefono)
                 continue
 
-            comision_nueva = comision_telcel.get(numero_limpio, chip.comision or 0)
+            numero_limpio = chip.numero_telefono.strip().split()[0]
+            row = db.execute(
+                text("SELECT comision_telcel FROM comisiones_telcel WHERE numero = :num LIMIT 1"),
+                {"num": numero_limpio}
+            ).fetchone()
+            comision_nueva = float(row[0]) if row else (chip.comision or 0)
             chip.comision = comision_nueva
 
             if chip.es_incubadora:

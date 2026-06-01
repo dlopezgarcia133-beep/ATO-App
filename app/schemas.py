@@ -279,7 +279,7 @@ class VentaChipResponse(VentaChipCreate):
 
 
 class PagarComisionesInput(BaseModel):
-    numeros: list[str]
+    chip_ids: list[int]
 
 class DetalleIncubadoraItem(BaseModel):
     numero: str
