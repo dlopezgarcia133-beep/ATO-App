@@ -643,7 +643,18 @@ def crear_venta_chip(
             status_code=400,
             detail="Debes seleccionar una opcion (Si o No)"
         )
-    
+
+    # Bloquear número duplicado (un número = un solo registro, salvo que el anterior esté cancelado)
+    existente = db.query(models.VentaChip).filter(
+        models.VentaChip.numero_telefono == venta.numero_telefono,
+        models.VentaChip.cancelada == False
+    ).first()
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El número {venta.numero_telefono} ya tiene un chip registrado"
+        )
+
     fecha_actual = datetime.now(zona_horaria)
     nueva_venta = models.VentaChip(
         empleado_id=current_user.id,
