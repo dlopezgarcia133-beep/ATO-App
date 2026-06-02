@@ -28,7 +28,7 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     ventas = relationship("Venta", back_populates="empleado")
     ventas_telefono = relationship("VentaTelefono", back_populates="empleado")
-    ventas_chip = relationship("VentaChip", back_populates="empleado")
+    ventas_chip = relationship("VentaChip", back_populates="empleado", foreign_keys="VentaChip.empleado_id")
     modulo = relationship("Modulo", backref="usuarios")
     sueldo_base = Column(Float, default=0)
     lugar_trabajo = Column(String, nullable=True)
@@ -136,9 +136,8 @@ class VentaChip(Base):
     descripcion_rechazo = Column(String, nullable=True)
     es_incubadora = Column(Boolean, default=False,  nullable=False)
     fecha_validacion = Column(DateTime(timezone=True), nullable=True)
-    validado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
-    empleado = relationship("Usuario")
+    empleado = relationship("Usuario", foreign_keys=[empleado_id])
 
 
 class Comision(Base):
