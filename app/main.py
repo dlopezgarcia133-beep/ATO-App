@@ -5,6 +5,7 @@ from app.database import Base, SessionLocal, engine
 from app import models
 from app.routers import asistencias, asistencia, auth, comisiones, inventario, inventarioTelefonos, traspasos, kardex, usuarios, ventas, nomina, ajustes
 from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas, admin_nomina, nomina_empleado, configuracion
+from app.routers import conteos_fisicos
 from fastapi.middleware.cors import CORSMiddleware
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -54,3 +55,4 @@ app.include_router(admin_nomina.router, prefix="/admin", tags=["Admin"])
 app.include_router(nomina_empleado.router, prefix="/nomina", tags=["Nomina Empleado"])
 app.include_router(configuracion.router, tags=["Configuración"])
 app.include_router(ajustes.router, prefix="/ajustes", tags=["Ajustes de Inventario"])
+app.include_router(conteos_fisicos.router, prefix="/conteos-fisicos", tags=["Conteos Físicos"])

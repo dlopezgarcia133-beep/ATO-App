@@ -409,6 +409,7 @@ class TipoMovimientoEnum(str, enum.Enum):
     AJUSTE_NEGATIVO = "AJUSTE_NEGATIVO"
     CANCELACION_VENTA = "CANCELACION_VENTA"
     AJUSTE_INVENTARIO = "AJUSTE_INVENTARIO"
+    CONTEO_FISICO = "CONTEO_FISICO"
 
     
 
@@ -581,3 +582,38 @@ class AjusteInventarioItem(Base):
 
     ajuste = relationship("AjusteInventario", back_populates="items")
     creado_en  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ConteoFisico(Base):
+    __tablename__ = "conteos_fisicos"
+
+    id                     = Column(Integer, primary_key=True, index=True)
+    folio                  = Column(String(20), unique=True, nullable=False)
+    modulo                 = Column(String(100), nullable=False)
+    modulo_id              = Column(Integer, ForeignKey("modulos.id"), nullable=True)
+    fecha                  = Column(DateTime(timezone=True), server_default=func.now())
+    usuario                = Column(String(100), nullable=True)
+    archivo_nombre         = Column(String(255), nullable=True)
+    total_filas            = Column(Integer, nullable=True)
+    productos_actualizados = Column(Integer, nullable=True)
+    productos_creados      = Column(Integer, nullable=True)
+    productos_en_cero      = Column(Integer, nullable=True)
+    estado                 = Column(String(20), default="aplicado")
+    notas                  = Column(String, nullable=True)
+
+    items = relationship("ConteoFisicoItem", back_populates="conteo", cascade="all, delete-orphan")
+
+
+class ConteoFisicoItem(Base):
+    __tablename__ = "conteos_fisicos_items"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    conteo_id         = Column(Integer, ForeignKey("conteos_fisicos.id", ondelete="CASCADE"), nullable=False)
+    clave             = Column(String(50), nullable=True)
+    producto          = Column(String(255), nullable=True)
+    cantidad_anterior = Column(Integer, nullable=True)
+    cantidad_nueva    = Column(Integer, nullable=True)
+    accion            = Column(String(20), nullable=True)
+    producto_creado   = Column(Boolean, default=False)
+
+    conteo = relationship("ConteoFisico", back_populates="items")

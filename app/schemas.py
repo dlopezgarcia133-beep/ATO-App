@@ -1221,3 +1221,108 @@ class AjusteInventarioResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Conteos Físicos ───────────────────────────────────────────────────────────
+
+class ItemPreviewActualizar(BaseModel):
+    clave: str
+    producto: str
+    cantidad_actual: int
+    cantidad_nueva: int
+    diferencia: int
+
+class ItemPreviewCrear(BaseModel):
+    clave: str
+    producto: str
+    cantidad: int
+
+class ItemPreviewDecision(BaseModel):
+    clave: str
+    producto: str
+    cantidad_actual: int
+
+class ErrorItemConteo(BaseModel):
+    fila: int
+    clave: str
+    motivo: str
+
+class ProcesamientoResponse(BaseModel):
+    modulo_id: int
+    modulo_nombre: str
+    total_filas_excel: int
+    advertencia_volumen: bool
+    para_actualizar: List[ItemPreviewActualizar]
+    para_crear: List[ItemPreviewCrear]
+    decidir_caso_por_caso: List[ItemPreviewDecision]
+    errores: List[ErrorItemConteo]
+
+class ItemAplicarActualizar(BaseModel):
+    clave: str
+    producto: str
+    cantidad_nueva: int
+
+class ItemAplicarCrear(BaseModel):
+    clave: str
+    producto: str
+    cantidad: int
+
+class ItemAplicarDecision(BaseModel):
+    clave: str
+    producto: str
+    poner_en_cero: bool = False
+
+class AplicarRequest(BaseModel):
+    modulo_id: int
+    archivo_nombre: str
+    total_filas_excel: int
+    para_actualizar: List[ItemAplicarActualizar]
+    para_crear: List[ItemAplicarCrear]
+    caso_por_caso: List[ItemAplicarDecision]
+    notas: Optional[str] = None
+
+class AplicarResponse(BaseModel):
+    folio: str
+    modulo: str
+    productos_actualizados: int
+    productos_creados: int
+    productos_en_cero: int
+    productos_conservados: int
+
+class ConteoFisicoItemResponse(BaseModel):
+    id: int
+    clave: Optional[str] = None
+    producto: Optional[str] = None
+    cantidad_anterior: Optional[int] = None
+    cantidad_nueva: Optional[int] = None
+    accion: Optional[str] = None
+    producto_creado: bool = False
+
+    class Config:
+        from_attributes = True
+
+class ConteoFisicoListItem(BaseModel):
+    id: int
+    folio: str
+    modulo: str
+    fecha: datetime
+    usuario: Optional[str] = None
+    archivo_nombre: Optional[str] = None
+    total_filas: Optional[int] = None
+    productos_actualizados: Optional[int] = None
+    productos_creados: Optional[int] = None
+    productos_en_cero: Optional[int] = None
+    estado: str
+    notas: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ConteoFisicoDetalleResponse(ConteoFisicoListItem):
+    items: List[ConteoFisicoItemResponse]
+
+class RevertirResponse(BaseModel):
+    folio: str
+    estado: str
+    items_revertidos: int
+    advertencias: List[str]
