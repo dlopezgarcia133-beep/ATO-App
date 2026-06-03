@@ -490,16 +490,37 @@ def kardex_producto_conteo(
     total_salidas = 0
     lineas = []
 
+    _SUMAN = {
+        models.TipoMovimientoEnum.ENTRADA,
+        models.TipoMovimientoEnum.TRASPASO_ENTRADA,
+        models.TipoMovimientoEnum.CANCELACION_VENTA,
+        models.TipoMovimientoEnum.AJUSTE_POSITIVO,
+    }
+    _RESTAN = {
+        models.TipoMovimientoEnum.VENTA,
+        models.TipoMovimientoEnum.TRASPASO_SALIDA,
+        models.TipoMovimientoEnum.AJUSTE_NEGATIVO,
+    }
+
     for mov in movimientos_db:
-        cantidad = mov.cantidad or 0
-        entrada = cantidad if cantidad > 0 else 0
-        salida = abs(cantidad) if cantidad < 0 else 0
-        existencia += cantidad
+        magnitud = abs(mov.cantidad or 0)
+        tipo_mov = mov.tipo_movimiento
+        if tipo_mov in _SUMAN:
+            entrada = magnitud
+            salida = 0
+            existencia += magnitud
+        elif tipo_mov in _RESTAN:
+            entrada = 0
+            salida = magnitud
+            existencia -= magnitud
+        else:
+            entrada = 0
+            salida = 0
         total_entradas += entrada
         total_salidas += salida
         lineas.append(schemas.KardexLineaItem(
             fecha=mov.fecha,
-            tipo=mov.tipo_movimiento.value if hasattr(mov.tipo_movimiento, "value") else str(mov.tipo_movimiento),
+            tipo=tipo_mov.value if hasattr(tipo_mov, "value") else str(tipo_mov),
             entrada=entrada,
             salida=salida,
             existencia=existencia,
