@@ -690,7 +690,7 @@ def descargar_nomina_excel_rh(
         u = usuarios_map.get(ids[0]) if ids else None
         forma = (u.forma_pago or "").strip() if u else ""
         filas.append({
-            "empleado":      fila.get("empleado", ""),
+            "empleado":      (u.nombre_completo or "").strip() if u and (u.nombre_completo or "").strip() else fila.get("empleado", ""),
             "grupo":         forma if forma else "SIN BANCO",
             "clabe":         (u.cuenta_clabe or "").strip() or "—" if u else "—",
             "interbancaria": (u.cuenta_interbancaria or "").strip() or "—" if u else "—",
