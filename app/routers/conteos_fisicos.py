@@ -526,8 +526,6 @@ def kardex_producto_conteo(
             existencia=existencia,
         ))
 
-    saldo_calculado = saldo_inicial + total_entradas - total_salidas
-
     # Cantidad contada en el conteo actual
     item_actual = (
         db.query(models.ConteoFisicoItem)
@@ -539,17 +537,27 @@ def kardex_producto_conteo(
     )
     contado = item_actual.cantidad_nueva if item_actual else 0
 
+    if conteo_anterior_info is not None:
+        saldo_calculado = saldo_inicial + total_entradas - total_salidas
+        diferencia = contado - saldo_calculado
+        tiene_comparativo = True
+    else:
+        saldo_calculado = None
+        diferencia = None
+        tiene_comparativo = False
+
     return schemas.KardexProductoResponse(
         clave=clave,
         producto=nombre_producto,
         modulo=conteo.modulo,
+        tiene_comparativo=tiene_comparativo,
         conteo_anterior=conteo_anterior_info,
         movimientos=lineas,
         total_entradas=total_entradas,
         total_salidas=total_salidas,
         saldo_calculado=saldo_calculado,
         contado=contado,
-        diferencia=contado - saldo_calculado,
+        diferencia=diferencia,
     )
 
 

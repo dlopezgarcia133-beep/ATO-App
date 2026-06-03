@@ -1343,10 +1343,11 @@ class KardexProductoResponse(BaseModel):
     clave: str
     producto: str
     modulo: str
+    tiene_comparativo: bool = True
     conteo_anterior: Optional[ConteoAnteriorInfo] = None
     movimientos: List[KardexLineaItem]
     total_entradas: int
     total_salidas: int
-    saldo_calculado: int
+    saldo_calculado: Optional[int] = None
     contado: int
-    diferencia: int
+    diferencia: Optional[int] = None
