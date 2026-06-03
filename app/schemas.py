@@ -1326,3 +1326,27 @@ class RevertirResponse(BaseModel):
     estado: str
     items_revertidos: int
     advertencias: List[str]
+
+class KardexLineaItem(BaseModel):
+    fecha: datetime
+    tipo: str
+    entrada: int
+    salida: int
+    existencia: int
+
+class ConteoAnteriorInfo(BaseModel):
+    folio: str
+    fecha: datetime
+    saldo_inicial: int
+
+class KardexProductoResponse(BaseModel):
+    clave: str
+    producto: str
+    modulo: str
+    conteo_anterior: Optional[ConteoAnteriorInfo] = None
+    movimientos: List[KardexLineaItem]
+    total_entradas: int
+    total_salidas: int
+    saldo_calculado: int
+    contado: int
+    diferencia: int

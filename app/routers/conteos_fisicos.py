@@ -405,6 +405,133 @@ def detalle_conteo(
     return conteo
 
 
+# ── GET /{folio}/kardex/{clave} ───────────────────────────────────────────────
+
+@router.get("/{folio}/kardex/{clave}", response_model=schemas.KardexProductoResponse)
+def kardex_producto_conteo(
+    folio: str,
+    clave: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    # 1. Conteo actual
+    conteo = db.query(models.ConteoFisico).filter(models.ConteoFisico.folio == folio).first()
+    if not conteo:
+        raise HTTPException(status_code=404, detail=f"Conteo {folio} no encontrado")
+
+    modulo_id = conteo.modulo_id
+
+    # 2. Conteo anterior del mismo módulo
+    conteo_anterior = (
+        db.query(models.ConteoFisico)
+        .filter(
+            models.ConteoFisico.modulo_id == modulo_id,
+            models.ConteoFisico.fecha < conteo.fecha,
+        )
+        .order_by(models.ConteoFisico.fecha.desc())
+        .first()
+    )
+
+    if conteo_anterior:
+        item_anterior = (
+            db.query(models.ConteoFisicoItem)
+            .filter(
+                models.ConteoFisicoItem.conteo_id == conteo_anterior.id,
+                models.ConteoFisicoItem.clave == clave,
+            )
+            .first()
+        )
+        saldo_inicial = item_anterior.cantidad_nueva if item_anterior else 0
+        fecha_inicio = conteo_anterior.fecha
+        conteo_anterior_info = schemas.ConteoAnteriorInfo(
+            folio=conteo_anterior.folio,
+            fecha=conteo_anterior.fecha,
+            saldo_inicial=saldo_inicial,
+        )
+    else:
+        saldo_inicial = 0
+        fecha_inicio = None
+        conteo_anterior_info = None
+
+    # 3. Nombre del producto en este módulo
+    im = (
+        db.query(models.InventarioModulo)
+        .filter(
+            models.InventarioModulo.clave == clave,
+            models.InventarioModulo.modulo_id == modulo_id,
+        )
+        .first()
+    )
+    if not im:
+        raise HTTPException(status_code=404, detail=f"Producto {clave} no encontrado en módulo {modulo_id}")
+    nombre_producto = im.producto
+
+    # 4. Movimientos de kardex del periodo (excluye CONTEO_FISICO)
+    q = (
+        db.query(models.KardexMovimiento)
+        .filter(
+            models.KardexMovimiento.producto == nombre_producto,
+            models.KardexMovimiento.tipo_movimiento != models.TipoMovimientoEnum.CONTEO_FISICO,
+            (
+                (models.KardexMovimiento.modulo_origen_id == modulo_id) |
+                (models.KardexMovimiento.modulo_destino_id == modulo_id)
+            ),
+            models.KardexMovimiento.fecha <= conteo.fecha,
+        )
+    )
+    if fecha_inicio is not None:
+        q = q.filter(models.KardexMovimiento.fecha > fecha_inicio)
+
+    movimientos_db = q.order_by(models.KardexMovimiento.fecha.asc()).all()
+
+    # 5. Calcular existencia corriente y totales
+    existencia = saldo_inicial
+    total_entradas = 0
+    total_salidas = 0
+    lineas = []
+
+    for mov in movimientos_db:
+        cantidad = mov.cantidad or 0
+        entrada = cantidad if cantidad > 0 else 0
+        salida = abs(cantidad) if cantidad < 0 else 0
+        existencia += cantidad
+        total_entradas += entrada
+        total_salidas += salida
+        lineas.append(schemas.KardexLineaItem(
+            fecha=mov.fecha,
+            tipo=mov.tipo_movimiento.value if hasattr(mov.tipo_movimiento, "value") else str(mov.tipo_movimiento),
+            entrada=entrada,
+            salida=salida,
+            existencia=existencia,
+        ))
+
+    saldo_calculado = saldo_inicial + total_entradas - total_salidas
+
+    # Cantidad contada en el conteo actual
+    item_actual = (
+        db.query(models.ConteoFisicoItem)
+        .filter(
+            models.ConteoFisicoItem.conteo_id == conteo.id,
+            models.ConteoFisicoItem.clave == clave,
+        )
+        .first()
+    )
+    contado = item_actual.cantidad_nueva if item_actual else 0
+
+    return schemas.KardexProductoResponse(
+        clave=clave,
+        producto=nombre_producto,
+        modulo=conteo.modulo,
+        conteo_anterior=conteo_anterior_info,
+        movimientos=lineas,
+        total_entradas=total_entradas,
+        total_salidas=total_salidas,
+        saldo_calculado=saldo_calculado,
+        contado=contado,
+        diferencia=contado - saldo_calculado,
+    )
+
+
 # ── POST /{folio}/revertir ────────────────────────────────────────────────────
 
 @router.post("/{folio}/revertir", response_model=schemas.RevertirResponse)
