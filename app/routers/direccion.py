@@ -1584,7 +1584,7 @@ def reporte_diario_pdf(
                 content_h += HDR_H + len(r["tel_por_prod"]) * ROW_H
             if r["acc_por_prod"]:
                 content_h += HDR_H + len(r["acc_por_prod"]) * ROW_H
-            content_h += SUB_H + 6         # subtotales
+            content_h += SUB_H + 26        # subtotales + espacio entre módulos
 
     H = 82.0 + content_h + MARGEN          # header region + contenido + margen inferior
 
@@ -1714,7 +1714,7 @@ def reporte_diario_pdf(
         c.setFillColor(black)
         c.setFont("Helvetica-Bold", 12)
         c.drawRightString(CT, y - 15, fp(r["mod_tot"]))
-        y -= SUB_H + 6
+        y -= SUB_H + 26
 
     c.save()
     buf.seek(0)
