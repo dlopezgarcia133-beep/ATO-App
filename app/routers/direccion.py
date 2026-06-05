@@ -1634,24 +1634,23 @@ def reporte_diario_pdf(
     c.drawString(MARGEN, y, "RESUMEN GENERAL DEL DÍA")
     y -= 10
 
-    BOX_W = (ancho - 15) / 4
-    BOX_H = 66.0   # más alto para caber el "N equipos" en la caja Teléfonos
+    BOX_W = (ancho - 10) / 2   # 2 cajas con 1 gap de 10 pt
+    BOX_H = 66.0
     for i, (lbl, val) in enumerate([
         ("Teléfonos", res_tel), ("Accesorios", res_acc),
-        ("Efectivo",  res_ef),  ("Tarjeta",    res_tar),
     ]):
-        bx = MARGEN + i * (BOX_W + 5)
+        bx = MARGEN + i * (BOX_W + 10)
         by = y - BOX_H
         c.setFillColor(GRIS_F)
         c.rect(bx, by, BOX_W, BOX_H, fill=1, stroke=0)
         c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 9)
+        c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(bx + BOX_W / 2, by + BOX_H - 16, lbl)
-        c.setFont("Helvetica-Bold", 13)
+        c.setFont("Helvetica-Bold", 15)
         c.drawCentredString(bx + BOX_W / 2, by + 28, fp(val))
         if lbl == "Teléfonos":
             c.setFillColor(VERDE)
-            c.setFont("Helvetica-Bold", 8)
+            c.setFont("Helvetica-Bold", 9)
             c.drawCentredString(bx + BOX_W / 2, by + 10, f"{total_unidades_tel} equipos")
     y -= BOX_H + 6
 
@@ -1684,14 +1683,6 @@ def reporte_diario_pdf(
 
         # Sub-tabla TELÉFONOS
         if r["tel_por_prod"]:
-            # Línea de conteo destacada
-            n_tel = sum(d["cant"] for d in r["tel_por_prod"].values())
-            y = chk(y, 90)
-            c.setFillColor(VERDE)
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(CP, y - 16, f"Teléfonos vendidos: {n_tel}")
-            y -= 24
-            # Tabla de detalle (verde sobre blanco)
             y = chk(y, 70)
             y = tabla_hdr(y, "TELÉFONOS", bg=VERDE, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["tel_por_prod"].items())):
@@ -1706,25 +1697,25 @@ def reporte_diario_pdf(
                 y = chk(y, 46)
                 y = tabla_row(y, prod, datos, idx)
 
-        # Línea de subtotales del módulo (11 pt)
+        # Línea de subtotales del módulo: Teléfonos / Accesorios / Total de la venta
         y = chk(y, 32)
         c.setFillColor(GRIS_T)
         c.rect(MARGEN, y - SUB_H, ancho, SUB_H, fill=1, stroke=0)
         c.setFillColor(AZUL)
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 4,   y - 16, "Efectivo:")
+        c.drawString(MARGEN + 4,   y - 16, "Teléfonos:")
         c.setFillColor(black)
         c.setFont("Helvetica", 11)
-        c.drawString(MARGEN + 68,  y - 16, fp(r["mod_ef"]))
+        c.drawRightString(MARGEN + 165, y - 16, fp(r["tel_tot"]))
         c.setFillColor(AZUL)
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 190, y - 16, "Tarjeta:")
+        c.drawString(MARGEN + 175, y - 16, "Accesorios:")
         c.setFillColor(black)
         c.setFont("Helvetica", 11)
-        c.drawString(MARGEN + 252, y - 16, fp(r["mod_tar"]))
+        c.drawRightString(MARGEN + 330, y - 16, fp(r["acc_tot"]))
         c.setFillColor(AZUL)
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 370, y - 16, "Subtotal:")
+        c.drawString(MARGEN + 340, y - 16, "Total de la venta:")
         c.setFillColor(black)
         c.setFont("Helvetica-Bold", 11)
         c.drawRightString(CT, y - 16, fp(r["mod_tot"]))
