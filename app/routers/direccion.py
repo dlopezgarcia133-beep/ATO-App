@@ -1551,32 +1551,48 @@ def reporte_diario_pdf(
     # ── 3. Generar PDF ────────────────────────────────────────────────────────
     AZUL     = HexColor("#16264a")
     AMARILLO = HexColor("#f5c542")
-    VERDE    = HexColor("#1e7a46")   # encabezado sub-tabla teléfonos
-    NARANJA  = HexColor("#e07b1a")   # encabezado sub-tabla accesorios
+    VERDE    = HexColor("#1e7a46")
+    NARANJA  = HexColor("#e07b1a")
     GRIS_F   = HexColor("#f0f4fa")
     GRIS_T   = HexColor("#dde5f0")
 
-    W, H    = letter          # 612 × 792 pt
+    W       = 612.0            # ancho carta (fijo)
     MARGEN  = 30
     ancho   = W - 2 * MARGEN  # 552 pt
 
-    # Columnas: numéricas muy juntas a la derecha, máximo ancho para el producto
     CP = MARGEN + 4           # Producto  — left
-    CC = W - MARGEN - 150     # Cant.     — right-align  (432 pt)
-    CM = W - MARGEN - 80      # P. Prom.  — right-align  (502 pt)
-    CT = W - MARGEN - 4       # Total     — right-align  (578 pt)
+    CC = W - MARGEN - 150     # Cant.     — right-align
+    CM = W - MARGEN - 80      # P. Prom.  — right-align
+    CT = W - MARGEN - 4       # Total     — right-align
 
-    # Alturas de fila (optimizadas para legibilidad en móvil)
-    ROW_H   = 18   # filas de producto
-    HDR_H   = 20   # encabezados de tabla
-    BANDA_H = 26   # banda nombre módulo
-    SUB_H   = 22   # línea de subtotales
+    ROW_H   = 16   # reducido: filas más compactas con letra más grande
+    HDR_H   = 20
+    BANDA_H = 26
+    SUB_H   = 22
+    BOX_H   = 66.0
+    BOX_W   = (ancho - 10) / 2
+
+    # ── Calcula el alto total para página única continua ──────────────────────
+    INTRO_H = 14 + 10 + (BOX_H + 6) + 36   # título + cajas + barra total = 132
+    content_h = float(INTRO_H)
+    for r in resultados:
+        content_h += BANDA_H + 4            # banda módulo
+        if r["sin_ventas"]:
+            content_h += 22
+        else:
+            if r["tel_por_prod"]:
+                content_h += HDR_H + len(r["tel_por_prod"]) * ROW_H
+            if r["acc_por_prod"]:
+                content_h += HDR_H + len(r["acc_por_prod"]) * ROW_H
+            content_h += SUB_H + 6         # subtotales
+
+    H = 82.0 + content_h + MARGEN          # header region + contenido + margen inferior
 
     def fp(v: float) -> str:
         return f"${v:,.2f}"
 
     buf       = BytesIO()
-    c         = rl_canvas.Canvas(buf, pagesize=letter)
+    c         = rl_canvas.Canvas(buf, pagesize=(W, H))
     fecha_str = fecha.strftime("%d / %m / %Y")
 
     # ── helpers de dibujo ─────────────────────────────────────────────────────
@@ -1592,39 +1608,30 @@ def reporte_diario_pdf(
         c.setFont("Helvetica-Bold", 14)
         c.drawRightString(W - MARGEN, H - 40, fecha_str)
 
-    def chk(y: float, needed: float) -> float:
-        """Nueva página si no hay espacio; retorna el nuevo cursor y."""
-        if y < MARGEN + needed:
-            c.showPage()
-            hdr()
-            return float(H - 82)
-        return y
-
     def tabla_hdr(y: float, titulo: str, bg=None, fg=None) -> float:
-        """Encabezado de sub-tabla. bg/fg opcionales para color personalizado."""
         c.setFillColor(bg if bg is not None else GRIS_T)
         c.rect(MARGEN, y - HDR_H, ancho, HDR_H, fill=1, stroke=0)
         c.setFillColor(fg if fg is not None else AZUL)
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(CP, y - 15, titulo)
-        c.drawRightString(CC, y - 15, "Cant.")
-        c.drawRightString(CM, y - 15, "P. Prom.")
-        c.drawRightString(CT, y - 15, "Total")
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(CP, y - 13, titulo)
+        c.drawRightString(CC, y - 13, "Cant.")
+        c.drawRightString(CM, y - 13, "P. Prom.")
+        c.drawRightString(CT, y - 13, "Total")
         return y - HDR_H
 
     def tabla_row(y: float, prod: str, datos: dict, idx: int) -> float:
         c.setFillColor(GRIS_F if idx % 2 == 0 else white)
         c.rect(MARGEN, y - ROW_H, ancho, ROW_H, fill=1, stroke=0)
         c.setFillColor(black)
-        c.setFont("Helvetica", 11)
+        c.setFont("Helvetica", 13)
         prom = datos["total"] / datos["cant"] if datos["cant"] else 0.0
-        c.drawString(CP, y - 13, prod[:55])
-        c.drawRightString(CC, y - 13, str(datos["cant"]))
-        c.drawRightString(CM, y - 13, fp(prom))
-        c.drawRightString(CT, y - 13, fp(datos["total"]))
+        c.drawString(CP, y - 11, prod[:55])
+        c.drawRightString(CC, y - 11, str(datos["cant"]))
+        c.drawRightString(CM, y - 11, fp(prom))
+        c.drawRightString(CT, y - 11, fp(datos["total"]))
         return y - ROW_H
 
-    # ── Encabezado y resumen general ──────────────────────────────────────────
+    # ── Encabezado (una sola vez) y resumen general ───────────────────────────
     hdr()
     y = float(H - 82)
 
@@ -1634,8 +1641,6 @@ def reporte_diario_pdf(
     c.drawString(MARGEN, y, "RESUMEN GENERAL DEL DÍA")
     y -= 10
 
-    BOX_W = (ancho - 10) / 2   # 2 cajas con 1 gap de 10 pt
-    BOX_H = 66.0
     for i, (lbl, val) in enumerate([
         ("Teléfonos", res_tel), ("Accesorios", res_acc),
     ]):
@@ -1662,11 +1667,9 @@ def reporte_diario_pdf(
     c.drawRightString(CT, y - 16, fp(res_tot))
     y -= 36
 
-    # ── Sección por módulo ────────────────────────────────────────────────────
+    # ── Sección por módulo (sin saltos de página) ─────────────────────────────
     for r in resultados:
-        y = chk(y, 90)
-
-        # Banda azul — nombre del módulo (13 pt)
+        # Banda azul — nombre del módulo
         c.setFillColor(AZUL)
         c.rect(MARGEN, y - BANDA_H, ancho, BANDA_H, fill=1, stroke=0)
         c.setFillColor(white)
@@ -1683,42 +1686,37 @@ def reporte_diario_pdf(
 
         # Sub-tabla TELÉFONOS
         if r["tel_por_prod"]:
-            y = chk(y, 70)
             y = tabla_hdr(y, "TELÉFONOS", bg=VERDE, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["tel_por_prod"].items())):
-                y = chk(y, 46)
                 y = tabla_row(y, prod, datos, idx)
 
-        # Sub-tabla ACCESORIOS (naranja)
+        # Sub-tabla ACCESORIOS
         if r["acc_por_prod"]:
-            y = chk(y, 70)
             y = tabla_hdr(y, "ACCESORIOS", bg=NARANJA, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["acc_por_prod"].items())):
-                y = chk(y, 46)
                 y = tabla_row(y, prod, datos, idx)
 
-        # Línea de subtotales del módulo: Teléfonos / Accesorios / Total de la venta
-        y = chk(y, 32)
+        # Línea de subtotales: Teléfonos / Accesorios / Total de la venta
         c.setFillColor(GRIS_T)
         c.rect(MARGEN, y - SUB_H, ancho, SUB_H, fill=1, stroke=0)
         c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 4,   y - 16, "Teléfonos:")
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(MARGEN + 4,   y - 15, "Teléfonos:")
         c.setFillColor(black)
-        c.setFont("Helvetica", 11)
-        c.drawRightString(MARGEN + 165, y - 16, fp(r["tel_tot"]))
+        c.setFont("Helvetica", 12)
+        c.drawRightString(MARGEN + 165, y - 15, fp(r["tel_tot"]))
         c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 175, y - 16, "Accesorios:")
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(MARGEN + 175, y - 15, "Accesorios:")
         c.setFillColor(black)
-        c.setFont("Helvetica", 11)
-        c.drawRightString(MARGEN + 330, y - 16, fp(r["acc_tot"]))
+        c.setFont("Helvetica", 12)
+        c.drawRightString(MARGEN + 330, y - 15, fp(r["acc_tot"]))
         c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(MARGEN + 340, y - 16, "Total de la venta:")
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(MARGEN + 340, y - 15, "Total de la venta:")
         c.setFillColor(black)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawRightString(CT, y - 16, fp(r["mod_tot"]))
+        c.setFont("Helvetica-Bold", 12)
+        c.drawRightString(CT, y - 15, fp(r["mod_tot"]))
         y -= SUB_H + 6
 
     c.save()
