@@ -117,6 +117,81 @@ def crear_ventas(
     for v in ventas_realizadas:
         db.refresh(v)
 
+    # --- UPSET/ACTUALIZACIÓN de CorteDia ---
+    try:
+        # obtener o crear corte para la fecha y módulo
+        fecha_corte = fecha_actual.date()
+        modulo_id = current_user.modulo.id
+
+        corte = db.query(models.CorteDia).filter(
+            models.CorteDia.fecha == fecha_corte,
+            models.CorteDia.modulo_id == modulo_id
+        ).first()
+
+        if not corte:
+            corte = models.CorteDia(
+                fecha=fecha_corte,
+                modulo_id=modulo_id,
+                total_efectivo=0.0,
+                total_tarjeta=0.0,
+                adicional_recargas=0.0,
+                adicional_transporte=0.0,
+                adicional_otros=0.0,
+                total_sistema=0.0,
+                total_general=0.0,
+                accesorios_efectivo=0.0,
+                accesorios_tarjeta=0.0,
+                accesorios_total=0.0,
+                telefonos_efectivo=0.0,
+                telefonos_tarjeta=0.0,
+                telefonos_total=0.0
+            )
+            db.add(corte)
+            db.flush()  # asegura que corte tenga id si es necesario
+
+        # Sumarizar las ventas realizadas en este request al corte
+        suma_request = 0.0
+        for v in ventas_realizadas:
+            pago = (v.metodo_pago or "").strip().lower()
+            es_efectivo = pago == "efectivo" or pago == "cash"  # ajusta si tienes otros valores
+            total_v = float(v.total or 0)
+
+            if es_efectivo:
+                corte.total_efectivo = (corte.total_efectivo or 0) + total_v
+                if v.tipo_producto == "accesorios":
+                    corte.accesorios_efectivo = (corte.accesorios_efectivo or 0) + total_v
+                else:
+                    corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + total_v
+            else:
+                # todo lo que no sea "efectivo" lo acumulamos en tarjeta (ajusta según necesites)
+                corte.total_tarjeta = (corte.total_tarjeta or 0) + total_v
+                if v.tipo_producto == "accesorios":
+                    corte.accesorios_tarjeta = (corte.accesorios_tarjeta or 0) + total_v
+                else:
+                    corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + total_v
+
+            # totales por tipo
+            if v.tipo_producto == "accesorios":
+                corte.accesorios_total = (corte.accesorios_total or 0) + total_v
+            else:
+                corte.telefonos_total = (corte.telefonos_total or 0) + total_v
+
+            # acumulador para total sistema y general
+            corte.total_sistema = (corte.total_sistema or 0) + total_v
+            suma_request += total_v
+
+        # Actualizar total_general (si quieres incluir ya las adicionales, agrégalas aquí)
+        corte.total_general = (corte.total_general or 0) + suma_request
+
+        db.commit()
+        # opcional: db.refresh(corte)
+    except Exception as e:
+        # No queremos romper la respuesta si falla la actualización del corte,
+        # pero sí devolvemos información del error en logs.
+        db.rollback()
+        # loguear e.g. logger.error(...) si tienes logger
+        print("Error actualizando CorteDia:", e)
+
     return [
         schemas.VentaResponse(
             id=v.id,
