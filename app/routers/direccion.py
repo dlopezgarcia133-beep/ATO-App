@@ -1460,3 +1460,256 @@ def editar_recargas(
     corte.adicional_mayoreo = body.adicional_mayoreo
     db.commit()
     return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /direccion/reporte-diario/pdf
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/reporte-diario/pdf")
+def reporte_diario_pdf(
+    fecha: date = Query(...),
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.colors import HexColor, white, black
+
+    _verificar_rol(user)
+
+    # ── 1. Recopilar datos por módulo (mismo patrón que reporte_diario) ───────
+    EXCLUIR_IDS = {21, 7}
+    EFECTIVO_SET = {"efectivo", "cash"}
+
+    modulos = (
+        db.query(models.Modulo)
+        .filter(models.Modulo.activo == True)  # noqa: E712
+        .order_by(models.Modulo.nombre.asc())
+        .all()
+    )
+
+    resultados = []
+    for m in modulos:
+        if m.id in EXCLUIR_IDS:
+            continue
+
+        corte = obtener_corte_direccion(modulo_id=m.id, fecha=fecha, user=user, db=db)
+
+        tel_por_prod: dict = {}
+        acc_por_prod: dict = {}
+        tel_ef  = 0.0
+        tel_tar = 0.0
+
+        if corte and corte.ventas:
+            for v in corte.ventas:
+                tipo  = (v.tipo_producto or "").lower().strip()
+                monto = float(v.total or 0)
+                if tipo == "telefono":
+                    pago = (v.metodo_pago or "").lower().strip()
+                    if pago in EFECTIVO_SET:
+                        tel_ef  += monto
+                    else:
+                        tel_tar += monto
+                    ent = tel_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
+                    ent["cant"]  += v.cantidad
+                    ent["total"] += monto
+                elif tipo == "accesorios":
+                    ent = acc_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
+                    ent["cant"]  += v.cantidad
+                    ent["total"] += monto
+
+        tel_tot = tel_ef + tel_tar
+        acc_ef  = float(corte.accesorios_efectivo) if corte else 0.0
+        acc_tar = float(corte.accesorios_tarjeta)  if corte else 0.0
+        acc_tot = float(corte.accesorios_total)    if corte else 0.0
+        mod_ef  = acc_ef + tel_ef
+        mod_tar = acc_tar + tel_tar
+        mod_tot = acc_tot + tel_tot
+
+        resultados.append({
+            "nombre":       m.nombre,
+            "sin_ventas":   corte is None or (acc_tot == 0 and tel_tot == 0),
+            "tel_por_prod": tel_por_prod,
+            "acc_por_prod": acc_por_prod,
+            "tel_ef": tel_ef,  "tel_tar": tel_tar,  "tel_tot": tel_tot,
+            "acc_ef": acc_ef,  "acc_tar": acc_tar,  "acc_tot": acc_tot,
+            "mod_ef": mod_ef,  "mod_tar": mod_tar,  "mod_tot": mod_tot,
+        })
+
+    # ── 2. Resumen general ────────────────────────────────────────────────────
+    res_tel = sum(r["tel_tot"] for r in resultados)
+    res_acc = sum(r["acc_tot"] for r in resultados)
+    res_ef  = sum(r["mod_ef"]  for r in resultados)
+    res_tar = sum(r["mod_tar"] for r in resultados)
+    res_tot = sum(r["mod_tot"] for r in resultados)
+
+    # ── 3. Generar PDF ────────────────────────────────────────────────────────
+    AZUL     = HexColor("#16264a")
+    AMARILLO = HexColor("#f5c542")
+    GRIS_F   = HexColor("#f0f4fa")
+    GRIS_T   = HexColor("#dde5f0")
+
+    W, H    = letter          # 612 × 792 pt
+    MARGEN  = 30
+    ancho   = W - 2 * MARGEN  # 552 pt
+
+    # Columnas fijas para las tablas de productos
+    CP = MARGEN + 4      # Producto — left
+    CC = MARGEN + 335    # Cant.    — right-align
+    CM = MARGEN + 440    # P. Prom. — right-align
+    CT = W - MARGEN - 4  # Total    — right-align
+
+    def fp(v: float) -> str:
+        return f"${v:,.2f}"
+
+    buf       = BytesIO()
+    c         = rl_canvas.Canvas(buf, pagesize=letter)
+    fecha_str = fecha.strftime("%d / %m / %Y")
+
+    # ── helpers de dibujo ─────────────────────────────────────────────────────
+    def hdr() -> None:
+        c.setFillColor(AZUL)
+        c.rect(0, H - 70, W, 70, fill=1, stroke=0)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(MARGEN, H - 32, "ATO Sistema")
+        c.setFont("Helvetica", 11)
+        c.drawString(MARGEN, H - 52, "Reporte de ventas")
+        c.setFillColor(AMARILLO)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawRightString(W - MARGEN, H - 40, fecha_str)
+
+    def chk(y: float, needed: float) -> float:
+        """Nueva página si no hay espacio; retorna el nuevo cursor y."""
+        if y < MARGEN + needed:
+            c.showPage()
+            hdr()
+            return float(H - 82)
+        return y
+
+    def tabla_hdr(y: float, titulo: str) -> float:
+        c.setFillColor(GRIS_T)
+        c.rect(MARGEN, y - 16, ancho, 16, fill=1, stroke=0)
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(CP, y - 12, titulo)
+        c.drawRightString(CC, y - 12, "Cant.")
+        c.drawRightString(CM, y - 12, "P. Prom.")
+        c.drawRightString(CT, y - 12, "Total")
+        return y - 16
+
+    def tabla_row(y: float, prod: str, datos: dict, idx: int) -> float:
+        c.setFillColor(GRIS_F if idx % 2 == 0 else white)
+        c.rect(MARGEN, y - 14, ancho, 14, fill=1, stroke=0)
+        c.setFillColor(black)
+        c.setFont("Helvetica", 8)
+        prom = datos["total"] / datos["cant"] if datos["cant"] else 0.0
+        c.drawString(CP, y - 10, prod[:58])
+        c.drawRightString(CC, y - 10, str(datos["cant"]))
+        c.drawRightString(CM, y - 10, fp(prom))
+        c.drawRightString(CT, y - 10, fp(datos["total"]))
+        return y - 14
+
+    # ── Encabezado y resumen general ──────────────────────────────────────────
+    hdr()
+    y = float(H - 82)
+
+    y -= 14
+    c.setFillColor(AZUL)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(MARGEN, y, "RESUMEN GENERAL DEL DÍA")
+    y -= 10
+
+    BOX_W = (ancho - 15) / 4
+    BOX_H = 52.0
+    for i, (lbl, val) in enumerate([
+        ("Teléfonos", res_tel), ("Accesorios", res_acc),
+        ("Efectivo",  res_ef),  ("Tarjeta",    res_tar),
+    ]):
+        bx = MARGEN + i * (BOX_W + 5)
+        by = y - BOX_H
+        c.setFillColor(GRIS_F)
+        c.rect(bx, by, BOX_W, BOX_H, fill=1, stroke=0)
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(bx + BOX_W / 2, by + BOX_H - 16, lbl)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawCentredString(bx + BOX_W / 2, by + 12, fp(val))
+    y -= BOX_H + 6
+
+    c.setFillColor(AMARILLO)
+    c.rect(MARGEN, y - 24, ancho, 24, fill=1, stroke=0)
+    c.setFillColor(AZUL)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(MARGEN + 8, y - 16, "TOTAL GENERAL DEL DÍA")
+    c.drawRightString(CT, y - 16, fp(res_tot))
+    y -= 36
+
+    # ── Sección por módulo ────────────────────────────────────────────────────
+    for r in resultados:
+        y = chk(y, 72)
+
+        # Banda azul — nombre del módulo
+        c.setFillColor(AZUL)
+        c.rect(MARGEN, y - 20, ancho, 20, fill=1, stroke=0)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(MARGEN + 6, y - 14, r["nombre"].upper())
+        y -= 24
+
+        if r["sin_ventas"]:
+            c.setFillColor(black)
+            c.setFont("Helvetica-Oblique", 9)
+            c.drawString(MARGEN + 8, y - 10, "Sin ventas")
+            y -= 20
+            continue
+
+        # Sub-tabla TELÉFONOS
+        if r["tel_por_prod"]:
+            y = chk(y, 62)
+            y = tabla_hdr(y, "TELÉFONOS")
+            for idx, (prod, datos) in enumerate(sorted(r["tel_por_prod"].items())):
+                y = chk(y, 34)
+                y = tabla_row(y, prod, datos, idx)
+
+        # Sub-tabla ACCESORIOS
+        if r["acc_por_prod"]:
+            y = chk(y, 62)
+            y = tabla_hdr(y, "ACCESORIOS")
+            for idx, (prod, datos) in enumerate(sorted(r["acc_por_prod"].items())):
+                y = chk(y, 34)
+                y = tabla_row(y, prod, datos, idx)
+
+        # Línea de subtotales del módulo
+        y = chk(y, 28)
+        c.setFillColor(GRIS_T)
+        c.rect(MARGEN, y - 18, ancho, 18, fill=1, stroke=0)
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(MARGEN + 4,   y - 13, "Efectivo:")
+        c.setFillColor(black)
+        c.setFont("Helvetica", 8)
+        c.drawString(MARGEN + 54,  y - 13, fp(r["mod_ef"]))
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(MARGEN + 170, y - 13, "Tarjeta:")
+        c.setFillColor(black)
+        c.setFont("Helvetica", 8)
+        c.drawString(MARGEN + 218, y - 13, fp(r["mod_tar"]))
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(MARGEN + 330, y - 13, "Subtotal:")
+        c.setFillColor(black)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawRightString(CT, y - 13, fp(r["mod_tot"]))
+        y -= 24
+
+    c.save()
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="reporte_{fecha}.pdf"'},
+    )
