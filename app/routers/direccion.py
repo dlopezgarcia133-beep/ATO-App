@@ -1544,11 +1544,15 @@ def reporte_diario_pdf(
     res_ef  = sum(r["mod_ef"]  for r in resultados)
     res_tar = sum(r["mod_tar"] for r in resultados)
     res_tot = sum(r["mod_tot"] for r in resultados)
+    total_unidades_tel = sum(
+        d["cant"] for r in resultados for d in r["tel_por_prod"].values()
+    )
 
     # ── 3. Generar PDF ────────────────────────────────────────────────────────
     AZUL     = HexColor("#16264a")
     AMARILLO = HexColor("#f5c542")
     VERDE    = HexColor("#1e7a46")   # encabezado sub-tabla teléfonos
+    NARANJA  = HexColor("#e07b1a")   # encabezado sub-tabla accesorios
     GRIS_F   = HexColor("#f0f4fa")
     GRIS_T   = HexColor("#dde5f0")
 
@@ -1556,10 +1560,10 @@ def reporte_diario_pdf(
     MARGEN  = 30
     ancho   = W - 2 * MARGEN  # 552 pt
 
-    # Columnas compactas hacia la derecha (más espacio para el nombre del producto)
+    # Columnas: numéricas muy juntas a la derecha, máximo ancho para el producto
     CP = MARGEN + 4           # Producto  — left
-    CC = W - MARGEN - 200     # Cant.     — right-align  (382 pt)
-    CM = W - MARGEN - 110     # P. Prom.  — right-align  (472 pt)
+    CC = W - MARGEN - 150     # Cant.     — right-align  (432 pt)
+    CM = W - MARGEN - 80      # P. Prom.  — right-align  (502 pt)
     CT = W - MARGEN - 4       # Total     — right-align  (578 pt)
 
     # Alturas de fila (optimizadas para legibilidad en móvil)
@@ -1631,7 +1635,7 @@ def reporte_diario_pdf(
     y -= 10
 
     BOX_W = (ancho - 15) / 4
-    BOX_H = 52.0
+    BOX_H = 66.0   # más alto para caber el "N equipos" en la caja Teléfonos
     for i, (lbl, val) in enumerate([
         ("Teléfonos", res_tel), ("Accesorios", res_acc),
         ("Efectivo",  res_ef),  ("Tarjeta",    res_tar),
@@ -1644,7 +1648,11 @@ def reporte_diario_pdf(
         c.setFont("Helvetica-Bold", 9)
         c.drawCentredString(bx + BOX_W / 2, by + BOX_H - 16, lbl)
         c.setFont("Helvetica-Bold", 13)
-        c.drawCentredString(bx + BOX_W / 2, by + 12, fp(val))
+        c.drawCentredString(bx + BOX_W / 2, by + 28, fp(val))
+        if lbl == "Teléfonos":
+            c.setFillColor(VERDE)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawCentredString(bx + BOX_W / 2, by + 10, f"{total_unidades_tel} equipos")
     y -= BOX_H + 6
 
     c.setFillColor(AMARILLO)
@@ -1690,10 +1698,10 @@ def reporte_diario_pdf(
                 y = chk(y, 46)
                 y = tabla_row(y, prod, datos, idx)
 
-        # Sub-tabla ACCESORIOS (gris, igual que antes)
+        # Sub-tabla ACCESORIOS (naranja)
         if r["acc_por_prod"]:
             y = chk(y, 70)
-            y = tabla_hdr(y, "ACCESORIOS")
+            y = tabla_hdr(y, "ACCESORIOS", bg=NARANJA, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["acc_por_prod"].items())):
                 y = chk(y, 46)
                 y = tabla_row(y, prod, datos, idx)
