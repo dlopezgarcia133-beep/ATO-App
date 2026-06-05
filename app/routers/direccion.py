@@ -142,6 +142,129 @@ def obtener_corte_direccion(
     )
 
 
+@router.get("/reporte-diario")
+def reporte_diario(
+    fecha: date = Query(...),
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+
+    EXCLUIR_IDS = {21, 7}
+
+    modulos = (
+        db.query(models.Modulo)
+        .filter(models.Modulo.activo == True)  # noqa: E712
+        .order_by(models.Modulo.nombre.asc())
+        .all()
+    )
+
+    resultado_modulos = []
+    res_telefonos_total = 0.0
+    res_accesorios_total = 0.0
+    res_total_efectivo = 0.0
+    res_total_tarjeta = 0.0
+    res_total_general = 0.0
+
+    for m in modulos:
+        if m.id in EXCLUIR_IDS:
+            continue
+
+        corte = obtener_corte_direccion(modulo_id=m.id, fecha=fecha, user=user, db=db)
+
+        telefonos_list: list = []
+        accesorios_list: list = []
+        tel_total = 0.0
+        acc_total = 0.0
+        sub_efectivo = 0.0
+        sub_tarjeta = 0.0
+        sub_total = 0.0
+        sin_ventas = False
+
+        if corte is None:
+            sin_ventas = True
+        else:
+            tel_total = corte.telefonos_total or 0.0
+            acc_total = corte.accesorios_total or 0.0
+            sub_efectivo = corte.total_efectivo or 0.0
+            sub_tarjeta = corte.total_tarjeta or 0.0
+            sub_total = corte.total_general or 0.0
+
+            ventas_activas = [v for v in corte.ventas if not v.cancelada]
+
+            if tel_total == 0.0 and acc_total == 0.0 and not ventas_activas:
+                sin_ventas = True
+            else:
+                tel_map: dict = {}
+                acc_map: dict = {}
+
+                for v in ventas_activas:
+                    tp = (v.tipo_producto or "").strip().lower()
+                    key = v.producto or ""
+                    entry_total = v.total if v.total is not None else (v.precio_unitario * v.cantidad)
+                    if tp == "telefono":
+                        if key not in tel_map:
+                            tel_map[key] = {"cantidad": 0, "total": 0.0}
+                        tel_map[key]["cantidad"] += v.cantidad
+                        tel_map[key]["total"] += entry_total
+                    elif tp == "accesorios":
+                        if key not in acc_map:
+                            acc_map[key] = {"cantidad": 0, "total": 0.0}
+                        acc_map[key]["cantidad"] += v.cantidad
+                        acc_map[key]["total"] += entry_total
+
+                for desc in sorted(tel_map):
+                    cant = tel_map[desc]["cantidad"]
+                    tot = tel_map[desc]["total"]
+                    telefonos_list.append({
+                        "descripcion": desc,
+                        "cantidad": cant,
+                        "precio_prom": round(tot / cant, 2) if cant else 0.0,
+                        "total": round(tot, 2),
+                    })
+
+                for desc in sorted(acc_map):
+                    cant = acc_map[desc]["cantidad"]
+                    tot = acc_map[desc]["total"]
+                    accesorios_list.append({
+                        "descripcion": desc,
+                        "cantidad": cant,
+                        "precio_prom": round(tot / cant, 2) if cant else 0.0,
+                        "total": round(tot, 2),
+                    })
+
+            res_telefonos_total += tel_total
+            res_accesorios_total += acc_total
+            res_total_efectivo += sub_efectivo
+            res_total_tarjeta += sub_tarjeta
+            res_total_general += sub_total
+
+        resultado_modulos.append({
+            "modulo_id": m.id,
+            "nombre": m.nombre,
+            "sin_ventas": sin_ventas,
+            "telefonos": telefonos_list,
+            "accesorios": accesorios_list,
+            "telefonos_total": round(tel_total, 2),
+            "accesorios_total": round(acc_total, 2),
+            "subtotal_efectivo": round(sub_efectivo, 2),
+            "subtotal_tarjeta": round(sub_tarjeta, 2),
+            "subtotal_total": round(sub_total, 2),
+        })
+
+    return {
+        "fecha": str(fecha),
+        "resumen": {
+            "telefonos_total": round(res_telefonos_total, 2),
+            "accesorios_total": round(res_accesorios_total, 2),
+            "total_efectivo": round(res_total_efectivo, 2),
+            "total_tarjeta": round(res_total_tarjeta, 2),
+            "total_general": round(res_total_general, 2),
+        },
+        "modulos": resultado_modulos,
+    }
+
+
 @router.get("/cortes-pendientes", response_model=List[schemas.CortePendienteItem])
 def cortes_pendientes(
     user: models.Usuario = Depends(get_current_user),
