@@ -1561,19 +1561,19 @@ def reporte_diario_pdf(
     ancho   = W - 2 * MARGEN  # 552 pt
 
     CP = MARGEN + 4           # Producto  — left
-    CC = W - MARGEN - 150     # Cant.     — right-align
-    CM = W - MARGEN - 80      # P. Prom.  — right-align
+    CC = W - MARGEN - 110     # Cant.     — right-align
     CT = W - MARGEN - 4       # Total     — right-align
 
-    ROW_H   = 16   # reducido: filas más compactas con letra más grande
+    ROW_H   = 16
     HDR_H   = 20
     BANDA_H = 26
     SUB_H   = 22
-    BOX_H   = 66.0
+    BOX_H   = 85.0
+    BAR_H   = 30               # alto barra amarilla "TOTAL GENERAL"
     BOX_W   = (ancho - 10) / 2
 
     # ── Calcula el alto total para página única continua ──────────────────────
-    INTRO_H = 14 + 10 + (BOX_H + 6) + 36   # título + cajas + barra total = 132
+    INTRO_H = 14 + 10 + (BOX_H + 6) + (BAR_H + 12)   # título + cajas + barra
     content_h = float(INTRO_H)
     for r in resultados:
         content_h += BANDA_H + 4            # banda módulo
@@ -1615,7 +1615,6 @@ def reporte_diario_pdf(
         c.setFont("Helvetica-Bold", 12)
         c.drawString(CP, y - 13, titulo)
         c.drawRightString(CC, y - 13, "Cant.")
-        c.drawRightString(CM, y - 13, "P. Prom.")
         c.drawRightString(CT, y - 13, "Total")
         return y - HDR_H
 
@@ -1624,10 +1623,8 @@ def reporte_diario_pdf(
         c.rect(MARGEN, y - ROW_H, ancho, ROW_H, fill=1, stroke=0)
         c.setFillColor(black)
         c.setFont("Helvetica", 13)
-        prom = datos["total"] / datos["cant"] if datos["cant"] else 0.0
         c.drawString(CP, y - 11, prod[:55])
         c.drawRightString(CC, y - 11, str(datos["cant"]))
-        c.drawRightString(CM, y - 11, fp(prom))
         c.drawRightString(CT, y - 11, fp(datos["total"]))
         return y - ROW_H
 
@@ -1649,23 +1646,23 @@ def reporte_diario_pdf(
         c.setFillColor(GRIS_F)
         c.rect(bx, by, BOX_W, BOX_H, fill=1, stroke=0)
         c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(bx + BOX_W / 2, by + BOX_H - 16, lbl)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawCentredString(bx + BOX_W / 2, by + 28, fp(val))
+        c.setFont("Helvetica-Bold", 13)
+        c.drawCentredString(bx + BOX_W / 2, by + BOX_H - 18, lbl)
+        c.setFont("Helvetica-Bold", 20)
+        c.drawCentredString(bx + BOX_W / 2, by + 36, fp(val))
         if lbl == "Teléfonos":
             c.setFillColor(VERDE)
-            c.setFont("Helvetica-Bold", 9)
-            c.drawCentredString(bx + BOX_W / 2, by + 10, f"{total_unidades_tel} equipos")
+            c.setFont("Helvetica-Bold", 12)
+            c.drawCentredString(bx + BOX_W / 2, by + 12, f"{total_unidades_tel} equipos")
     y -= BOX_H + 6
 
     c.setFillColor(AMARILLO)
-    c.rect(MARGEN, y - 24, ancho, 24, fill=1, stroke=0)
+    c.rect(MARGEN, y - BAR_H, ancho, BAR_H, fill=1, stroke=0)
     c.setFillColor(AZUL)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(MARGEN + 8, y - 16, "TOTAL GENERAL DEL DÍA")
-    c.drawRightString(CT, y - 16, fp(res_tot))
-    y -= 36
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(MARGEN + 8, y - 23, "TOTAL GENERAL DEL DÍA")
+    c.drawRightString(CT, y - 23, fp(res_tot))
+    y -= BAR_H + 12
 
     # ── Sección por módulo (sin saltos de página) ─────────────────────────────
     for r in resultados:
