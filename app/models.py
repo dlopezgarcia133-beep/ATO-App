@@ -617,3 +617,24 @@ class ConteoFisicoItem(Base):
     producto_creado   = Column(Boolean, default=False)
 
     conteo = relationship("ConteoFisico", back_populates="items")
+
+
+class PlanTarifario(Base):
+    __tablename__ = "planes_tarifarios"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    fecha              = Column(DateTime, nullable=True)
+    empleado_id        = Column(Integer, nullable=True)
+    modulo_id          = Column(Integer, nullable=True)
+    tipo_plan          = Column(String, nullable=True)
+    estatus            = Column(String, nullable=True)
+    categoria          = Column(String, nullable=True)
+    clasificacion      = Column(String, nullable=True)
+    equipo             = Column(String, nullable=True)
+    imei               = Column(String, nullable=True)
+    precio_equipo      = Column(Numeric, nullable=True)
+    plazo              = Column(Integer, nullable=True)
+    linea              = Column(String, nullable=True)
+    cuenta             = Column(String, nullable=True)
+    pago_inicial       = Column(Boolean, default=False)
+    monto_pago_inicial = Column(Numeric, default=0)

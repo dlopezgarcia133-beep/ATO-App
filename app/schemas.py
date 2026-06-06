@@ -1351,3 +1351,40 @@ class KardexProductoResponse(BaseModel):
     saldo_calculado: Optional[int] = None
     contado: int
     diferencia: Optional[int] = None
+
+
+class PlanTarifarioCreate(BaseModel):
+    tipo_plan: Optional[str] = None
+    estatus: Optional[str] = None
+    categoria: Optional[str] = None
+    clasificacion: Optional[str] = None
+    equipo: Optional[str] = None
+    imei: Optional[str] = None
+    precio_equipo: Optional[float] = None
+    plazo: Optional[int] = None
+    linea: Optional[str] = None
+    cuenta: Optional[str] = None
+    pago_inicial: Optional[bool] = False
+    monto_pago_inicial: Optional[float] = 0
+
+
+class PlanTarifarioResponse(BaseModel):
+    id: int
+    fecha: Optional[datetime] = None
+    empleado_id: Optional[int] = None
+    modulo_id: Optional[int] = None
+    tipo_plan: Optional[str] = None
+    estatus: Optional[str] = None
+    categoria: Optional[str] = None
+    clasificacion: Optional[str] = None
+    equipo: Optional[str] = None
+    imei: Optional[str] = None
+    precio_equipo: Optional[float] = None
+    plazo: Optional[int] = None
+    linea: Optional[str] = None
+    cuenta: Optional[str] = None
+    pago_inicial: Optional[bool] = None
+    monto_pago_inicial: Optional[float] = None
+
+    class Config:
+        from_attributes = True
