@@ -1463,24 +1463,15 @@ def editar_recargas(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GET /direccion/reporte-diario/pdf
+# Helper: genera el PDF del reporte diario (sin verificación de rol/JWT)
 # ─────────────────────────────────────────────────────────────────────────────
-@router.get("/reporte-diario/pdf")
-def reporte_diario_pdf(
-    fecha: date = Query(...),
-    user: models.Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+def _generar_pdf_reporte(fecha: date, db: Session):
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.lib.pagesizes import letter
     from reportlab.lib.colors import HexColor, white, black
 
-    _verificar_rol(user)
-
-    # ── 1. Recopilar datos por módulo (mismo patrón que reporte_diario) ───────
-    EXCLUIR_IDS = {21, 7}
+    EXCLUIR_IDS  = {21, 7}
     EFECTIVO_SET = {"efectivo", "cash"}
 
     modulos = (
@@ -1495,30 +1486,48 @@ def reporte_diario_pdf(
         if m.id in EXCLUIR_IDS:
             continue
 
-        corte = obtener_corte_direccion(modulo_id=m.id, fecha=fecha, user=user, db=db)
+        corte = (
+            db.query(models.CorteDia)
+            .filter(
+                models.CorteDia.fecha == fecha,
+                models.CorteDia.modulo_id == m.id,
+            )
+            .first()
+        )
+
+        ventas_db = []
+        if corte:
+            ventas_db = (
+                db.query(models.Venta)
+                .filter(
+                    models.Venta.fecha == fecha,
+                    models.Venta.modulo_id == m.id,
+                    models.Venta.cancelada.isnot(True),
+                )
+                .all()
+            )
 
         tel_por_prod: dict = {}
         acc_por_prod: dict = {}
         tel_ef  = 0.0
         tel_tar = 0.0
 
-        if corte and corte.ventas:
-            for v in corte.ventas:
-                tipo  = (v.tipo_producto or "").lower().strip()
-                monto = float(v.total or 0)
-                if tipo == "telefono":
-                    pago = (v.metodo_pago or "").lower().strip()
-                    if pago in EFECTIVO_SET:
-                        tel_ef  += monto
-                    else:
-                        tel_tar += monto
-                    ent = tel_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
-                    ent["cant"]  += v.cantidad
-                    ent["total"] += monto
-                elif tipo == "accesorios":
-                    ent = acc_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
-                    ent["cant"]  += v.cantidad
-                    ent["total"] += monto
+        for v in ventas_db:
+            tipo  = (v.tipo_producto or "").lower().strip()
+            monto = float((v.precio_unitario or 0) * (v.cantidad or 0))
+            if tipo == "telefono":
+                pago = (v.metodo_pago or "").lower().strip()
+                if pago in EFECTIVO_SET:
+                    tel_ef  += monto
+                else:
+                    tel_tar += monto
+                ent = tel_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
+                ent["cant"]  += int(v.cantidad or 0)
+                ent["total"] += monto
+            elif tipo == "accesorios":
+                ent = acc_por_prod.setdefault(v.producto or "Sin nombre", {"cant": 0, "total": 0.0})
+                ent["cant"]  += int(v.cantidad or 0)
+                ent["total"] += monto
 
         tel_tot = tel_ef + tel_tar
         acc_ef  = float(corte.accesorios_efectivo) if corte else 0.0
@@ -1538,17 +1547,15 @@ def reporte_diario_pdf(
             "mod_ef": mod_ef,  "mod_tar": mod_tar,  "mod_tot": mod_tot,
         })
 
-    # ── 2. Resumen general ────────────────────────────────────────────────────
+    # ── Resumen general ───────────────────────────────────────────────────────
     res_tel = sum(r["tel_tot"] for r in resultados)
     res_acc = sum(r["acc_tot"] for r in resultados)
-    res_ef  = sum(r["mod_ef"]  for r in resultados)
-    res_tar = sum(r["mod_tar"] for r in resultados)
     res_tot = sum(r["mod_tot"] for r in resultados)
     total_unidades_tel = sum(
         d["cant"] for r in resultados for d in r["tel_por_prod"].values()
     )
 
-    # ── 3. Generar PDF ────────────────────────────────────────────────────────
+    # ── Generar PDF ───────────────────────────────────────────────────────────
     AZUL     = HexColor("#16264a")
     AMARILLO = HexColor("#f5c542")
     VERDE    = HexColor("#1e7a46")
@@ -1556,27 +1563,26 @@ def reporte_diario_pdf(
     GRIS_F   = HexColor("#f0f4fa")
     GRIS_T   = HexColor("#dde5f0")
 
-    W       = 612.0            # ancho carta (fijo)
+    W       = 612.0
     MARGEN  = 30
-    ancho   = W - 2 * MARGEN  # 552 pt
+    ancho   = W - 2 * MARGEN
 
-    CP = MARGEN + 4           # Producto  — left
-    CC = W - MARGEN - 110     # Cant.     — right-align
-    CT = W - MARGEN - 4       # Total     — right-align
+    CP = MARGEN + 4
+    CC = W - MARGEN - 110
+    CT = W - MARGEN - 4
 
     ROW_H   = 16
     HDR_H   = 20
     BANDA_H = 26
     SUB_H   = 22
     BOX_H   = 85.0
-    BAR_H   = 30               # alto barra amarilla "TOTAL GENERAL"
+    BAR_H   = 30
     BOX_W   = (ancho - 10) / 2
 
-    # ── Calcula el alto total para página única continua ──────────────────────
-    INTRO_H = 14 + 10 + (BOX_H + 6) + (BAR_H + 12)   # título + cajas + barra
+    INTRO_H = 14 + 10 + (BOX_H + 6) + (BAR_H + 12)
     content_h = float(INTRO_H)
     for r in resultados:
-        content_h += BANDA_H + 4            # banda módulo
+        content_h += BANDA_H + 4
         if r["sin_ventas"]:
             content_h += 22
         else:
@@ -1584,9 +1590,9 @@ def reporte_diario_pdf(
                 content_h += HDR_H + len(r["tel_por_prod"]) * ROW_H
             if r["acc_por_prod"]:
                 content_h += HDR_H + len(r["acc_por_prod"]) * ROW_H
-            content_h += SUB_H + 26        # subtotales + espacio entre módulos
+            content_h += SUB_H + 26
 
-    H = 82.0 + content_h + MARGEN          # header region + contenido + margen inferior
+    H = 82.0 + content_h + MARGEN
 
     def fp(v: float) -> str:
         return f"${v:,.2f}"
@@ -1595,7 +1601,6 @@ def reporte_diario_pdf(
     c         = rl_canvas.Canvas(buf, pagesize=(W, H))
     fecha_str = fecha.strftime("%d / %m / %Y")
 
-    # ── helpers de dibujo ─────────────────────────────────────────────────────
     def hdr() -> None:
         c.setFillColor(AZUL)
         c.rect(0, H - 70, W, 70, fill=1, stroke=0)
@@ -1628,7 +1633,6 @@ def reporte_diario_pdf(
         c.drawRightString(CT, y - 11, fp(datos["total"]))
         return y - ROW_H
 
-    # ── Encabezado (una sola vez) y resumen general ───────────────────────────
     hdr()
     y = float(H - 82)
 
@@ -1664,9 +1668,7 @@ def reporte_diario_pdf(
     c.drawRightString(CT, y - 23, fp(res_tot))
     y -= BAR_H + 12
 
-    # ── Sección por módulo (sin saltos de página) ─────────────────────────────
     for r in resultados:
-        # Banda azul — nombre del módulo
         c.setFillColor(AZUL)
         c.rect(MARGEN, y - BANDA_H, ancho, BANDA_H, fill=1, stroke=0)
         c.setFillColor(white)
@@ -1681,19 +1683,16 @@ def reporte_diario_pdf(
             y -= 22
             continue
 
-        # Sub-tabla TELÉFONOS
         if r["tel_por_prod"]:
             y = tabla_hdr(y, "TELÉFONOS", bg=VERDE, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["tel_por_prod"].items())):
                 y = tabla_row(y, prod, datos, idx)
 
-        # Sub-tabla ACCESORIOS
         if r["acc_por_prod"]:
             y = tabla_hdr(y, "ACCESORIOS", bg=NARANJA, fg=white)
             for idx, (prod, datos) in enumerate(sorted(r["acc_por_prod"].items())):
                 y = tabla_row(y, prod, datos, idx)
 
-        # Línea de subtotales: Teléfonos / Accesorios / Total de la venta
         c.setFillColor(GRIS_T)
         c.rect(MARGEN, y - SUB_H, ancho, SUB_H, fill=1, stroke=0)
         c.setFillColor(AZUL)
@@ -1723,3 +1722,32 @@ def reporte_diario_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="reporte_{fecha}.pdf"'},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /direccion/reporte-diario/pdf  (protegido por JWT)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/reporte-diario/pdf")
+def reporte_diario_pdf(
+    fecha: date = Query(...),
+    user: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _verificar_rol(user)
+    return _generar_pdf_reporte(fecha, db)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /direccion/reporte-diario/pdf-publico  (sin JWT, protegido por llave)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/reporte-diario/pdf-publico")
+def reporte_diario_pdf_publico(
+    fecha: date = Query(...),
+    key: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    import os
+    expected = os.environ.get("REPORTE_PDF_KEY", "")
+    if not expected or key != expected:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    return _generar_pdf_reporte(fecha, db)
