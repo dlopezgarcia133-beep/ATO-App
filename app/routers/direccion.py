@@ -1555,6 +1555,17 @@ def _generar_pdf_reporte(fecha: date, db: Session):
         d["cant"] for r in resultados for d in r["tel_por_prod"].values()
     )
 
+    # ── Lista global de teléfonos (para la sección "TELÉFONOS VENDIDOS HOY") ─
+    tel_global = []
+    for r in resultados:
+        for modelo, datos in sorted(r["tel_por_prod"].items()):
+            tel_global.append({
+                "modelo": modelo,
+                "modulo": r["nombre"],
+                "cant":   datos["cant"],
+                "total":  datos["total"],
+            })
+
     # ── Generar PDF ───────────────────────────────────────────────────────────
     AZUL     = HexColor("#16264a")
     AMARILLO = HexColor("#f5c542")
@@ -1579,7 +1590,8 @@ def _generar_pdf_reporte(fecha: date, db: Session):
     BAR_H   = 30
     BOX_W   = (ancho - 10) / 2
 
-    INTRO_H = 14 + 10 + (BOX_H + 6) + (BAR_H + 12)
+    TELGLOBAL_H = HDR_H + (len(tel_global) * ROW_H if tel_global else 22) + 10
+    INTRO_H = 14 + 10 + (BOX_H + 6) + (BAR_H + 12) + TELGLOBAL_H
     content_h = float(INTRO_H)
     for r in resultados:
         content_h += BANDA_H + 4
@@ -1667,6 +1679,40 @@ def _generar_pdf_reporte(fecha: date, db: Session):
     c.drawString(MARGEN + 8, y - 23, "TOTAL GENERAL DEL DÍA")
     c.drawRightString(CT, y - 23, fp(res_tot))
     y -= BAR_H + 12
+
+    # ── TELÉFONOS VENDIDOS HOY ────────────────────────────────────────────────
+    CM_GBL = MARGEN + 230   # módulo — left-align
+    c.setFillColor(VERDE)
+    c.rect(MARGEN, y - HDR_H, ancho, HDR_H, fill=1, stroke=0)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(CP, y - 13, "TELÉFONOS VENDIDOS HOY")
+    c.drawString(CM_GBL, y - 13, "MÓDULO")
+    c.drawRightString(CT, y - 13, "PRECIO")
+    y -= HDR_H
+
+    if not tel_global:
+        c.setFillColor(black)
+        c.setFont("Helvetica-Oblique", 11)
+        c.drawString(MARGEN + 8, y - 14, "Sin teléfonos vendidos hoy")
+        y -= 22
+    else:
+        for idx, item in enumerate(tel_global):
+            c.setFillColor(GRIS_F if idx % 2 == 0 else white)
+            c.rect(MARGEN, y - ROW_H, ancho, ROW_H, fill=1, stroke=0)
+            c.setFillColor(black)
+            c.setFont("Helvetica", 12)
+            modelo_txt = (
+                item["modelo"][:30] + f" (x{item['cant']})"
+                if item["cant"] > 1
+                else item["modelo"][:38]
+            )
+            c.drawString(CP, y - 11, modelo_txt)
+            c.drawString(CM_GBL, y - 11, item["modulo"][:22])
+            c.drawRightString(CT, y - 11, fp(item["total"]))
+            y -= ROW_H
+
+    y -= 10
 
     for r in resultados:
         c.setFillColor(AZUL)
