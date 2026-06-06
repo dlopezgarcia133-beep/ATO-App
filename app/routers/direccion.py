@@ -1751,3 +1751,48 @@ def reporte_diario_pdf_publico(
     if not expected or key != expected:
         raise HTTPException(status_code=403, detail="No autorizado")
     return _generar_pdf_reporte(fecha, db)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /direccion/enviar-reporte-whatsapp  (protegido por llave, sin JWT)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/enviar-reporte-whatsapp")
+def enviar_reporte_whatsapp(
+    fecha: date = Query(default=None),
+    key: str = Query(...),
+):
+    import os
+    from datetime import datetime
+
+    expected = os.environ.get("REPORTE_PDF_KEY", "")
+    if not expected or key != expected:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if fecha is None:
+        fecha = datetime.now(ZONA).date()
+
+    account_sid  = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token   = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number  = os.environ.get("TWILIO_WHATSAPP_FROM", "")
+    to_number    = os.environ.get("REPORTE_WHATSAPP_TO", "")
+    pdf_key      = os.environ.get("REPORTE_PDF_KEY", "")
+
+    media_url = (
+        f"https://ato-appservidor-nvxt.onrender.com"
+        f"/direccion/reporte-diario/pdf-publico"
+        f"?fecha={fecha}&key={pdf_key}"
+    )
+
+    try:
+        from twilio.rest import Client
+        client = Client(account_sid, auth_token)
+        msg = client.messages.create(
+            from_=from_number,
+            to=to_number,
+            body=f"Reporte de ventas del {fecha}",
+            media_url=[media_url],
+        )
+        return {"ok": True, "sid": msg.sid, "to": to_number}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
