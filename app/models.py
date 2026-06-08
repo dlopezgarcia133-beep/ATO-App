@@ -637,5 +637,6 @@ class PlanTarifario(Base):
     plazo              = Column(Integer, nullable=True)
     linea              = Column(String, nullable=True)
     cuenta             = Column(String, nullable=True)
-    pago_inicial       = Column(Boolean, default=False)
-    monto_pago_inicial = Column(Numeric, default=0)
+    pago_inicial         = Column(Boolean, default=False)
+    monto_pago_inicial   = Column(Numeric, default=0)
+    metodo_pago_inicial  = Column(String, nullable=True)

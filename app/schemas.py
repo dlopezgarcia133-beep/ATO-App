@@ -1366,6 +1366,7 @@ class PlanTarifarioCreate(BaseModel):
     cuenta: Optional[str] = None
     pago_inicial: Optional[bool] = False
     monto_pago_inicial: Optional[float] = 0
+    metodo_pago_inicial: Optional[str] = None
 
 
 class PlanTarifarioResponse(BaseModel):
@@ -1385,6 +1386,7 @@ class PlanTarifarioResponse(BaseModel):
     cuenta: Optional[str] = None
     pago_inicial: Optional[bool] = None
     monto_pago_inicial: Optional[float] = None
+    metodo_pago_inicial: Optional[str] = None
 
     class Config:
         from_attributes = True

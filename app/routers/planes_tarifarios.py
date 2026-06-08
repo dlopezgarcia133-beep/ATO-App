@@ -53,6 +53,7 @@ def crear_plan_tarifario(
         cuenta=plan.cuenta,
         pago_inicial=plan.pago_inicial or False,
         monto_pago_inicial=plan.monto_pago_inicial or 0,
+        metodo_pago_inicial=plan.metodo_pago_inicial,
     )
     db.add(nuevo)
     db.flush()
@@ -69,6 +70,65 @@ def crear_plan_tarifario(
             modulo_origen_id=modulo_id,
             referencia_id=nuevo.id
         )
+
+    # --- Venta espejo del pago inicial (entra al corte) ---
+    if plan.pago_inicial and plan.monto_pago_inicial and float(plan.monto_pago_inicial) > 0:
+        metodo = (plan.metodo_pago_inicial or "efectivo").strip().lower()
+        monto_pi = float(plan.monto_pago_inicial)
+        ahora = datetime.now(ZoneInfo("America/Mexico_City"))
+
+        venta_pi = models.Venta(
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=f"PAGO INICIAL PLAN - {plan.clasificacion or ''}".strip(),
+            cantidad=1,
+            precio_unitario=monto_pi,
+            tipo_venta="plan",
+            total=monto_pi,
+            comision_id=None,
+            comision_monto=None,
+            metodo_pago=metodo,
+            cancelada=False,
+            chip_casado=None,
+            fecha=ahora.date(),
+            hora=ahora.time(),
+            telefono_cliente=None,
+            tipo_producto="telefono",
+        )
+        db.add(venta_pi)
+        db.flush()
+
+        # Acumular al CorteDia (mismo patron que ventas.py)
+        try:
+            fecha_corte = ahora.date()
+            corte = db.query(models.CorteDia).filter(
+                models.CorteDia.fecha == fecha_corte,
+                models.CorteDia.modulo_id == modulo_id
+            ).first()
+            if not corte:
+                corte = models.CorteDia(
+                    fecha=fecha_corte, modulo_id=modulo_id,
+                    total_efectivo=0.0, total_tarjeta=0.0,
+                    adicional_recargas=0.0, adicional_transporte=0.0, adicional_otros=0.0,
+                    total_sistema=0.0, total_general=0.0,
+                    accesorios_efectivo=0.0, accesorios_tarjeta=0.0, accesorios_total=0.0,
+                    telefonos_efectivo=0.0, telefonos_tarjeta=0.0, telefonos_total=0.0
+                )
+                db.add(corte)
+                db.flush()
+
+            es_efectivo = metodo == "efectivo" or metodo == "cash"
+            if es_efectivo:
+                corte.total_efectivo = (corte.total_efectivo or 0) + monto_pi
+                corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + monto_pi
+            else:
+                corte.total_tarjeta = (corte.total_tarjeta or 0) + monto_pi
+                corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + monto_pi
+            corte.telefonos_total = (corte.telefonos_total or 0) + monto_pi
+            corte.total_sistema = (corte.total_sistema or 0) + monto_pi
+            corte.total_general = (corte.total_general or 0) + monto_pi
+        except Exception as e:
+            print("Error actualizando CorteDia desde plan:", e)
 
     db.commit()
     db.refresh(nuevo)
