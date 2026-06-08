@@ -222,6 +222,7 @@ class Modulo(Base):
     longitud = Column(Float, nullable=True)
     radio_metros = Column(Integer, default=100)
     activo = Column(Boolean, default=True)
+    congelado = Column(Boolean, default=False, nullable=False)
 
     ventas = relationship("Venta", back_populates="modulo")
     cortes = relationship("CorteDia", back_populates="modulo")

@@ -27,6 +27,14 @@ def verificar_rol_requerido(roles_permitidos):
     return wrapper
 
 
+def verificar_modulo_no_congelado(db, modulo_id):
+    m = db.query(models.Modulo).filter(models.Modulo.id == modulo_id).first()
+    if m and m.congelado:
+        raise HTTPException(
+            status_code=423,
+            detail="Este modulo esta en conteo fisico. Las ventas y traspasos estan temporalmente bloqueados. Intenta mas tarde o contacta al administrador."
+        )
+
 
 
 load_dotenv()

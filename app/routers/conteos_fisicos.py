@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
 from app.routers.kardex import registrar_kardex
+from app.config import get_current_user
 from app.utilidades import verificar_rol_requerido
 
 router = APIRouter()
@@ -362,6 +363,10 @@ def aplicar_conteo(
     conteo.productos_en_cero = cnt_en_cero
 
     db.bulk_save_objects(items_db)
+
+    # Descongelar automáticamente al aplicar el conteo
+    modulo.congelado = False
+
     db.commit()
 
     return {
@@ -664,3 +669,42 @@ def revertir_conteo(
         "items_revertidos": items_revertidos,
         "advertencias": advertencias,
     }
+
+
+# ── Congelar / descongelar módulo ────────────────────────────────────────────
+
+@router.post("/modulos/{modulo_id}/congelar")
+def congelar_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == modulo_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    modulo.congelado = True
+    db.commit()
+    return {"modulo_id": modulo_id, "nombre": modulo.nombre, "congelado": True}
+
+
+@router.post("/modulos/{modulo_id}/descongelar")
+def descongelar_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == modulo_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+    modulo.congelado = False
+    db.commit()
+    return {"modulo_id": modulo_id, "nombre": modulo.nombre, "congelado": False}
+
+
+@router.get("/modulos/estado-congelado")
+def estado_congelado_modulos(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    modulos = db.query(models.Modulo).order_by(models.Modulo.nombre).all()
+    return [{"id": m.id, "nombre": m.nombre, "congelado": m.congelado} for m in modulos]

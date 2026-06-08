@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
-from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_rol_requerido
+from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_rol_requerido, verificar_modulo_no_congelado
 from datetime import date
 from app.routers.kardex import registrar_kardex
 import os
@@ -46,6 +46,7 @@ def crear_ventas(
         comision_id    = None if item.skip_comision else (com.id if com else None)
         comision_monto = None if item.skip_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo_id
+        verificar_modulo_no_congelado(db, modulo_id)
 
         inventario = (
             db.query(models.InventarioModulo)
@@ -531,6 +532,7 @@ def crear_ventas_multiples(
         comision_id    = None if item.skip_comision else (com.id if com else None)
         comision_monto = None if item.skip_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo.id
+        verificar_modulo_no_congelado(db, modulo_id)
 
         inventario = (
             db.query(models.InventarioModulo)
@@ -730,6 +732,7 @@ def crear_venta_chip(
             detail=f"El número {venta.numero_telefono} ya tiene un chip registrado"
         )
 
+    verificar_modulo_no_congelado(db, current_user.modulo_id)
     fecha_actual = datetime.now(zona_horaria)
     nueva_venta = models.VentaChip(
         empleado_id=current_user.id,

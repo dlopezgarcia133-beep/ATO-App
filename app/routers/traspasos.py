@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
-from app.utilidades import verificar_rol_requerido
+from app.utilidades import verificar_rol_requerido, verificar_modulo_no_congelado
 from app.routers.kardex import registrar_kardex
 
 router = APIRouter()
@@ -34,6 +34,9 @@ def crear_traspaso(
     # C2 — origen ≠ destino
     if current_user.modulo.nombre == traspaso.modulo_destino:
         raise HTTPException(status_code=400, detail="El módulo destino debe ser diferente al módulo origen")
+
+    # Bloquear si el módulo origen está congelado
+    verificar_modulo_no_congelado(db, current_user.modulo.id)
 
     # Validar stock en módulo origen
     inventario = db.query(models.InventarioModulo).filter(
