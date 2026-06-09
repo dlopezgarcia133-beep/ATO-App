@@ -77,10 +77,15 @@ def crear_plan_tarifario(
         monto_pi = float(plan.monto_pago_inicial)
         ahora = datetime.now(ZoneInfo("America/Mexico_City"))
 
+        if plan.equipo and plan.equipo.strip():
+            nombre_pi = f"PAGO INICIAL - {plan.equipo}"
+        else:
+            nombre_pi = f"PAGO INICIAL PLAN - {plan.clasificacion or ''}".strip()
+
         venta_pi = models.Venta(
             empleado_id=current_user.id,
             modulo_id=modulo_id,
-            producto=f"PAGO INICIAL PLAN - {plan.clasificacion or ''}".strip(),
+            producto=nombre_pi,
             cantidad=1,
             precio_unitario=monto_pi,
             tipo_venta="plan",
