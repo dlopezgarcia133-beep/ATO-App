@@ -1389,6 +1389,7 @@ class PlanTarifarioResponse(BaseModel):
     metodo_pago_inicial: Optional[str] = None
     pagado: Optional[bool] = None
     fecha_pago: Optional[datetime] = None
+    contrato_listo: Optional[bool] = None
 
     class Config:
         from_attributes = True

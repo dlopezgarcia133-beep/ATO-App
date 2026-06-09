@@ -167,3 +167,19 @@ def marcar_pagado(
     db.commit()
     db.refresh(plan)
     return {"id": plan.id, "pagado": plan.pagado, "fecha_pago": plan.fecha_pago}
+
+
+@router.patch("/{plan_id}/contrato-listo")
+def marcar_contrato_listo(
+    plan_id: int,
+    contrato_listo: bool,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    plan = db.query(models.PlanTarifario).filter(models.PlanTarifario.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+    plan.contrato_listo = contrato_listo
+    db.commit()
+    db.refresh(plan)
+    return {"id": plan.id, "contrato_listo": plan.contrato_listo}
