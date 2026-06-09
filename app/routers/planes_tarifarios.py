@@ -150,3 +150,20 @@ def listar_planes_tarifarios(
         .order_by(models.PlanTarifario.id.desc())
         .all()
     )
+
+
+@router.patch("/{plan_id}/pagado")
+def marcar_pagado(
+    plan_id: int,
+    pagado: bool,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    plan = db.query(models.PlanTarifario).filter(models.PlanTarifario.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+    plan.pagado = pagado
+    plan.fecha_pago = datetime.now(ZoneInfo("America/Mexico_City")) if pagado else None
+    db.commit()
+    db.refresh(plan)
+    return {"id": plan.id, "pagado": plan.pagado, "fecha_pago": plan.fecha_pago}

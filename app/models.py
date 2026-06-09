@@ -640,3 +640,5 @@ class PlanTarifario(Base):
     pago_inicial         = Column(Boolean, default=False)
     monto_pago_inicial   = Column(Numeric, default=0)
     metodo_pago_inicial  = Column(String, nullable=True)
+    pagado               = Column(Boolean, default=False)
+    fecha_pago           = Column(DateTime, nullable=True)
