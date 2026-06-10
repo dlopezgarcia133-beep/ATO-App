@@ -522,6 +522,12 @@ def crear_ventas_multiples(
     # calcular la fecha/hora una sola vez (evita inconsistencias por zona horaria)
     fecha_actual = datetime.now(zona_horaria)
 
+    # Generar folio unico por ticket (excepto Cadenas Comerciales id=7)
+    folio_venta = None
+    if current_user.modulo.id != 7:
+        seq = db.execute(text("SELECT nextval('venta_folio_seq')")).scalar()
+        folio_venta = f"V-{seq}"
+
     for item in venta.productos:
         com = (
             db.query(models.Comision)
@@ -573,6 +579,7 @@ def crear_ventas_multiples(
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
             telefono_cliente=venta.telefono_cliente,
+            folio=folio_venta,
         )
 
         db.add(nueva)

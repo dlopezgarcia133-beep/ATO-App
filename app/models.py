@@ -113,7 +113,8 @@ class Venta(Base):
     hora = Column(Time, default=func.current_time())
     telefono_cliente = Column(String, nullable=True)
     tipo_producto = Column(String, nullable=False)
-    
+    folio = Column(String, nullable=True)
+
     empleado = relationship("Usuario", back_populates="ventas")
     comision_obj = relationship("Comision")
     modulo = relationship("Modulo", back_populates="ventas")
