@@ -708,7 +708,8 @@ def crear_ventas_multiples(
                             if v.comision_id else None)),
             fecha=v.fecha,
             hora=v.hora,
-            cancelada=v.cancelada
+            cancelada=v.cancelada,
+            folio=v.folio,
         )
         for v in ventas_realizadas
     ]

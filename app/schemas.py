@@ -219,6 +219,7 @@ class VentaResponse(VentaCreate):
     cancelada : Optional[bool] = None
     telefono_cliente: Optional[str] = None
     chip_casado: Optional[str] = None
+    folio: Optional[str] = None
     fecha: date
     hora: time
 
