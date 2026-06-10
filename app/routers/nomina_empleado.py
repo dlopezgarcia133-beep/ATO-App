@@ -58,6 +58,10 @@ def _agregar_sueldo_detalle(fila: dict, nomina: models.Nomina, db: Session) -> N
             {"modulo": m.get("modulo"), "monto": float(m.get("monto") or 0)}
             for m in modulos_sueldo
         ]
+        fila["sueldo_periodo"] = {
+            "inicio": str(ciclo.fecha_inicio),
+            "fin": str(ciclo.fecha_fin),
+        }
 
 
 def _build_periodos(nomina: models.Nomina) -> dict:
