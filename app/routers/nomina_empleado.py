@@ -29,6 +29,28 @@ def _get_mi_fila(nomina: models.Nomina, current_user: models.Usuario) -> dict:
     return fila
 
 
+def _agregar_sueldo_detalle(fila: dict, db: Session) -> None:
+    """Si el encargado cubre varios módulos, agrega el desglose de sueldo base por módulo."""
+    ids = fila.get("usuario_ids", [])
+    if not ids or len(ids) < 2:
+        return
+    usuarios = (
+        db.query(models.Usuario)
+        .filter(models.Usuario.id.in_(ids))
+        .all()
+    )
+    detalle = []
+    for u in usuarios:
+        modulo_nombre = u.modulo.nombre if getattr(u, "modulo", None) else str(u.modulo_id)
+        detalle.append({
+            "modulo": modulo_nombre,
+            "monto": float(u.sueldo_base or 0),
+        })
+    detalle.sort(key=lambda d: d["modulo"])
+    if detalle:
+        fila["sueldo_detalle"] = detalle
+
+
 def _build_periodos(nomina: models.Nomina) -> dict:
     periodos: dict = {}
     if nomina.ciclo_horas_extras:
@@ -61,6 +83,7 @@ def mi_recibo(
 ):
     nomina = _get_nomina_publicada(db)
     fila = _get_mi_fila(nomina, current_user)
+    _agregar_sueldo_detalle(fila, db)
     return {
         "etiqueta": nomina.etiqueta,
         "creado_en": nomina.creado_en.isoformat() if nomina.creado_en else None,
@@ -76,6 +99,7 @@ def mi_recibo_pdf(
 ):
     nomina = _get_nomina_publicada(db)
     fila = _get_mi_fila(nomina, current_user)
+    _agregar_sueldo_detalle(fila, db)
     periodos = _build_periodos(nomina)
 
     from reportlab.lib import colors
