@@ -528,6 +528,7 @@ class Nomina(Base):
     etiqueta = Column(String(200), nullable=False)
     ciclo_horas_extras_id = Column(Integer, ForeignKey("ciclos_guardados.id"), nullable=True)
     ciclo_comisiones_id = Column(Integer, ForeignKey("ciclos_guardados.id"), nullable=True)
+    ciclo_sueldos_encargados_id = Column(Integer, ForeignKey("ciclos_guardados.id"), nullable=True)
     fecha_inicio_asesores = Column(Date, nullable=True)
     fecha_fin_asesores = Column(Date, nullable=True)
     fecha_inicio_encargados = Column(Date, nullable=True)
@@ -542,6 +543,7 @@ class Nomina(Base):
 
     ciclo_horas_extras = relationship("CicloGuardado", foreign_keys=[ciclo_horas_extras_id])
     ciclo_comisiones = relationship("CicloGuardado", foreign_keys=[ciclo_comisiones_id])
+    ciclo_sueldos_encargados = relationship("CicloGuardado", foreign_keys=[ciclo_sueldos_encargados_id])
 
 
 class NominaIncubadora(Base):
