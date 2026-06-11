@@ -253,6 +253,7 @@ class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]
     telefono_cliente: Optional[str] = None
     metodo_pago: str
+    folio: Optional[str] = None
 
 class VentaChipCreate(BaseModel):
     tipo_chip: str
