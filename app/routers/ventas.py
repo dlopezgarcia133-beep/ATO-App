@@ -37,11 +37,15 @@ def crear_ventas(
 ):
     ventas_realizadas = []
 
-    # Generar folio unico por ticket (excepto Cadenas Comerciales id=7)
-    folio_venta = None
-    if current_user.modulo_id != 7:
+    # Si el request trae un folio (ej. segunda llamada de pago dividido), reusarlo.
+    # Si no, generar uno nuevo (excepto Cadenas id=7).
+    if venta.folio:
+        folio_venta = venta.folio
+    elif current_user.modulo_id != 7:
         seq = db.execute(text("SELECT nextval('venta_folio_seq')")).scalar()
         folio_venta = f"V-{seq}"
+    else:
+        folio_venta = None
 
     for item in venta.productos:
         com = (
