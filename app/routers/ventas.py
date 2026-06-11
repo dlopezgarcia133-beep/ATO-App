@@ -37,6 +37,12 @@ def crear_ventas(
 ):
     ventas_realizadas = []
 
+    # Generar folio unico por ticket (excepto Cadenas Comerciales id=7)
+    folio_venta = None
+    if current_user.modulo_id != 7:
+        seq = db.execute(text("SELECT nextval('venta_folio_seq')")).scalar()
+        folio_venta = f"V-{seq}"
+
     for item in venta.productos:
         com = (
             db.query(models.Comision)
@@ -95,6 +101,7 @@ def crear_ventas(
             fecha=fecha_actual.date(),
             hora=fecha_actual.time(),
             telefono_cliente=venta.telefono_cliente,
+            folio=folio_venta,
         )
 
         db.add(nueva)
@@ -209,7 +216,8 @@ def crear_ventas(
                             if v.comision_id else None)),
             fecha=v.fecha,
             hora=v.hora,
-            cancelada=v.cancelada
+            cancelada=v.cancelada,
+            folio=v.folio,
         )
         for v in ventas_realizadas
     ]
