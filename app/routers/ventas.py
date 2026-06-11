@@ -302,17 +302,25 @@ from datetime import datetime, date
 def obtener_ventas(
     fecha: date = None,
     modulo_id: int = None,
+    folio: str = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)  # quien hizo login
 ):
     hoy = datetime.now(zona_horaria).date()
-    fecha_consulta = fecha or hoy
 
     query = (
         db.query(models.Venta)
         .options(joinedload(models.Venta.empleado))
-        .filter(models.Venta.fecha == fecha_consulta)
     )
+
+    # Si viene folio y NO viene fecha, no forzar filtro de fecha (el folio puede ser de cualquier día)
+    if fecha:
+        query = query.filter(models.Venta.fecha == fecha)
+    elif not folio:
+        query = query.filter(models.Venta.fecha == hoy)
+
+    if folio:
+        query = query.filter(models.Venta.folio == folio)
 
     # 🔒 Si no es admin, solo puede ver su propio módulo
     if not current_user.is_admin:
