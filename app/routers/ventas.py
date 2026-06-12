@@ -53,7 +53,7 @@ def crear_ventas(
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
             .first()
         )
-        sin_comision   = item.skip_comision or (item.precio_unitario < 30)
+        sin_comision   = item.skip_comision or (item.tipo_producto != 'telefono' and item.precio_unitario < 30)
         comision_id    = None if sin_comision else (com.id if com else None)
         comision_monto = None if sin_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo_id
@@ -561,7 +561,7 @@ def crear_ventas_multiples(
             .filter(models.Comision.activo == True)
             .first()
         )
-        sin_comision   = item.skip_comision or (item.precio_unitario < 30)
+        sin_comision   = item.skip_comision or (item.tipo_producto != 'telefono' and item.precio_unitario < 30)
         comision_id    = None if sin_comision else (com.id if com else None)
         comision_monto = None if sin_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo.id
