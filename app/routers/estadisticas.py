@@ -5,7 +5,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, text
 from sqlalchemy.orm import Session
 
 from app import models
@@ -205,3 +205,43 @@ def ranking_modulos(
         modulo["posicion"] = idx
 
     return ranking
+
+
+@router.get("/ranking-modulos-hoy")
+def ranking_modulos_hoy(
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(get_current_user),
+):
+    ahora = datetime.now(ZONA)
+    hoy = ahora.date()
+
+    rows = db.execute(text("""
+        SELECT m.nombre AS modulo,
+               COALESCE(SUM(CASE WHEN v.tipo_producto = 'accesorios'
+                                 THEN COALESCE(v.total, v.precio_unitario * v.cantidad, 0) END), 0) AS acc_monto,
+               COALESCE(SUM(CASE WHEN v.tipo_producto = 'telefono'
+                                 THEN v.cantidad END), 0) AS tel_cantidad
+        FROM modulos m
+        LEFT JOIN ventas v
+               ON v.modulo_id = m.id
+              AND v.fecha = :hoy
+              AND (v.cancelada IS NULL OR v.cancelada = false)
+        WHERE m.activo = true
+          AND m.id <> 7
+        GROUP BY m.nombre
+    """), {"hoy": hoy}).mappings().all()
+
+    accesorios = sorted(
+        [{"modulo": r["modulo"], "valor": float(r["acc_monto"])} for r in rows],
+        key=lambda x: x["valor"], reverse=True
+    )
+    telefonos = sorted(
+        [{"modulo": r["modulo"], "valor": int(r["tel_cantidad"])} for r in rows],
+        key=lambda x: x["valor"], reverse=True
+    )
+
+    return {
+        "actualizado": ahora.strftime("%H:%M"),
+        "accesorios": accesorios,
+        "telefonos": telefonos,
+    }
