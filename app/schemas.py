@@ -248,6 +248,7 @@ class ProductoEnVenta(BaseModel):
     metodo_pago: Optional[str] = None
     cancelada: Optional[bool] = False
     skip_comision: Optional[bool] = False
+    skip_inventario: Optional[bool] = False
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]

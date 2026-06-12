@@ -58,23 +58,24 @@ def crear_ventas(
         modulo_id = current_user.modulo_id
         verificar_modulo_no_congelado(db, modulo_id)
 
-        inventario = (
-            db.query(models.InventarioModulo)
-            .filter(
-                models.InventarioModulo.modulo_id == modulo_id,
-                models.InventarioModulo.producto == item.producto,
-                models.InventarioModulo.tipo_producto == item.tipo_producto
+        if not item.skip_inventario:
+            inventario = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.modulo_id == modulo_id,
+                    models.InventarioModulo.producto == item.producto,
+                    models.InventarioModulo.tipo_producto == item.tipo_producto
+                )
+                .first()
             )
-            .first()
-        )
 
-        if not inventario:
-            raise HTTPException(400, f"No hay inventario para {item.producto}")
+            if not inventario:
+                raise HTTPException(400, f"No hay inventario para {item.producto}")
 
-        if inventario.cantidad < item.cantidad:
-            raise HTTPException(400, f"Inventario insuficiente para {item.producto}")
+            if inventario.cantidad < item.cantidad:
+                raise HTTPException(400, f"Inventario insuficiente para {item.producto}")
 
-        inventario.cantidad -= item.cantidad
+            inventario.cantidad -= item.cantidad
 
         fecha_actual = datetime.now(zona_horaria)
 
@@ -111,17 +112,17 @@ def crear_ventas(
         db.add(nueva)
         db.flush()
 
-        # ✅ YA NO TRUENA
-        registrar_kardex(
-            db=db,
-            producto=nueva.producto,
-            tipo_producto=nueva.tipo_producto,
-            cantidad=nueva.cantidad,
-            tipo_movimiento="VENTA",
-            usuario_id=current_user.id,
-            modulo_origen_id=modulo_id,
-            referencia_id=nueva.id
-        )
+        if not item.skip_inventario:
+            registrar_kardex(
+                db=db,
+                producto=nueva.producto,
+                tipo_producto=nueva.tipo_producto,
+                cantidad=nueva.cantidad,
+                tipo_movimiento="VENTA",
+                usuario_id=current_user.id,
+                modulo_origen_id=modulo_id,
+                referencia_id=nueva.id
+            )
 
         ventas_realizadas.append(nueva)
 
