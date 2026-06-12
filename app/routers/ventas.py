@@ -53,8 +53,9 @@ def crear_ventas(
             .filter(func.lower(models.Comision.producto) == item.producto.strip().lower())
             .first()
         )
-        comision_id    = None if item.skip_comision else (com.id if com else None)
-        comision_monto = None if item.skip_comision else (com.cantidad if com else None)
+        sin_comision   = item.skip_comision or (item.precio_unitario < 30)
+        comision_id    = None if sin_comision else (com.id if com else None)
+        comision_monto = None if sin_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo_id
         verificar_modulo_no_congelado(db, modulo_id)
 
@@ -560,8 +561,9 @@ def crear_ventas_multiples(
             .filter(models.Comision.activo == True)
             .first()
         )
-        comision_id    = None if item.skip_comision else (com.id if com else None)
-        comision_monto = None if item.skip_comision else (com.cantidad if com else None)
+        sin_comision   = item.skip_comision or (item.precio_unitario < 30)
+        comision_id    = None if sin_comision else (com.id if com else None)
+        comision_monto = None if sin_comision else (com.cantidad if com else None)
         modulo_id = current_user.modulo.id
         verificar_modulo_no_congelado(db, modulo_id)
 
