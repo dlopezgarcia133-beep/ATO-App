@@ -227,7 +227,7 @@ def ranking_modulos_hoy(
               AND v.fecha = :hoy
               AND (v.cancelada IS NULL OR v.cancelada = false)
         WHERE m.activo = true
-          AND m.id <> 7
+          AND m.id NOT IN (7, 21)
         GROUP BY m.nombre
     """), {"hoy": hoy}).mappings().all()
 
