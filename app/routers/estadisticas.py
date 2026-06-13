@@ -217,18 +217,32 @@ def ranking_modulos_hoy(
 
     rows = db.execute(text("""
         SELECT m.nombre AS modulo,
-               COALESCE(SUM(CASE WHEN v.tipo_producto = 'accesorios'
-                                 THEN COALESCE(v.total, v.precio_unitario * v.cantidad, 0) END), 0) AS acc_monto,
-               COALESCE(SUM(CASE WHEN v.tipo_producto = 'telefono'
-                                 THEN v.cantidad END), 0) AS tel_cantidad
+               COALESCE(acc.monto, 0) AS acc_monto,
+               COALESCE(tel.cant, 0) AS tel_cantidad,
+               COALESCE(pl.cant, 0) AS plan_cantidad
         FROM modulos m
-        LEFT JOIN ventas v
-               ON v.modulo_id = m.id
-              AND v.fecha = :hoy
-              AND (v.cancelada IS NULL OR v.cancelada = false)
-        WHERE m.activo = true
-          AND m.id NOT IN (7, 21)
-        GROUP BY m.nombre
+        LEFT JOIN (
+            SELECT modulo_id,
+                   SUM(CASE WHEN tipo_producto = 'accesorios'
+                            THEN COALESCE(total, precio_unitario * cantidad, 0) END) AS monto
+            FROM ventas
+            WHERE fecha = :hoy AND (cancelada IS NULL OR cancelada = false)
+            GROUP BY modulo_id
+        ) acc ON acc.modulo_id = m.id
+        LEFT JOIN (
+            SELECT modulo_id, SUM(cantidad) AS cant
+            FROM ventas
+            WHERE fecha = :hoy AND tipo_producto = 'telefono'
+              AND (cancelada IS NULL OR cancelada = false)
+            GROUP BY modulo_id
+        ) tel ON tel.modulo_id = m.id
+        LEFT JOIN (
+            SELECT modulo_id, COUNT(id) AS cant
+            FROM planes_tarifarios
+            WHERE (fecha AT TIME ZONE 'America/Mexico_City')::date = :hoy
+            GROUP BY modulo_id
+        ) pl ON pl.modulo_id = m.id
+        WHERE m.activo = true AND m.id NOT IN (7, 21)
     """), {"hoy": hoy}).mappings().all()
 
     accesorios = sorted(
@@ -239,9 +253,14 @@ def ranking_modulos_hoy(
         [{"modulo": r["modulo"], "valor": int(r["tel_cantidad"])} for r in rows],
         key=lambda x: x["valor"], reverse=True
     )
+    planes = sorted(
+        [{"modulo": r["modulo"], "valor": int(r["plan_cantidad"])} for r in rows],
+        key=lambda x: x["valor"], reverse=True
+    )
 
     return {
         "actualizado": ahora.strftime("%H:%M"),
         "accesorios": accesorios,
         "telefonos": telefonos,
+        "planes": planes,
     }
