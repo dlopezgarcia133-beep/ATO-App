@@ -239,7 +239,8 @@ def ranking_modulos_hoy(
         LEFT JOIN (
             SELECT modulo_id, COUNT(id) AS cant
             FROM planes_tarifarios
-            WHERE (fecha AT TIME ZONE 'America/Mexico_City')::date = :hoy
+            WHERE (fecha AT TIME ZONE 'America/Mexico_City') >= date_trunc('month', (now() AT TIME ZONE 'America/Mexico_City'))
+              AND (fecha AT TIME ZONE 'America/Mexico_City') < (date_trunc('month', (now() AT TIME ZONE 'America/Mexico_City')) + INTERVAL '1 month')
             GROUP BY modulo_id
         ) pl ON pl.modulo_id = m.id
         WHERE m.activo = true AND m.id NOT IN (7, 21)
