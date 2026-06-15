@@ -102,6 +102,7 @@ def crear_plan_tarifario(
         )
         db.add(venta_pi)
         db.flush()
+        nuevo.venta_pi_id = venta_pi.id
 
         # Acumular al CorteDia (mismo patron que ventas.py)
         try:
@@ -183,3 +184,94 @@ def marcar_contrato_listo(
     db.commit()
     db.refresh(plan)
     return {"id": plan.id, "contrato_listo": plan.contrato_listo}
+
+
+@router.put("/{plan_id}", response_model=schemas.PlanTarifarioResponse)
+def editar_plan_tarifario(
+    plan_id: int,
+    datos: schemas.PlanTarifarioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    plan = db.query(models.PlanTarifario).filter(models.PlanTarifario.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+
+    # No se permite editar equipo ni monto_pago_inicial (tocan inventario/corte)
+    campos = datos.dict(exclude_unset=True)
+    campos.pop("equipo", None)
+    campos.pop("monto_pago_inicial", None)
+    for k, v in campos.items():
+        setattr(plan, k, v)
+
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@router.delete("/{plan_id}")
+def eliminar_plan_tarifario(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    plan = db.query(models.PlanTarifario).filter(models.PlanTarifario.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+
+    # 1. Regresar el telefono al inventario del modulo
+    if plan.equipo and plan.equipo.strip():
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == plan.modulo_id,
+                models.InventarioModulo.producto == plan.equipo,
+                models.InventarioModulo.tipo_producto == "telefono",
+            )
+            .first()
+        )
+        if inventario:
+            inventario.cantidad += 1
+
+        # 2. Kardex de reversa (entrada)
+        registrar_kardex(
+            db=db,
+            producto=plan.equipo,
+            tipo_producto="telefono",
+            cantidad=1,
+            tipo_movimiento="DEVOLUCION",
+            usuario_id=current_user.id,
+            modulo_origen_id=plan.modulo_id,
+            referencia_id=plan.id,
+        )
+
+    # 3. Borrar la venta espejo y restar del corte
+    if plan.venta_pi_id:
+        venta_pi = db.query(models.Venta).filter(models.Venta.id == plan.venta_pi_id).first()
+        if venta_pi:
+            monto_pi = float(venta_pi.total or 0)
+            metodo = (venta_pi.metodo_pago or "efectivo").strip().lower()
+            fecha_corte = venta_pi.fecha
+
+            # 4. Restar del CorteDia
+            corte = db.query(models.CorteDia).filter(
+                models.CorteDia.fecha == fecha_corte,
+                models.CorteDia.modulo_id == plan.modulo_id,
+            ).first()
+            if corte:
+                es_efectivo = metodo == "efectivo" or metodo == "cash"
+                if es_efectivo:
+                    corte.total_efectivo = (corte.total_efectivo or 0) - monto_pi
+                    corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) - monto_pi
+                else:
+                    corte.total_tarjeta = (corte.total_tarjeta or 0) - monto_pi
+                    corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) - monto_pi
+                corte.telefonos_total = (corte.telefonos_total or 0) - monto_pi
+                corte.total_sistema = (corte.total_sistema or 0) - monto_pi
+                corte.total_general = (corte.total_general or 0) - monto_pi
+
+            db.delete(venta_pi)
+
+    db.delete(plan)
+    db.commit()
+    return {"ok": True, "id": plan_id}

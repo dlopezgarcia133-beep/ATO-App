@@ -1372,6 +1372,23 @@ class PlanTarifarioCreate(BaseModel):
     metodo_pago_inicial: Optional[str] = None
 
 
+class PlanTarifarioUpdate(BaseModel):
+    fecha: Optional[datetime] = None
+    tipo_plan: Optional[str] = None
+    estatus: Optional[str] = None
+    categoria: Optional[str] = None
+    clasificacion: Optional[str] = None
+    imei: Optional[str] = None
+    precio_equipo: Optional[float] = None
+    plazo: Optional[int] = None
+    linea: Optional[str] = None
+    cuenta: Optional[str] = None
+    pago_inicial: Optional[bool] = None
+    metodo_pago_inicial: Optional[str] = None
+    pagado: Optional[bool] = None
+    contrato_listo: Optional[bool] = None
+
+
 class PlanTarifarioResponse(BaseModel):
     id: int
     fecha: Optional[datetime] = None
@@ -1393,6 +1410,7 @@ class PlanTarifarioResponse(BaseModel):
     pagado: Optional[bool] = None
     fecha_pago: Optional[datetime] = None
     contrato_listo: Optional[bool] = None
+    venta_pi_id: Optional[int] = None
 
     class Config:
         from_attributes = True
