@@ -209,30 +209,39 @@ def ranking_modulos(
 
 @router.get("/ranking-modulos-hoy")
 def ranking_modulos_hoy(
+    fecha: str | None = None,
     db: Session = Depends(get_db),
     _: models.Usuario = Depends(get_current_user),
 ):
     ahora = datetime.now(ZONA)
-    hoy = ahora.date()
+    if fecha:
+        try:
+            dia = datetime.strptime(fecha, "%Y-%m-%d").date()
+        except ValueError:
+            dia = ahora.date()
+    else:
+        dia = ahora.date()
 
     rows = db.execute(text("""
         SELECT m.nombre AS modulo,
                COALESCE(acc.monto, 0) AS acc_monto,
                COALESCE(tel.cant, 0) AS tel_cantidad,
-               COALESCE(pl.cant, 0) AS plan_cantidad
+               COALESCE(pl.cant, 0) AS plan_cantidad,
+               COALESCE(accm.monto, 0) AS acc_mes_monto,
+               COALESCE(telm.cant, 0) AS tel_mes_cantidad
         FROM modulos m
         LEFT JOIN (
             SELECT modulo_id,
                    SUM(CASE WHEN tipo_producto = 'accesorios'
-                            THEN COALESCE(total, precio_unitario * cantidad, 0) END) AS monto
+                            THEN COALESCE(total, precio_unitario * cantidad) ELSE 0 END) AS monto
             FROM ventas
-            WHERE fecha = :hoy AND (cancelada IS NULL OR cancelada = false)
+            WHERE fecha = :dia AND (cancelada IS NULL OR cancelada = false)
             GROUP BY modulo_id
         ) acc ON acc.modulo_id = m.id
         LEFT JOIN (
             SELECT modulo_id, SUM(cantidad) AS cant
             FROM ventas
-            WHERE fecha = :hoy AND tipo_producto = 'telefono'
+            WHERE fecha = :dia AND tipo_producto = 'telefono'
               AND (cancelada IS NULL OR cancelada = false)
             GROUP BY modulo_id
         ) tel ON tel.modulo_id = m.id
@@ -243,8 +252,25 @@ def ranking_modulos_hoy(
               AND (fecha AT TIME ZONE 'America/Mexico_City') < (date_trunc('month', (now() AT TIME ZONE 'America/Mexico_City')) + INTERVAL '1 month')
             GROUP BY modulo_id
         ) pl ON pl.modulo_id = m.id
+        LEFT JOIN (
+            SELECT modulo_id,
+                   SUM(CASE WHEN tipo_producto = 'accesorios'
+                            THEN COALESCE(total, precio_unitario * cantidad) ELSE 0 END) AS monto
+            FROM ventas
+            WHERE date_trunc('month', fecha) = date_trunc('month', :dia::date)
+              AND (cancelada IS NULL OR cancelada = false)
+            GROUP BY modulo_id
+        ) accm ON accm.modulo_id = m.id
+        LEFT JOIN (
+            SELECT modulo_id, SUM(cantidad) AS cant
+            FROM ventas
+            WHERE date_trunc('month', fecha) = date_trunc('month', :dia::date)
+              AND tipo_producto = 'telefono'
+              AND (cancelada IS NULL OR cancelada = false)
+            GROUP BY modulo_id
+        ) telm ON telm.modulo_id = m.id
         WHERE m.activo = true AND m.id NOT IN (7, 21)
-    """), {"hoy": hoy}).mappings().all()
+    """), {"dia": dia}).mappings().all()
 
     accesorios = sorted(
         [{"modulo": r["modulo"], "valor": float(r["acc_monto"])} for r in rows],
@@ -258,10 +284,20 @@ def ranking_modulos_hoy(
         [{"modulo": r["modulo"], "valor": int(r["plan_cantidad"])} for r in rows],
         key=lambda x: x["valor"], reverse=True
     )
+    accesorios_mes = sorted(
+        [{"modulo": r["modulo"], "valor": float(r["acc_mes_monto"])} for r in rows],
+        key=lambda x: x["valor"], reverse=True
+    )
+    telefonos_mes = sorted(
+        [{"modulo": r["modulo"], "valor": int(r["tel_mes_cantidad"])} for r in rows],
+        key=lambda x: x["valor"], reverse=True
+    )
 
     return {
         "actualizado": ahora.strftime("%H:%M"),
         "accesorios": accesorios,
         "telefonos": telefonos,
         "planes": planes,
+        "accesorios_mes": accesorios_mes,
+        "telefonos_mes": telefonos_mes,
     }
