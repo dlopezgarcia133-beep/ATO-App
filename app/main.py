@@ -7,6 +7,7 @@ from app.routers import asistencias, asistencia, auth, comisiones, inventario, i
 from app.routers import dashboard, direccion, sueldos, caja_chica, estadisticas, admin_nomina, nomina_empleado, configuracion
 from app.routers import conteos_fisicos
 from app.routers import planes_tarifarios
+from app.routers import checkin
 from fastapi.middleware.cors import CORSMiddleware
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -58,3 +59,4 @@ app.include_router(configuracion.router, tags=["Configuración"])
 app.include_router(ajustes.router, prefix="/ajustes", tags=["Ajustes de Inventario"])
 app.include_router(conteos_fisicos.router, prefix="/conteos-fisicos", tags=["Conteos Físicos"])
 app.include_router(planes_tarifarios.router, prefix="/planes-tarifarios", tags=["Planes Tarifarios"])
+app.include_router(checkin.router, prefix="/checkin", tags=["Check In"])
