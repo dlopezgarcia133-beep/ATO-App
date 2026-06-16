@@ -18,7 +18,7 @@ _ZONA = ZoneInfo("America/Mexico_City")
 _COMISION_FIJA = 10.0
 
 # Productos sin comisión (no aparecen en el resumen)
-_EXCLUIR_PALABRAS = {"CHIP", "FICHA"}
+_EXCLUIR_PALABRAS = {"CHIP", "FICHA", "PAGO INICIAL"}
 
 # Palabras que convierten un "SMART WATCH" en accesorio (no dispositivo)
 _ACCESORIOS_SW = {
