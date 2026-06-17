@@ -14,6 +14,7 @@ class RolEnum(str, enum.Enum):
     encargado = "encargado"
     asesor = "asesor"
     direccion = "direccion"
+    check = "check"
 
 class Usuario(Base):
     __tablename__ = "usuarios"
