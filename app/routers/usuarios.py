@@ -41,7 +41,9 @@ def registrar_usuario(
             raise HTTPException(status_code=400, detail="El usuario ya existe")
         
         modulo_obj = None
-        if not usuario.is_admin:
+        roles_sin_modulo = ("check", "direccion")
+        rol_str = usuario.rol.value if hasattr(usuario.rol, "value") else str(usuario.rol)
+        if not usuario.is_admin and rol_str not in roles_sin_modulo:
             if usuario.modulo_id is None:
                 raise HTTPException(status_code=400, detail="El módulo es obligatorio para este rol")
             modulo_obj = db.query(models.Modulo).filter_by(id=usuario.modulo_id).first()

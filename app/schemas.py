@@ -126,6 +126,7 @@ class RolEnum(str, Enum):
     encargado = "encargado"
     asesor = "asesor"
     direccion = "direccion"
+    check = "check"
 
 # 👉 Este es el que se usa para crear un usuario
 class UsuarioCreate(BaseModel):
