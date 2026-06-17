@@ -73,8 +73,14 @@ def _delete(db: Session, fecha, idx):
 
 @router.get("/promotores")
 def get_promotores(db: Session = Depends(get_db), _: models.Usuario = Depends(get_current_user)):
-    rows = db.execute(text("SELECT nombre, tel FROM promotores ORDER BY id")).mappings().all()
-    return [{"nombre": r["nombre"], "tel": r["tel"] or ""} for r in rows]
+    rows = db.execute(text("""
+        SELECT u.username, u.nombre_completo
+        FROM usuarios u
+        JOIN modulos m ON m.id = u.modulo_id
+        WHERE m.nombre ILIKE '%cadena%' AND u.activo = true
+        ORDER BY u.username
+    """)).mappings().all()
+    return [{"nombre": r["username"], "tel": ""} for r in rows]
 
 
 @router.post("/promotores")
