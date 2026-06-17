@@ -43,7 +43,7 @@ def login(
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     # 👑 ADMIN o DIRECCIÓN — sin asistencia
-    if user.is_admin or user.rol == models.RolEnum.direccion:
+    if user.is_admin or user.rol in (models.RolEnum.direccion, models.RolEnum.check):
         token = crear_token({"sub": user.username, "rol": user.rol})
         return {
             "access_token": token,
