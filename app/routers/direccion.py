@@ -1842,3 +1842,28 @@ def enviar_reporte_whatsapp(
     except Exception as e:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /direccion/reporte/{fecha}.pdf  — URL pública con extensión .pdf
+# compatible con WhatsApp/Twilio media_url (debe terminar en extensión reconocida)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/reporte/{fecha}.pdf")
+def reporte_pdf_publico_ext(
+    fecha: str,
+    key: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    import os
+    from datetime import date as _date
+
+    expected = os.environ.get("REPORTE_PDF_KEY", "")
+    if not expected or key != expected:
+        raise HTTPException(status_code=403, detail="Clave inválida")
+
+    try:
+        fecha_date = _date.fromisoformat(fecha)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fecha inválida, use formato YYYY-MM-DD")
+
+    return _generar_pdf_reporte(fecha_date, db)
