@@ -162,26 +162,37 @@ def cerrar_semana(d: dict = Body(...), db: Session = Depends(get_db), _: models.
     resultados = []
     for p in promotores:
         usuario = p["username"]
-        row = db.execute(text("""
-            SELECT COUNT(*) AS dias
+
+        # detalle por dia: lista de fechas del rango y si cada una cumple
+        regs = db.execute(text("""
+            SELECT fecha, cumple
             FROM registros
-            WHERE idx = :usuario
-              AND fecha >= :inicio AND fecha <= :fin
-              AND cumple = 'TRUE'
-        """), {"usuario": usuario, "inicio": inicio, "fin": fin}).mappings().first()
-        dias = int(row["dias"]) if row else 0
+            WHERE idx = :usuario AND fecha >= :inicio AND fecha <= :fin
+        """), {"usuario": usuario, "inicio": inicio, "fin": fin}).mappings().all()
+        cumple_por_fecha = {str(r["fecha"]): (r["cumple"] == "TRUE") for r in regs}
+
+        # construir las 7 fechas del rango
+        from datetime import datetime as _dt, timedelta as _td
+        d0 = _dt.strptime(inicio, "%Y-%m-%d").date()
+        fechas7 = [(d0 + _td(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+        detalle = [{"fecha": f, "cumple": cumple_por_fecha.get(f, False)} for f in fechas7]
+
+        dias = sum(1 for x in detalle if x["cumple"])
         bono = dias >= 6
         multa = 0 if dias >= 6 else 458 * (6 - dias)
+
+        import json as _json
         db.execute(text("""
-            INSERT INTO checkin_semanas (username, semana_inicio, semana_fin, dias_cumplidos, bono, multa, cerrado_en)
-            VALUES (:u, :ini, :fin, :dias, :bono, :multa, now())
+            INSERT INTO checkin_semanas (username, semana_inicio, semana_fin, dias_cumplidos, bono, multa, dias_detalle, cerrado_en)
+            VALUES (:u, :ini, :fin, :dias, :bono, :multa, CAST(:detalle AS JSONB), now())
             ON CONFLICT (username, semana_inicio) DO UPDATE SET
                 semana_fin = EXCLUDED.semana_fin,
                 dias_cumplidos = EXCLUDED.dias_cumplidos,
                 bono = EXCLUDED.bono,
                 multa = EXCLUDED.multa,
+                dias_detalle = EXCLUDED.dias_detalle,
                 cerrado_en = now()
-        """), {"u": usuario, "ini": inicio, "fin": fin, "dias": dias, "bono": bono, "multa": multa})
+        """), {"u": usuario, "ini": inicio, "fin": fin, "dias": dias, "bono": bono, "multa": multa, "detalle": _json.dumps(detalle)})
         resultados.append({"username": usuario, "dias": dias, "bono": bono, "multa": multa})
     db.commit()
     return {"ok": True, "cerrados": len(resultados), "resultados": resultados}
@@ -191,7 +202,7 @@ def cerrar_semana(d: dict = Body(...), db: Session = Depends(get_db), _: models.
 def mi_semana_pasada(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
     usuario = current_user.username
     row = db.execute(text("""
-        SELECT username, semana_inicio, semana_fin, dias_cumplidos, bono, multa
+        SELECT username, semana_inicio, semana_fin, dias_cumplidos, bono, multa, dias_detalle
         FROM checkin_semanas
         WHERE username = :u
         ORDER BY semana_inicio DESC
