@@ -146,3 +146,57 @@ def reset_semana(db: Session = Depends(get_db), _: models.Usuario = Depends(get_
     db.execute(text("DELETE FROM registros"))
     db.commit()
     return {"ok": True}
+
+
+@router.post("/cerrar-semana")
+def cerrar_semana(d: dict = Body(...), db: Session = Depends(get_db), _: models.Usuario = Depends(get_current_user)):
+    inicio = d["inicio"]
+    fin = d["fin"]
+    promotores = db.execute(text("""
+        SELECT u.username
+        FROM usuarios u
+        JOIN modulos m ON m.id = u.modulo_id
+        WHERE m.nombre ILIKE '%cadena%' AND u.activo = true
+    """)).mappings().all()
+
+    resultados = []
+    for p in promotores:
+        usuario = p["username"]
+        row = db.execute(text("""
+            SELECT COUNT(*) AS dias
+            FROM registros
+            WHERE idx = :usuario
+              AND fecha >= :inicio AND fecha <= :fin
+              AND cumple = 'TRUE'
+        """), {"usuario": usuario, "inicio": inicio, "fin": fin}).mappings().first()
+        dias = int(row["dias"]) if row else 0
+        bono = dias >= 6
+        multa = 0 if dias >= 6 else 458 * (6 - dias)
+        db.execute(text("""
+            INSERT INTO checkin_semanas (username, semana_inicio, semana_fin, dias_cumplidos, bono, multa, cerrado_en)
+            VALUES (:u, :ini, :fin, :dias, :bono, :multa, now())
+            ON CONFLICT (username, semana_inicio) DO UPDATE SET
+                semana_fin = EXCLUDED.semana_fin,
+                dias_cumplidos = EXCLUDED.dias_cumplidos,
+                bono = EXCLUDED.bono,
+                multa = EXCLUDED.multa,
+                cerrado_en = now()
+        """), {"u": usuario, "ini": inicio, "fin": fin, "dias": dias, "bono": bono, "multa": multa})
+        resultados.append({"username": usuario, "dias": dias, "bono": bono, "multa": multa})
+    db.commit()
+    return {"ok": True, "cerrados": len(resultados), "resultados": resultados}
+
+
+@router.get("/mi-semana-pasada")
+def mi_semana_pasada(db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
+    usuario = current_user.username
+    row = db.execute(text("""
+        SELECT username, semana_inicio, semana_fin, dias_cumplidos, bono, multa
+        FROM checkin_semanas
+        WHERE username = :u
+        ORDER BY semana_inicio DESC
+        LIMIT 1
+    """), {"u": usuario}).mappings().first()
+    if not row:
+        return None
+    return dict(row)
