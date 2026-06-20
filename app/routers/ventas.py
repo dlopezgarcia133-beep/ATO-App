@@ -1133,32 +1133,14 @@ def validar_chip_incubadora(
         ],
     }
 
-    # 🔥 CASO ESPECIAL: ACTIVACION
-    if tipo == "Activacion":
-        if not data.comision_manual or data.comision_manual <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="La comisión manual es obligatoria para chips de Activación"
-            )
+    # Comisión SIEMPRE manual en incubadora (todos los tipos)
+    if not data.comision_manual or data.comision_manual <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="La comisión manual es obligatoria"
+        )
 
-        chip.comision = data.comision_manual
-
-    # 🔹 RESTO DE CHIPS (automático)
-    else:
-        if tipo not in comisiones_por_chip:
-            raise HTTPException(status_code=404, detail="No hay comisión configurada para este tipo de chip")
-
-        comision_asignada = None
-
-        for (min_monto, max_monto), comision in comisiones_por_chip[tipo]:
-            if min_monto <= monto <= max_monto:
-                comision_asignada = comision
-                break
-
-        if comision_asignada is None:
-            raise HTTPException(status_code=404, detail="Monto de recarga fuera de rango")
-
-        chip.comision = comision_asignada
+    chip.comision = data.comision_manual
     # 🔹 Marcar como incubadora
     
 
