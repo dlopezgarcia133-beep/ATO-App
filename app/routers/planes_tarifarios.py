@@ -239,7 +239,7 @@ def eliminar_plan_tarifario(
             producto=plan.equipo,
             tipo_producto="telefono",
             cantidad=1,
-            tipo_movimiento="DEVOLUCION",
+            tipo_movimiento="CANCELACION_VENTA",
             usuario_id=current_user.id,
             modulo_origen_id=plan.modulo_id,
             referencia_id=plan.id,
