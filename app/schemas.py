@@ -1415,3 +1415,45 @@ class PlanTarifarioResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Schemas de Gastos ─────────────────────────────────────────────────────────
+
+class GastoCreate(BaseModel):
+    tipo: Literal["personal", "iglesia", "prestamos"]
+    concepto: str
+    monto: float
+
+
+class GastoUpdate(BaseModel):
+    tipo: Literal["personal", "iglesia", "prestamos"]
+    concepto: str
+    monto: float
+
+
+class GastoAbonoCreate(BaseModel):
+    monto: float
+    nota: Optional[str] = None
+
+
+class GastoAbonoResponse(BaseModel):
+    id: int
+    monto: float
+    fecha: Optional[datetime] = None
+    nota: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GastoResponse(BaseModel):
+    id: int
+    tipo: str
+    concepto: str
+    monto: float
+    estado: str
+    fecha_registro: Optional[datetime] = None
+    fecha_pago: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

@@ -647,4 +647,43 @@ class PlanTarifario(Base):
     pagado               = Column(Boolean, default=False)
     fecha_pago           = Column(DateTime, nullable=True)
     contrato_listo       = Column(Boolean, default=False)
+
+
+# ── Módulo de Gastos ──────────────────────────────────────────────────────────
+
+class Gasto(Base):
+    __tablename__ = "gastos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tipo = Column(String, nullable=False)  # 'personal' | 'iglesia' | 'prestamos'
+    concepto = Column(String, nullable=False)
+    monto = Column(Numeric, nullable=False, default=0)
+    estado = Column(String, nullable=False, default="pendiente")  # 'pendiente' | 'pagado'
+    fecha_registro = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(ZoneInfo("America/Mexico_City")),
+    )
+    fecha_pago = Column(DateTime(timezone=True), nullable=True)
+
+    abonos = relationship(
+        "GastoAbono",
+        back_populates="gasto",
+        cascade="all, delete-orphan",
+        order_by="GastoAbono.fecha",
+    )
+
+
+class GastoAbono(Base):
+    __tablename__ = "gastos_abonos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    gasto_id = Column(Integer, ForeignKey("gastos.id", ondelete="CASCADE"), nullable=False)
+    monto = Column(Numeric, nullable=False, default=0)
+    fecha = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(ZoneInfo("America/Mexico_City")),
+    )
+    nota = Column(String, nullable=True)
+
+    gasto = relationship("Gasto", back_populates="abonos")
     venta_pi_id          = Column(Integer, nullable=True)
