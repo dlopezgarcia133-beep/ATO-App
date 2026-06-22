@@ -647,6 +647,7 @@ class PlanTarifario(Base):
     pagado               = Column(Boolean, default=False)
     fecha_pago           = Column(DateTime, nullable=True)
     contrato_listo       = Column(Boolean, default=False)
+    venta_pi_id          = Column(Integer, nullable=True)
 
 
 # ── Módulo de Gastos ──────────────────────────────────────────────────────────
