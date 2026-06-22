@@ -686,4 +686,3 @@ class GastoAbono(Base):
     nota = Column(String, nullable=True)
 
     gasto = relationship("Gasto", back_populates="abonos")
-    venta_pi_id          = Column(Integer, nullable=True)
