@@ -71,13 +71,20 @@ def crear_plan_tarifario(
             referencia_id=nuevo.id
         )
 
-    # --- Venta espejo del pago inicial (entra al corte) ---
-    if plan.pago_inicial and plan.monto_pago_inicial and float(plan.monto_pago_inicial) > 0:
+    # --- Venta espejo ---
+    # Se crea en dos casos:
+    #  (a) con enganche (pago inicial > 0): entra dinero y SÍ acumula al CorteDia.
+    #  (b) sin enganche pero con equipo: venta espejo en $0 para que el teléfono
+    #      aparezca en ventas/recibos/ticket, SIN tocar el CorteDia.
+    hay_enganche = bool(plan.pago_inicial and plan.monto_pago_inicial and float(plan.monto_pago_inicial) > 0)
+    hay_equipo = bool(plan.equipo and plan.equipo.strip())
+
+    if hay_enganche:
         metodo = (plan.metodo_pago_inicial or "efectivo").strip().lower()
         monto_pi = float(plan.monto_pago_inicial)
         ahora = datetime.now(ZoneInfo("America/Mexico_City"))
 
-        if plan.equipo and plan.equipo.strip():
+        if hay_equipo:
             nombre_pi = f"PAGO INICIAL - {plan.equipo}"
         else:
             nombre_pi = f"PAGO INICIAL PLAN - {plan.clasificacion or ''}".strip()
@@ -135,6 +142,31 @@ def crear_plan_tarifario(
             corte.total_general = (corte.total_general or 0) + monto_pi
         except Exception as e:
             print("Error actualizando CorteDia desde plan:", e)
+
+    elif hay_equipo:
+        # Plan sin enganche pero con equipo: venta espejo en $0 (NO toca el CorteDia).
+        ahora = datetime.now(ZoneInfo("America/Mexico_City"))
+        venta_pi = models.Venta(
+            empleado_id=current_user.id,
+            modulo_id=modulo_id,
+            producto=f"{plan.equipo} - PLAN SIN ENGANCHE",
+            cantidad=1,
+            precio_unitario=0,
+            tipo_venta="plan",
+            total=0,
+            comision_id=None,
+            comision_monto=None,
+            metodo_pago="efectivo",
+            cancelada=False,
+            chip_casado=None,
+            fecha=ahora.date(),
+            hora=ahora.time(),
+            telefono_cliente=None,
+            tipo_producto="telefono",
+        )
+        db.add(venta_pi)
+        db.flush()
+        nuevo.venta_pi_id = venta_pi.id
 
     db.commit()
     db.refresh(nuevo)
