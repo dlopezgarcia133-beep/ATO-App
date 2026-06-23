@@ -454,6 +454,71 @@ def editar_nomina(
     return {"ok": True}
 
 
+@router.put("/nominas/{nomina_id}/recalcular", response_model=schemas.NominaResponse)
+def recalcular_nomina(
+    nomina_id: int,
+    data: schemas.NominaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+
+    nomina = db.query(models.Nomina).filter_by(id=nomina_id).first()
+    if not nomina:
+        raise HTTPException(404, "Nómina no encontrada")
+
+    if not data.etiqueta.strip():
+        raise HTTPException(400, "La etiqueta no puede estar vacía")
+
+    total = sum(float(item.get("pago_total", 0)) for item in data.datos)
+
+    try:
+        # Actualizar campos de la nómina existente (NO crear nueva)
+        nomina.etiqueta = data.etiqueta.strip()
+        nomina.ciclo_horas_extras_id = data.ciclo_horas_extras_id
+        nomina.fecha_inicio_asesores = data.fecha_inicio_asesores
+        nomina.fecha_fin_asesores = data.fecha_fin_asesores
+        nomina.fecha_inicio_encargados = data.fecha_inicio_encargados
+        nomina.fecha_fin_encargados = data.fecha_fin_encargados
+        nomina.fecha_inicio_cadenas = data.fecha_inicio_cadenas
+        nomina.fecha_fin_cadenas = data.fecha_fin_cadenas
+        nomina.total_pago = round(total, 2)
+        nomina.datos = data.datos
+
+        # IMPORTANTE: NO tocar el estado publicada (a diferencia del POST, la edición
+        # no debe despublicar las demás ni cambiar cuál está publicada).
+
+        # Incubadora MODO SEGURO: solo marca como pagados los chips que sigan pendientes.
+        # El candado 409 protege contra pagar dos veces el mismo chip.
+        if data.chip_ids_incubadora:
+            ya_pagados = (
+                db.query(models.VentaChip.id)
+                .filter(
+                    models.VentaChip.id.in_(data.chip_ids_incubadora),
+                    models.VentaChip.comision_pagada == True,
+                )
+                .all()
+            )
+            if ya_pagados:
+                ids_str = ", ".join(str(r.id) for r in ya_pagados)
+                raise HTTPException(409, f"Los chips {ids_str} ya fueron pagados en una nómina anterior")
+
+            db.query(models.VentaChip).filter(
+                models.VentaChip.id.in_(data.chip_ids_incubadora),
+                models.VentaChip.comision_pagada == False,
+            ).update({"comision_pagada": True}, synchronize_session=False)
+
+        db.commit()
+        db.refresh(nomina)
+        return nomina
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Error al recalcular la nómina; se revirtió la transacción")
+
+
 @router.get("/nominas/{nomina_id}", response_model=schemas.NominaResponse)
 def detalle_nomina(
     nomina_id: int,
