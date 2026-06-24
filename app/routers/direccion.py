@@ -1808,6 +1808,7 @@ def enviar_reporte_whatsapp(
     key: str = Query(...),
 ):
     import os
+    import json
     from datetime import datetime
 
     expected = os.environ.get("REPORTE_PDF_KEY", "")
@@ -1817,31 +1818,46 @@ def enviar_reporte_whatsapp(
     if fecha is None:
         fecha = datetime.now(ZONA).date()
 
-    account_sid  = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    auth_token   = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number  = os.environ.get("TWILIO_WHATSAPP_FROM", "")
-    to_number    = os.environ.get("REPORTE_WHATSAPP_TO", "")
-    pdf_key      = os.environ.get("REPORTE_PDF_KEY", "")
+    account_sid   = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token    = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number   = os.environ.get("TWILIO_WHATSAPP_FROM", "")
+    to_number     = os.environ.get("REPORTE_WHATSAPP_TO", "")
+    template_sid  = os.environ.get("TWILIO_TEMPLATE_SID", "")
+    pdf_key       = os.environ.get("REPORTE_PDF_KEY", "")
+
+    fecha_ddmmyyyy = fecha.strftime("%d/%m/%Y")
+    content_variables = json.dumps({"1": fecha_ddmmyyyy})
 
     media_url = (
         f"https://ato-appservidor-nvxt.onrender.com"
-        f"/direccion/reporte-diario/pdf-publico"
-        f"?fecha={fecha}&key={pdf_key}"
+        f"/direccion/reporte/{fecha}.pdf"
+        f"?key={pdf_key}"
     )
 
-    try:
-        from twilio.rest import Client
-        client = Client(account_sid, auth_token)
-        msg = client.messages.create(
-            from_=from_number,
-            to=to_number,
-            body=f"Reporte de ventas del {fecha}",
-            media_url=[media_url],
-        )
-        return {"ok": True, "sid": msg.sid, "to": to_number}
-    except Exception as e:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    # REPORTE_WHATSAPP_TO puede traer varios números separados por coma.
+    # Ej: "whatsapp:+5214495131043,whatsapp:+5214491440784"
+    destinatarios = [n.strip() for n in to_number.split(",") if n.strip()]
+
+    from twilio.rest import Client
+    client = Client(account_sid, auth_token)
+
+    enviados = []
+    errores = []
+    for to in destinatarios:
+        try:
+            msg = client.messages.create(
+                from_=from_number,
+                to=to,
+                content_sid=template_sid,
+                content_variables=content_variables,
+                media_url=[media_url],
+            )
+            enviados.append({"to": to, "sid": msg.sid})
+        except Exception as e:
+            # Si uno falla, registramos su error y seguimos con los demás.
+            errores.append({"to": to, "error": str(e)})
+
+    return {"ok": True, "enviados": enviados, "errores": errores}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
