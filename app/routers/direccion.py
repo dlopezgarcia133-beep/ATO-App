@@ -1807,7 +1807,7 @@ def _generar_pdf_reporte(fecha: date, db: Session):
     return StreamingResponse(
         buf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="reporte_{fecha}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="reporte_{fecha}.pdf"'},
     )
 
 
