@@ -1703,9 +1703,9 @@ def _generar_pdf_reporte(fecha: date, db: Session):
             c.setFillColor(black)
             c.setFont("Helvetica", 12)
             modelo_txt = (
-                item["modelo"][:30] + f" (x{item['cant']})"
+                item["modelo"][:24] + f" (x{item['cant']})"
                 if item["cant"] > 1
-                else item["modelo"][:38]
+                else item["modelo"][:30]
             )
             c.drawString(CP, y - 11, modelo_txt)
             c.drawString(CM_GBL, y - 11, item["modulo"][:22])
