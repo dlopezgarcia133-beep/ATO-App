@@ -1680,6 +1680,47 @@ def _generar_pdf_reporte(fecha: date, db: Session):
     c.drawRightString(CT, y - 23, fp(res_tot))
     y -= BAR_H + 12
 
+    # ── VENTAS POR MÓDULO (cuadrícula 5 por fila) ─────────────────────────────
+    # Barra de título
+    c.setFillColor(AZUL)
+    c.rect(MARGEN, y - HDR_H, ancho, HDR_H, fill=1, stroke=0)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(CP, y - 13, "VENTAS POR MÓDULO")
+    y -= HDR_H + 8
+
+    COLS    = 5
+    GAP     = 6
+    CARD_W  = (ancho - GAP * (COLS - 1)) / COLS
+    CARD_H  = 56
+    for i, r in enumerate(resultados):
+        col = i % COLS
+        if col == 0 and i != 0:
+            y -= CARD_H + GAP
+        x = MARGEN + col * (CARD_W + GAP)
+        # cantidad de teléfonos del módulo
+        n_tel = sum(d["cant"] for d in r["tel_por_prod"].values())
+        # caja
+        c.setFillColor(GRIS_F)
+        c.rect(x, y - CARD_H, CARD_W, CARD_H, fill=1, stroke=0)
+        c.setStrokeColor(GRIS_T)
+        c.setLineWidth(0.5)
+        c.rect(x, y - CARD_H, CARD_W, CARD_H, fill=0, stroke=1)
+        # nombre del módulo
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + 6, y - 14, str(r["nombre"])[:14])
+        # datos
+        c.setFillColor(black)
+        c.setFont("Helvetica", 8)
+        c.drawString(x + 6, y - 27, "Teléfonos:")
+        c.drawRightString(x + CARD_W - 6, y - 27, str(n_tel))
+        c.drawString(x + 6, y - 38, "$ Tel:")
+        c.drawRightString(x + CARD_W - 6, y - 38, fp(r["tel_tot"]))
+        c.drawString(x + 6, y - 49, "$ Acc:")
+        c.drawRightString(x + CARD_W - 6, y - 49, fp(r["acc_tot"]))
+    y -= CARD_H + 18
+
     # ── TELÉFONOS VENDIDOS HOY ────────────────────────────────────────────────
     CM_GBL = MARGEN + 230   # módulo — left-align
     c.setFillColor(VERDE)
