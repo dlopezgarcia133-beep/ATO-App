@@ -1867,7 +1867,12 @@ def enviar_reporte_whatsapp(
     pdf_key       = os.environ.get("REPORTE_PDF_KEY", "")
 
     fecha_ddmmyyyy = fecha.strftime("%d/%m/%Y")
-    content_variables = json.dumps({"1": fecha_ddmmyyyy})
+    pdf_link = (
+        f"https://ato-appservidor-nvxt.onrender.com"
+        f"/direccion/reporte/{fecha}.pdf"
+        f"?key={pdf_key}"
+    )
+    content_variables = json.dumps({"1": fecha_ddmmyyyy, "2": pdf_link})
 
     media_url = (
         f"https://ato-appservidor-nvxt.onrender.com"
@@ -1891,7 +1896,6 @@ def enviar_reporte_whatsapp(
                 to=to,
                 content_sid=template_sid,
                 content_variables=content_variables,
-                media_url=[media_url],
             )
             enviados.append({"to": to, "sid": msg.sid})
         except Exception as e:
