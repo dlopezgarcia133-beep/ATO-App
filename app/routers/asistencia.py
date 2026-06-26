@@ -612,3 +612,86 @@ def actualizar_ubicacion_promotor(
     usuario.radio_metros_promotor = body.radio_metros_promotor
     db.commit()
     return {"ok": True}
+
+
+# ── Mi semana (detalle lunes→domingo del usuario logueado) ────────────────────
+
+_DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+
+
+def _hm_mx(dt: datetime) -> str:
+    """datetime (UTC o naive-asumido-UTC) → 'HH:MM' (24h) en zona México."""
+    from datetime import timezone as _utc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_utc.utc)
+    return dt.astimezone(ZONA).strftime("%H:%M")
+
+
+@router.get("/mi-semana", response_model=schemas.SemanaDetalle)
+def mi_semana(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    hoy = datetime.now(ZONA).date()
+    lunes = hoy - timedelta(days=hoy.weekday())
+    domingo = lunes + timedelta(days=6)
+
+    registros = (
+        db.query(models.Asistencia)
+        .filter(
+            models.Asistencia.usuario_id == current_user.id,
+            models.Asistencia.fecha >= lunes,
+            models.Asistencia.fecha <= domingo,
+        )
+        .all()
+    )
+
+    # Reutiliza el agrupado/cálculo de horas existente; indexa por fecha.
+    resumen_por_fecha = {r.fecha: r for r in _agrupar(registros)}
+
+    dias = []
+    for i in range(7):
+        fecha = lunes + timedelta(days=i)
+        r = resumen_por_fecha.get(fecha)
+
+        entrada = None
+        salida = None
+        horas = None
+        if r is not None:
+            if r.entrada is not None:
+                entrada = schemas.MarcaDia(
+                    hora=_hm_mx(r.entrada),
+                    foto_url=r.foto_entrada_url,
+                    dentro_de_zona=r.dentro_de_zona_entrada,
+                )
+            if r.salida is not None:
+                salida = schemas.MarcaDia(
+                    hora=_hm_mx(r.salida),
+                    foto_url=r.foto_salida_url,
+                    dentro_de_zona=r.dentro_de_zona_salida,
+                )
+
+        if entrada is not None and salida is not None:
+            estado = "completo"
+            horas = round(r.horas_trabajadas, 1)
+        elif entrada is not None:
+            estado = "en_turno"
+        elif fecha < hoy:
+            estado = "falta"
+        else:
+            estado = "pendiente"
+
+        dias.append(schemas.DiaSemanaDetalle(
+            fecha=fecha,
+            dia_semana=_DIAS_SEMANA[i],
+            entrada=entrada,
+            salida=salida,
+            horas=horas,
+            estado=estado,
+        ))
+
+    return schemas.SemanaDetalle(
+        semana_inicio=lunes,
+        semana_fin=domingo,
+        dias=dias,
+    )

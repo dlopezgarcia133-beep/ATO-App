@@ -1457,3 +1457,25 @@ class GastoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Mi semana (detalle lunes→domingo) ────────────────────────────────────────
+class MarcaDia(BaseModel):
+    hora: str
+    foto_url: Optional[str] = None
+    dentro_de_zona: Optional[bool] = None
+
+
+class DiaSemanaDetalle(BaseModel):
+    fecha: date
+    dia_semana: str
+    entrada: Optional[MarcaDia] = None
+    salida: Optional[MarcaDia] = None
+    horas: Optional[float] = None
+    estado: str
+
+
+class SemanaDetalle(BaseModel):
+    semana_inicio: date
+    semana_fin: date
+    dias: List[DiaSemanaDetalle]
