@@ -143,3 +143,29 @@ def obtener_kardex(
         data.append(item)
 
     return data
+
+
+@router.get("/existencia")
+def obtener_existencia_actual(
+    producto: str = None,
+    modulo_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    # SEGURIDAD: encargado solo ve su propio modulo (igual que /kardex)
+    if current_user.rol == "encargado":
+        modulo_id = current_user.modulo_id
+
+    if not producto or not modulo_id:
+        return {"existencia": None}
+
+    existencia = (
+        db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
+        .filter(
+            models.InventarioModulo.modulo_id == modulo_id,
+            models.InventarioModulo.producto == producto,
+        )
+        .scalar()
+    )
+
+    return {"existencia": existencia}
