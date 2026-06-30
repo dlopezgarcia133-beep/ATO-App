@@ -1,6 +1,6 @@
 import enum
 from sqlite3.dbapi2 import Timestamp
-from sqlalchemy import Boolean, Column, Date, Float, Integer, JSON, Numeric, String, Enum, DateTime, Time, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, Date, Float, Integer, JSON, Numeric, String, Text, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
 from datetime import date, datetime, timezone
@@ -687,3 +687,16 @@ class GastoAbono(Base):
     nota = Column(String, nullable=True)
 
     gasto = relationship("Gasto", back_populates="abonos")
+
+
+class JustificacionAsistencia(Base):
+    __tablename__ = "justificaciones_asistencia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    fecha = Column(Date, nullable=False)
+    estado = Column(String(20), nullable=False)   # 'falta'|'justificada'|'vacaciones'
+    nota = Column(Text, nullable=True)
+    creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now())

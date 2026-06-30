@@ -69,6 +69,13 @@ class AsistenciaResumenDia(BaseModel):
     lugar_trabajo: Optional[str] = None
 
 
+class JustificacionCreate(BaseModel):
+    usuario_id: int
+    fecha: date
+    estado: Literal["falta", "justificada", "vacaciones"]
+    nota: str | None = None
+
+
 class ModuloUbicacionUpdate(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None

@@ -785,10 +785,92 @@ def asistencia_anomalias(
                 })
             # entrada + salida con horas >= 1 NO es anomalía: se omite
 
+    # Justificaciones ya guardadas de esa fecha (cruzando por módulo si se filtra)
+    jq = db.query(models.JustificacionAsistencia).filter(
+        models.JustificacionAsistencia.fecha == fecha
+    )
+    if modulo_id:
+        jq = jq.join(
+            models.Usuario, models.Usuario.id == models.JustificacionAsistencia.usuario_id
+        ).filter(models.Usuario.modulo_id == modulo_id)
+    justificaciones = {
+        j.usuario_id: {"estado": j.estado, "nota": j.nota}
+        for j in jq.all()
+    }
+
     return {
         "fecha": fecha,
         "sin_movimiento": sin_movimiento,
         "falta_checkin": falta_checkin,
         "falta_checkout": falta_checkout,
         "menos_de_una_hora": menos_de_una_hora,
+        "justificaciones": justificaciones,
     }
+
+
+# ── Justificaciones de asistencia (admin/dirección) ──────────────────────────
+
+@router.post("/justificacion")
+def guardar_justificacion(
+    body: schemas.JustificacionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    ahora = datetime.now(ZONA)
+
+    # Upsert por usuario_id + fecha
+    registro = db.query(models.JustificacionAsistencia).filter(
+        models.JustificacionAsistencia.usuario_id == body.usuario_id,
+        models.JustificacionAsistencia.fecha == body.fecha,
+    ).first()
+
+    if registro:
+        registro.estado = body.estado
+        registro.nota = body.nota
+        registro.creado_por = current_user.id
+        registro.actualizado_en = ahora
+    else:
+        registro = models.JustificacionAsistencia(
+            usuario_id=body.usuario_id,
+            fecha=body.fecha,
+            estado=body.estado,
+            nota=body.nota,
+            creado_por=current_user.id,
+        )
+        db.add(registro)
+
+    db.commit()
+    db.refresh(registro)
+
+    return {
+        "id": registro.id,
+        "usuario_id": registro.usuario_id,
+        "fecha": registro.fecha,
+        "estado": registro.estado,
+        "nota": registro.nota,
+        "creado_por": registro.creado_por,
+        "creado_en": registro.creado_en,
+        "actualizado_en": registro.actualizado_en,
+    }
+
+
+@router.delete("/justificacion")
+def borrar_justificacion(
+    usuario_id: int,
+    fecha: date,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    borradas = db.query(models.JustificacionAsistencia).filter(
+        models.JustificacionAsistencia.usuario_id == usuario_id,
+        models.JustificacionAsistencia.fecha == fecha,
+    ).delete()
+    db.commit()
+
+    return {"ok": True, "borradas": borradas}
