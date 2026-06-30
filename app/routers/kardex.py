@@ -157,7 +157,7 @@ def obtener_existencia_actual(
         modulo_id = current_user.modulo_id
 
     if not producto or not modulo_id:
-        return {"existencia": None}
+        return {"existencia": None, "modulo_id": None}
 
     existencia = (
         db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
@@ -168,4 +168,4 @@ def obtener_existencia_actual(
         .scalar()
     )
 
-    return {"existencia": existencia}
+    return {"existencia": existencia, "modulo_id": modulo_id}
