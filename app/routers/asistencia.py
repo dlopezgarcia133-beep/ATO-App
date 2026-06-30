@@ -695,3 +695,100 @@ def mi_semana(
         semana_fin=domingo,
         dias=dias,
     )
+
+
+# ── Anomalías de asistencia del día (para admin/dirección) ───────────────────
+
+@router.get("/anomalias")
+def asistencia_anomalias(
+    fecha: date,
+    modulo_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    # Universo esperado: usuarios activos que marcan asistencia
+    usuarios = db.query(models.Usuario).filter(
+        models.Usuario.activo == True,
+        models.Usuario.rol.in_([models.RolEnum.asesor, models.RolEnum.encargado]),
+    )
+    if modulo_id:
+        usuarios = usuarios.filter(models.Usuario.modulo_id == modulo_id)
+    usuarios = usuarios.all()
+
+    # Asistencia del día
+    q = db.query(models.Asistencia).filter(models.Asistencia.fecha == fecha)
+    if modulo_id:
+        q = q.filter(models.Asistencia.modulo_id == modulo_id)
+    registros = q.all()
+
+    # Agrupar registros por usuario_id (mismo criterio que _agrupar, indexado por usuario)
+    por_usuario: Dict[int, dict] = {}
+    for r in registros:
+        if r.usuario_id not in por_usuario:
+            por_usuario[r.usuario_id] = {"entrada": None, "salida": None}
+        por_usuario[r.usuario_id][r.tipo] = r
+
+    # Horas con la MISMA lógica de _agrupar
+    from datetime import timezone as _utc
+
+    def _to_utc(dt):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=_utc.utc)
+        return dt.astimezone(_utc.utc)
+
+    def _horas(ent, sal):
+        if ent and sal and ent.hora and sal.hora:
+            delta = _to_utc(sal.hora) - _to_utc(ent.hora)
+            return max(0.0, delta.total_seconds() / 3600)
+        return 0.0
+
+    sin_movimiento = []
+    falta_checkin = []
+    falta_checkout = []
+    menos_de_una_hora = []
+
+    for u in usuarios:
+        modulo_nombre = u.modulo.nombre if u.modulo else None
+        base = {
+            "usuario_id": u.id,
+            "username": u.username,
+            "nombre_completo": u.nombre_completo,
+            "modulo_id": u.modulo_id,
+            "modulo_nombre": modulo_nombre,
+        }
+
+        data = por_usuario.get(u.id)
+
+        # Prioridad: sin_movimiento > falta_checkin > falta_checkout > menos_de_una_hora
+        if data is None:
+            sin_movimiento.append(base)
+            continue
+
+        ent = data.get("entrada")
+        sal = data.get("salida")
+
+        if sal and not ent:
+            falta_checkin.append({**base, "salida": sal.hora})
+        elif ent and not sal:
+            falta_checkout.append({**base, "entrada": ent.hora})
+        elif ent and sal:
+            horas = _horas(ent, sal)
+            if horas < 1:
+                menos_de_una_hora.append({
+                    **base,
+                    "entrada": ent.hora,
+                    "salida": sal.hora,
+                    "horas_trabajadas": round(horas, 2),
+                })
+            # entrada + salida con horas >= 1 NO es anomalía: se omite
+
+    return {
+        "fecha": fecha,
+        "sin_movimiento": sin_movimiento,
+        "falta_checkin": falta_checkin,
+        "falta_checkout": falta_checkout,
+        "menos_de_una_hora": menos_de_una_hora,
+    }
