@@ -709,20 +709,39 @@ def asistencia_anomalias(
     if current_user.rol not in ("admin", "direccion"):
         raise HTTPException(403, "Solo admin y dirección")
 
-    # Universo esperado: usuarios activos que marcan asistencia
-    usuarios = db.query(models.Usuario).filter(
+    # Universo esperado: usuarios activos que marcan asistencia (asesor/encargado).
+    base_q = db.query(models.Usuario).filter(
         models.Usuario.activo == True,
         models.Usuario.rol.in_([models.RolEnum.asesor, models.RolEnum.encargado]),
     )
-    if modulo_id:
-        usuarios = usuarios.filter(models.Usuario.modulo_id == modulo_id)
-    usuarios = usuarios.all()
 
-    # Asistencia del día
-    q = db.query(models.Asistencia).filter(models.Asistencia.fecha == fecha)
     if modulo_id:
-        q = q.filter(models.Asistencia.modulo_id == modulo_id)
-    registros = q.all()
+        # Las cuentas de una persona englobada pueden estar en módulos distintos.
+        # 1) nombre_englobado con AL MENOS una cuenta en el módulo pedido.
+        englobados_en_modulo = [
+            n for (n,) in base_q.with_entities(models.Usuario.nombre_englobado)
+            .filter(
+                models.Usuario.modulo_id == modulo_id,
+                models.Usuario.nombre_englobado.isnot(None),
+                models.Usuario.nombre_englobado != "",
+            )
+            .distinct()
+            .all()
+        ]
+        # 2) TODAS las cuentas de esas personas (aunque estén en otros módulos)
+        #    + las cuentas individuales de ese módulo (capturadas por modulo_id).
+        cond = models.Usuario.modulo_id == modulo_id
+        if englobados_en_modulo:
+            cond = cond | models.Usuario.nombre_englobado.in_(englobados_en_modulo)
+        usuarios = base_q.filter(cond).all()
+    else:
+        usuarios = base_q.all()
+
+    # Asistencia del día: TODOS los registros de la fecha SIN filtrar por módulo,
+    # porque una persona puede haber marcado con una cuenta de otro módulo.
+    registros = db.query(models.Asistencia).filter(
+        models.Asistencia.fecha == fecha
+    ).all()
 
     # Agrupar registros por usuario_id (mismo criterio que _agrupar, indexado por usuario)
     por_usuario: Dict[int, dict] = {}
@@ -745,58 +764,94 @@ def asistencia_anomalias(
             return max(0.0, delta.total_seconds() / 3600)
         return 0.0
 
+    # Agrupar el universo por PERSONA (nombre_englobado, o id:<id> si no englobada).
+    personas: Dict[str, List[models.Usuario]] = {}
+    orden: List[str] = []
+    for u in usuarios:
+        clave = u.nombre_englobado if (u.nombre_englobado not in (None, "")) else f"id:{u.id}"
+        if clave not in personas:
+            personas[clave] = []
+            orden.append(clave)
+        personas[clave].append(u)
+
     sin_movimiento = []
     falta_checkin = []
     falta_checkout = []
     menos_de_una_hora = []
+    canonicos: set[int] = set()
 
-    for u in usuarios:
-        modulo_nombre = u.modulo.nombre if u.modulo else None
+    for clave in orden:
+        cuentas = personas[clave]
+        cuenta_canonica = min(cuentas, key=lambda c: c.id)
+        usuario_id_canonico = cuenta_canonica.id
+        canonicos.add(usuario_id_canonico)
+
+        # Nombre a mostrar: englobado si existe, si no el username de la cuenta.
+        if cuenta_canonica.nombre_englobado not in (None, ""):
+            nombre_mostrar = cuenta_canonica.nombre_englobado
+        else:
+            nombre_mostrar = cuenta_canonica.username
+
+        # Módulo: el de la cuenta canónica, o el primero disponible del grupo.
+        cuenta_mod = cuenta_canonica
+        if not cuenta_mod.modulo_id:
+            cuenta_mod = next((c for c in cuentas if c.modulo_id), cuenta_canonica)
+        modulo_nombre = cuenta_mod.modulo.nombre if cuenta_mod.modulo else None
+
         base = {
-            "usuario_id": u.id,
-            "username": u.username,
-            "nombre_completo": u.nombre_completo,
-            "modulo_id": u.modulo_id,
+            "usuario_id": usuario_id_canonico,
+            "username": nombre_mostrar,
+            "nombre_completo": cuenta_canonica.nombre_completo,
+            "modulo_id": cuenta_mod.modulo_id,
             "modulo_nombre": modulo_nombre,
         }
 
-        data = por_usuario.get(u.id)
+        # Consolidar asistencia: juntar entradas/salidas de TODAS las cuentas.
+        entradas = []
+        salidas = []
+        for c in cuentas:
+            data = por_usuario.get(c.id)
+            if not data:
+                continue
+            ent = data.get("entrada")
+            sal = data.get("salida")
+            if ent and ent.hora:
+                entradas.append(ent)
+            if sal and sal.hora:
+                salidas.append(sal)
 
-        # Prioridad: sin_movimiento > falta_checkin > falta_checkout > menos_de_una_hora
-        if data is None:
-            sin_movimiento.append(base)
-            continue
+        mejor_entrada = min(entradas, key=lambda r: _to_utc(r.hora)) if entradas else None
+        mejor_salida = max(salidas, key=lambda r: _to_utc(r.hora)) if salidas else None
 
-        ent = data.get("entrada")
-        sal = data.get("salida")
-
-        if sal and not ent:
-            falta_checkin.append({**base, "salida": sal.hora})
-        elif ent and not sal:
-            falta_checkout.append({**base, "entrada": ent.hora})
-        elif ent and sal:
-            horas = _horas(ent, sal)
+        # Clasificación única por persona.
+        if mejor_entrada and mejor_salida:
+            horas = _horas(mejor_entrada, mejor_salida)
             if horas < 1:
                 menos_de_una_hora.append({
                     **base,
-                    "entrada": ent.hora,
-                    "salida": sal.hora,
+                    "entrada": mejor_entrada.hora,
+                    "salida": mejor_salida.hora,
                     "horas_trabajadas": round(horas, 2),
                 })
             # entrada + salida con horas >= 1 NO es anomalía: se omite
+        elif mejor_entrada and not mejor_salida:
+            falta_checkout.append({**base, "entrada": mejor_entrada.hora})
+        elif mejor_salida and not mejor_entrada:
+            falta_checkin.append({**base, "salida": mejor_salida.hora})
+        else:
+            sin_movimiento.append(base)
 
-    # Justificaciones ya guardadas de esa fecha (cruzando por módulo si se filtra)
-    jq = db.query(models.JustificacionAsistencia).filter(
-        models.JustificacionAsistencia.fecha == fecha
-    )
-    if modulo_id:
-        jq = jq.join(
-            models.Usuario, models.Usuario.id == models.JustificacionAsistencia.usuario_id
-        ).filter(models.Usuario.modulo_id == modulo_id)
-    justificaciones = {
-        j.usuario_id: {"estado": j.estado, "nota": j.nota}
-        for j in jq.all()
-    }
+    # Justificaciones ya guardadas de esa fecha, cruzando por el usuario_id canónico.
+    justificaciones = {}
+    if canonicos:
+        jq = db.query(models.JustificacionAsistencia).filter(
+            models.JustificacionAsistencia.fecha == fecha,
+            models.JustificacionAsistencia.usuario_id.in_(canonicos),
+        )
+        justificaciones = {
+            j.usuario_id: {"estado": j.estado, "nota": j.nota}
+            for j in jq.all()
+        }
 
     return {
         "fecha": fecha,
