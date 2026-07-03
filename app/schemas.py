@@ -269,6 +269,9 @@ class VentaChipCreate(BaseModel):
     numero_telefono: str
     monto_recarga: float
     cvip: bool
+    imei: Optional[str] = None
+    iccid: Optional[str] = None
+    cambio_chip: bool = False
   
 
 class VentaChipResponse(VentaChipCreate):

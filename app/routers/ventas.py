@@ -777,6 +777,9 @@ def crear_venta_chip(
         cvip=venta.cvip,
         fecha=fecha_actual.date(),
         hora=fecha_actual.time(),
+        imei=venta.imei,
+        iccid=venta.iccid,
+        cambio_chip=venta.cambio_chip,
     )
 
     # ── Auto-validar Tarjetas PayJoy (comisión fija, sin necesidad de validación admin)
@@ -999,6 +1002,10 @@ def validar_chip(
             ],
 
             "Tarjetas PayJoy": [
+                ((0, 9999), 50),
+            ],
+
+            "Boletin 63": [
                 ((0, 9999), 50),
             ],
 
