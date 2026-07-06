@@ -715,4 +715,3 @@ class EquiposTelcel(Base):
     estatus = Column(String(20), nullable=False, server_default="en_bodega")
     modulo_id = Column(Integer, nullable=True)
     fecha_salida = Column(DateTime, nullable=True)
-    actualizado_en = Column(DateTime(timezone=True), server_default=func.now())
