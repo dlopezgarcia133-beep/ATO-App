@@ -702,4 +702,17 @@ class JustificacionAsistencia(Base):
     nota = Column(Text, nullable=True)
     creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EquiposTelcel(Base):
+    __tablename__ = "equipos_telcel"
+
+    id = Column(Integer, primary_key=True, index=True)
+    imei = Column(String(20), nullable=False, unique=True)
+    clave = Column(String, nullable=False)
+    producto = Column(String, nullable=False)
+    fecha_compra = Column(Date, nullable=False)
+    estatus = Column(String(20), nullable=False, server_default="en_bodega")
+    modulo_id = Column(Integer, nullable=True)
+    fecha_salida = Column(DateTime, nullable=True)
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now())
