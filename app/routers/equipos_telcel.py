@@ -78,3 +78,39 @@ def upload_equipos_telcel(
         "insertados": insertados,
         "saltados_repetidos": saltados_repetidos
     }
+
+
+@router.get("/")
+def listar_equipos(
+    estatus: str | None = None,
+    producto: str | None = None,
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.EquiposTelcel)
+
+    if estatus:
+        query = query.filter(models.EquiposTelcel.estatus == estatus)
+    if producto:
+        query = query.filter(models.EquiposTelcel.producto.ilike(f"%{producto}%"))
+    if fecha_inicio:
+        query = query.filter(models.EquiposTelcel.fecha_compra >= fecha_inicio)
+    if fecha_fin:
+        query = query.filter(models.EquiposTelcel.fecha_compra <= fecha_fin)
+
+    equipos = query.order_by(models.EquiposTelcel.id.desc()).all()
+
+    return [
+        {
+            "id": e.id,
+            "imei": e.imei,
+            "clave": e.clave,
+            "producto": e.producto,
+            "fecha_compra": str(e.fecha_compra) if e.fecha_compra is not None else None,
+            "estatus": e.estatus,
+            "modulo_id": e.modulo_id,
+            "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
+        }
+        for e in equipos
+    ]
