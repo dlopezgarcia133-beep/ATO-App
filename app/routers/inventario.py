@@ -239,7 +239,7 @@ def obtener_inventario_general(
 @router.get("/productos-catalogo")
 def catalogo_productos(
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+    current_user: models.Usuario = Depends(get_current_user),
 ):
     existencia_subq = (
         db.query(func.coalesce(func.sum(models.InventarioModulo.cantidad), 0))
