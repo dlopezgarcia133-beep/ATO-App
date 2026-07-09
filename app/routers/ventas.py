@@ -350,6 +350,51 @@ def obtener_ventas(
     return resultados
 
 
+@router.get("/ventas_telcel")
+def obtener_ventas_telcel(
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    modulo_id: int = None,
+    imei: str = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    query = (
+        db.query(models.Venta)
+        .options(joinedload(models.Venta.empleado), joinedload(models.Venta.modulo))
+        .filter(models.Venta.clasificacion.isnot(None))
+        .filter(models.Venta.tipo_producto == 'telefono')
+        .filter(models.Venta.cancelada == False)
+    )
+    if fecha_inicio:
+        query = query.filter(models.Venta.fecha >= fecha_inicio)
+    if fecha_fin:
+        query = query.filter(models.Venta.fecha <= fecha_fin)
+    if modulo_id is not None:
+        query = query.filter(models.Venta.modulo_id == modulo_id)
+    if imei:
+        query = query.filter(models.Venta.imei.ilike(f"%{imei.strip()}%"))
+
+    ventas = query.order_by(models.Venta.id.desc()).all()
+
+    return [
+        {
+            "id": v.id,
+            "folio": v.folio,
+            "producto": v.producto,
+            "precio": v.precio_unitario,
+            "imei": v.imei,
+            "clasificacion": v.clasificacion,
+            "numero": v.chip_casado,
+            "tipo_venta": v.tipo_venta,
+            "metodo_pago": v.metodo_pago,
+            "vendedor": v.empleado.nombre_completo if v.empleado else None,
+            "modulo": v.modulo.nombre if v.modulo else None,
+            "fecha": str(v.fecha) if v.fecha else None,
+            "hora": str(v.hora) if v.hora else None,
+        }
+        for v in ventas
+    ]
 
 
 @router.get("/ventas/resumen")
