@@ -2,11 +2,19 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.params import File
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from app import models
 from app.database import get_db
 
 router = APIRouter()
+
+
+class MarcarSurtidosRequest(BaseModel):
+    imeis: list[str]
+    modulo_id: int
 
 
 @router.post("/upload/")
@@ -168,4 +176,42 @@ def buscar_por_imei(imei: str, db: Session = Depends(get_db)):
         "producto": equipo.producto,
         "producto_id": prod.id,
         "estatus": equipo.estatus,
+    }
+
+
+@router.post("/marcar-surtidos")
+def marcar_surtidos(data: MarcarSurtidosRequest, db: Session = Depends(get_db)):
+    if not data.imeis:
+        return {"status": "success", "marcados": 0, "no_encontrados": [], "ya_surtidos": []}
+
+    ahora = datetime.now(ZoneInfo("America/Mexico_City"))
+    marcados = 0
+    no_encontrados = []
+    ya_surtidos = []
+
+    for imei in data.imeis:
+        imei_limpio = str(imei).strip()
+        equipo = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.imei == imei_limpio)
+            .first()
+        )
+        if not equipo:
+            no_encontrados.append(imei_limpio)
+            continue
+        if equipo.estatus != "en_bodega":
+            ya_surtidos.append(imei_limpio)
+            continue
+        equipo.estatus = "surtido"
+        equipo.modulo_id = data.modulo_id
+        equipo.fecha_salida = ahora
+        marcados += 1
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "marcados": marcados,
+        "no_encontrados": no_encontrados,
+        "ya_surtidos": ya_surtidos,
     }
