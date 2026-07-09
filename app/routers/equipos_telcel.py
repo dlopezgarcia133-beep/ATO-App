@@ -37,6 +37,7 @@ def upload_equipos_telcel(
 
     insertados = 0
     saltados_repetidos = 0
+    claves_no_reconocidas = []
 
     # 4️⃣ Procesar filas
     for _, fila in df.iterrows():
@@ -62,6 +63,16 @@ def upload_equipos_telcel(
             saltados_repetidos += 1
             continue
 
+        # 🔒 VALIDACIÓN: la clave debe existir en el catálogo maestro
+        existe_clave = (
+            db.query(models.InventarioGeneral)
+            .filter(models.InventarioGeneral.clave == clave)
+            .first()
+        )
+        if not existe_clave:
+            claves_no_reconocidas.append(clave)
+            continue
+
         db.add(models.EquiposTelcel(
             imei=imei,
             clave=clave,
@@ -76,7 +87,9 @@ def upload_equipos_telcel(
     return {
         "status": "success",
         "insertados": insertados,
-        "saltados_repetidos": saltados_repetidos
+        "saltados_repetidos": saltados_repetidos,
+        "rechazados_clave": len(claves_no_reconocidas),
+        "claves_no_reconocidas": sorted(set(claves_no_reconocidas))
     }
 
 
