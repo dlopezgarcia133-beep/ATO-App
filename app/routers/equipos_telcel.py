@@ -15,6 +15,7 @@ router = APIRouter()
 class MarcarSurtidosRequest(BaseModel):
     imeis: list[str]
     modulo_id: int
+    folio: str | None = None
 
 
 @router.post("/upload/")
@@ -205,6 +206,7 @@ def marcar_surtidos(data: MarcarSurtidosRequest, db: Session = Depends(get_db)):
         equipo.estatus = "surtido"
         equipo.modulo_id = data.modulo_id
         equipo.fecha_salida = ahora
+        equipo.folio = data.folio
         marcados += 1
 
     db.commit()
