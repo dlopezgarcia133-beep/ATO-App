@@ -127,3 +127,45 @@ def listar_equipos(
         }
         for e in equipos
     ]
+
+
+@router.get("/buscar-imei/{imei}")
+def buscar_por_imei(imei: str, db: Session = Depends(get_db)):
+    imei = imei.strip()
+
+    equipo = (
+        db.query(models.EquiposTelcel)
+        .filter(models.EquiposTelcel.imei == imei)
+        .first()
+    )
+    if not equipo:
+        raise HTTPException(
+            status_code=404,
+            detail=f"IMEI {imei} no está registrado en bodega"
+        )
+
+    if equipo.estatus != "en_bodega":
+        raise HTTPException(
+            status_code=409,
+            detail=f"El equipo con IMEI {imei} ya fue surtido (estatus: {equipo.estatus})"
+        )
+
+    prod = (
+        db.query(models.InventarioGeneral)
+        .filter(models.InventarioGeneral.clave == equipo.clave)
+        .first()
+    )
+    if not prod:
+        raise HTTPException(
+            status_code=404,
+            detail=f"La clave {equipo.clave} del equipo no existe en el catálogo"
+        )
+
+    return {
+        "id": equipo.id,
+        "imei": equipo.imei,
+        "clave": equipo.clave,
+        "producto": equipo.producto,
+        "producto_id": prod.id,
+        "estatus": equipo.estatus,
+    }
