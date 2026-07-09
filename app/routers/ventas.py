@@ -108,6 +108,8 @@ def crear_ventas(
             hora=fecha_actual.time(),
             telefono_cliente=venta.telefono_cliente,
             folio=folio_venta,
+            imei=item.imei,
+            clasificacion=item.clasificacion,
         )
 
         db.add(nueva)
@@ -607,6 +609,8 @@ def crear_ventas_multiples(
             hora=fecha_actual.time(),
             telefono_cliente=venta.telefono_cliente,
             folio=folio_venta,
+            imei=item.imei,
+            clasificacion=item.clasificacion,
         )
 
         db.add(nueva)

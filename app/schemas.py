@@ -257,6 +257,8 @@ class ProductoEnVenta(BaseModel):
     cancelada: Optional[bool] = False
     skip_comision: Optional[bool] = False
     skip_inventario: Optional[bool] = False
+    imei: Optional[str] = None
+    clasificacion: Optional[str] = None
 
 class VentaMultipleCreate(BaseModel):
     productos: List[ProductoEnVenta]
