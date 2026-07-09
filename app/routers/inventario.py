@@ -493,6 +493,18 @@ def obtener_detalle_entrada(
         .all()
     )
 
+    equipos = []
+    if entrada.folio:
+        equipos = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.folio == entrada.folio)
+            .all()
+        )
+    equipos_out = [
+        {"imei": e.imei, "clave": e.clave, "producto": e.producto}
+        for e in equipos
+    ]
+
     return {
         "id": entrada.id,
         "folio": entrada.folio,
@@ -505,6 +517,7 @@ def obtener_detalle_entrada(
             }
             for r in rows
         ],
+        "equipos": equipos_out,
     }
 
 
