@@ -388,7 +388,7 @@ def obtener_ventas_telcel(
             "numero": v.chip_casado,
             "tipo_venta": v.tipo_venta,
             "metodo_pago": v.metodo_pago,
-            "vendedor": v.empleado.nombre_completo if v.empleado else None,
+            "vendedor": v.empleado.username if v.empleado else None,
             "modulo": v.modulo.nombre if v.modulo else None,
             "fecha": str(v.fecha) if v.fecha else None,
             "hora": str(v.hora) if v.hora else None,
