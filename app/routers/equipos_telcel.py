@@ -123,6 +123,8 @@ def listar_equipos(
 
     equipos = query.order_by(models.EquiposTelcel.id.desc()).all()
 
+    modulos = {m.id: m.nombre for m in db.query(models.Modulo.id, models.Modulo.nombre).all()}
+
     return [
         {
             "id": e.id,
@@ -132,6 +134,7 @@ def listar_equipos(
             "fecha_compra": str(e.fecha_compra) if e.fecha_compra is not None else None,
             "estatus": e.estatus,
             "modulo_id": e.modulo_id,
+            "modulo_nombre": modulos.get(e.modulo_id),
             "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
         }
         for e in equipos
