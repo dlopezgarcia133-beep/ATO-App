@@ -136,6 +136,7 @@ def listar_equipos(
             "modulo_id": e.modulo_id,
             "modulo_nombre": modulos.get(e.modulo_id),
             "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
+            "fecha_venta": str(e.fecha_venta) if e.fecha_venta is not None else None,
         }
         for e in equipos
     ]
