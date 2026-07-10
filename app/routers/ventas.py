@@ -145,7 +145,7 @@ def crear_ventas(
                 raise HTTPException(status_code=400, detail=f"El IMEI {imei_limpio} no pertenece a este módulo")
             # Marcar como vendido
             equipo.estatus = "vendido"
-            equipo.fecha_venta = fecha_actual
+            equipo.fecha_venta = fecha_actual.replace(tzinfo=None)
             equipo.folio_venta = folio_venta
 
         ventas_realizadas.append(nueva)

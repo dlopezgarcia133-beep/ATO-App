@@ -189,7 +189,7 @@ def marcar_surtidos(data: MarcarSurtidosRequest, db: Session = Depends(get_db)):
     if not data.imeis:
         return {"status": "success", "marcados": 0, "no_encontrados": [], "ya_surtidos": []}
 
-    ahora = datetime.now(ZoneInfo("America/Mexico_City"))
+    ahora = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
     marcados = 0
     no_encontrados = []
     ya_surtidos = []
