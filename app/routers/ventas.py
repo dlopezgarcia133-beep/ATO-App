@@ -127,6 +127,27 @@ def crear_ventas(
                 referencia_id=nueva.id
             )
 
+        # Validar y marcar equipo Telcel como vendido (solo si el teléfono trae imei)
+        if item.tipo_producto == "telefono" and item.imei:
+            imei_limpio = str(item.imei).strip()
+            equipo = (
+                db.query(models.EquiposTelcel)
+                .filter(models.EquiposTelcel.imei == imei_limpio)
+                .first()
+            )
+            if not equipo:
+                raise HTTPException(status_code=400, detail=f"El IMEI {imei_limpio} no está registrado")
+            if equipo.estatus == "vendido":
+                raise HTTPException(status_code=400, detail=f"El IMEI {imei_limpio} ya fue vendido")
+            if equipo.estatus != "surtido":
+                raise HTTPException(status_code=400, detail=f"El IMEI {imei_limpio} no está surtido a un módulo (estatus: {equipo.estatus})")
+            if equipo.modulo_id != modulo_id:
+                raise HTTPException(status_code=400, detail=f"El IMEI {imei_limpio} no pertenece a este módulo")
+            # Marcar como vendido
+            equipo.estatus = "vendido"
+            equipo.fecha_venta = fecha_actual
+            equipo.folio_venta = folio_venta
+
         ventas_realizadas.append(nueva)
 
     db.commit()
