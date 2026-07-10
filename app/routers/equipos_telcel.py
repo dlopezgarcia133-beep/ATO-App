@@ -221,3 +221,35 @@ def marcar_surtidos(data: MarcarSurtidosRequest, db: Session = Depends(get_db)):
         "no_encontrados": no_encontrados,
         "ya_surtidos": ya_surtidos,
     }
+
+
+@router.get("/faltantes-imei/{modulo_id}")
+def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
+    # 1. Teléfonos en el inventario del módulo (agrupados por clave con su cantidad)
+    telefonos = (
+        db.query(models.InventarioModulo)
+        .filter(models.InventarioModulo.modulo_id == modulo_id)
+        .filter(models.InventarioModulo.tipo_producto == 'telefono')
+        .filter(models.InventarioModulo.cantidad > 0)
+        .all()
+    )
+    # 2. Contar cuántos IMEIs ya dados de alta por clave en este módulo
+    ya_registrados = {}
+    equipos = (
+        db.query(models.EquiposTelcel)
+        .filter(models.EquiposTelcel.modulo_id == modulo_id)
+        .all()
+    )
+    for e in equipos:
+        ya_registrados[e.clave] = ya_registrados.get(e.clave, 0) + 1
+    # 3. Explotar las filas faltantes
+    filas = []
+    for t in telefonos:
+        faltan = t.cantidad - ya_registrados.get(t.clave, 0)
+        for _ in range(max(0, faltan)):
+            filas.append({
+                "clave": t.clave,
+                "producto": t.producto,
+                "modulo_id": modulo_id,
+            })
+    return filas
