@@ -18,6 +18,13 @@ class MarcarSurtidosRequest(BaseModel):
     folio: str | None = None
 
 
+class AltaIndividualRequest(BaseModel):
+    imei: str
+    clave: str
+    producto: str
+    modulo_id: int
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -253,3 +260,28 @@ def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
                 "modulo_id": modulo_id,
             })
     return filas
+
+
+@router.post("/alta-individual")
+def alta_individual(data: AltaIndividualRequest, db: Session = Depends(get_db)):
+    imei = data.imei.strip()
+    if not imei:
+        raise HTTPException(status_code=400, detail="El IMEI no puede estar vacío")
+    # No permitir IMEI duplicado
+    existe = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.imei == imei).first()
+    if existe:
+        raise HTTPException(status_code=400, detail=f"El IMEI {imei} ya está registrado")
+    ahora = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+    equipo = models.EquiposTelcel(
+        imei=imei,
+        clave=data.clave.strip(),
+        producto=data.producto.strip(),
+        fecha_compra=ahora.date(),
+        estatus="surtido",
+        modulo_id=data.modulo_id,
+        fecha_salida=ahora,
+    )
+    db.add(equipo)
+    db.commit()
+    db.refresh(equipo)
+    return {"status": "success", "id": equipo.id, "imei": equipo.imei}
