@@ -718,3 +718,5 @@ class EquiposTelcel(Base):
     modulo_id = Column(Integer, nullable=True)
     fecha_salida = Column(DateTime, nullable=True)
     folio = Column(String, nullable=True)
+    fecha_venta = Column(DateTime, nullable=True)
+    folio_venta = Column(String, nullable=True)
