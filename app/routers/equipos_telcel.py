@@ -274,6 +274,7 @@ def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
                     "imei": eq.imei,
                     "equipo_id": eq.id,
                     "tiene_imei": True,
+                    "activado": eq.activado,
                 })
             else:
                 filas.append({
@@ -283,6 +284,7 @@ def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
                     "imei": None,
                     "equipo_id": None,
                     "tiene_imei": False,
+                    "activado": False,
                 })
     return filas
 
