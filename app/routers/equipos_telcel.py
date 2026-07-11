@@ -29,6 +29,10 @@ class AltaMultipleRequest(BaseModel):
     equipos: list[AltaIndividualRequest]
 
 
+class CambiarActivacionRequest(BaseModel):
+    activado: bool
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -148,6 +152,7 @@ def listar_equipos(
             "modulo_nombre": modulos.get(e.modulo_id),
             "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
             "fecha_venta": str(e.fecha_venta) if e.fecha_venta is not None else None,
+            "activado": e.activado,
         }
         for e in equipos
     ]
@@ -335,3 +340,13 @@ def alta_multiple(data: AltaMultipleRequest, db: Session = Depends(get_db)):
         guardados += 1
     db.commit()
     return {"status": "success", "guardados": guardados, "errores": errores}
+
+
+@router.post("/activar/{equipo_id}")
+def cambiar_activacion(equipo_id: int, data: CambiarActivacionRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    equipo.activado = data.activado
+    db.commit()
+    return {"status": "success", "id": equipo.id, "activado": equipo.activado}
