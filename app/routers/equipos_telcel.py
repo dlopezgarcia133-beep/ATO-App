@@ -25,6 +25,10 @@ class AltaIndividualRequest(BaseModel):
     modulo_id: int
 
 
+class AltaMultipleRequest(BaseModel):
+    equipos: list[AltaIndividualRequest]
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -285,3 +289,33 @@ def alta_individual(data: AltaIndividualRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(equipo)
     return {"status": "success", "id": equipo.id, "imei": equipo.imei}
+
+
+@router.post("/alta-multiple")
+def alta_multiple(data: AltaMultipleRequest, db: Session = Depends(get_db)):
+    if not data.equipos:
+        return {"status": "success", "guardados": 0, "errores": []}
+    ahora = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+    guardados = 0
+    errores = []
+    for eq in data.equipos:
+        imei = eq.imei.strip()
+        if not imei:
+            errores.append({"imei": "", "motivo": "IMEI vacío"})
+            continue
+        existe = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.imei == imei).first()
+        if existe:
+            errores.append({"imei": imei, "motivo": "ya registrado"})
+            continue
+        db.add(models.EquiposTelcel(
+            imei=imei,
+            clave=eq.clave.strip(),
+            producto=eq.producto.strip(),
+            fecha_compra=ahora.date(),
+            estatus="surtido",
+            modulo_id=eq.modulo_id,
+            fecha_salida=ahora,
+        ))
+        guardados += 1
+    db.commit()
+    return {"status": "success", "guardados": guardados, "errores": errores}
