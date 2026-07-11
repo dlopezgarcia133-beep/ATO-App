@@ -287,6 +287,33 @@ def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
     return filas
 
 
+def _fecha_entrada_real(db, producto: str, modulo_id: int):
+    # 1. Kardex: última ENTRADA de ese producto en ese módulo
+    mov = (
+        db.query(models.KardexMovimiento)
+        .filter(models.KardexMovimiento.producto == producto)
+        .filter(models.KardexMovimiento.modulo_destino_id == modulo_id)
+        .filter(models.KardexMovimiento.tipo_movimiento.in_(["ENTRADA", "TRASPASO_ENTRADA"]))
+        .order_by(models.KardexMovimiento.id.desc())
+        .first()
+    )
+    if mov and mov.fecha:
+        f = mov.fecha
+        return f.replace(tzinfo=None) if f.tzinfo else f
+    # 2. Conteo físico más reciente del módulo
+    conteo = (
+        db.query(models.ConteoFisico)
+        .filter(models.ConteoFisico.modulo_id == modulo_id)
+        .order_by(models.ConteoFisico.fecha.desc())
+        .first()
+    )
+    if conteo and conteo.fecha:
+        f = conteo.fecha
+        return f.replace(tzinfo=None) if f.tzinfo else f
+    # 3. Hoy
+    return datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+
+
 @router.post("/alta-individual")
 def alta_individual(data: AltaIndividualRequest, db: Session = Depends(get_db)):
     imei = data.imei.strip()
@@ -304,7 +331,7 @@ def alta_individual(data: AltaIndividualRequest, db: Session = Depends(get_db)):
         fecha_compra=ahora.date(),
         estatus="surtido",
         modulo_id=data.modulo_id,
-        fecha_salida=ahora,
+        fecha_salida=_fecha_entrada_real(db, data.producto.strip(), data.modulo_id),
     )
     db.add(equipo)
     db.commit()
@@ -335,7 +362,7 @@ def alta_multiple(data: AltaMultipleRequest, db: Session = Depends(get_db)):
             fecha_compra=ahora.date(),
             estatus="surtido",
             modulo_id=eq.modulo_id,
-            fecha_salida=ahora,
+            fecha_salida=_fecha_entrada_real(db, eq.producto.strip(), eq.modulo_id),
         ))
         guardados += 1
     db.commit()
