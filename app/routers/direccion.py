@@ -514,6 +514,23 @@ def estadisticas_mes(
         + paguitos["cantidad"] + sin_clasificar["cantidad"]
     )
 
+    # ── Teléfonos por día ─────────────────────────────────────────────────────
+    tel_dia_rows = (
+        db.query(
+            extract("day", models.Venta.fecha).label("dia"),
+            func.count(models.Venta.id).label("cnt"),
+        )
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_tel)
+        .group_by(extract("day", models.Venta.fecha))
+        .all()
+    )
+    _tel_por_dia = {int(r.dia): int(r.cnt or 0) for r in tel_dia_rows}
+    telefonos_por_dia = [
+        {"dia": d, "cantidad": _tel_por_dia.get(d, 0)}
+        for d in range(1, ultimo_dia + 1)
+    ]
+
     # ── Accesorios ────────────────────────────────────────────────────────────
     acc_agg = (
         db.query(
@@ -931,6 +948,7 @@ def estadisticas_mes(
         por_modulo=por_modulo,
         ventas_por_dia=ventas_por_dia,
         telefonos_por_modulo=telefonos_por_modulo,
+        telefonos_por_dia=telefonos_por_dia,
     )
 
 

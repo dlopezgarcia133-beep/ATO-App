@@ -966,6 +966,7 @@ class EstadisticasMesResponse(BaseModel):
     por_modulo: List[ModuloEstadItem]
     ventas_por_dia: List[VentaDiaItem]
     telefonos_por_modulo: List[TelefonoModuloItem]
+    telefonos_por_dia: List[dict] = []
 
 
 # ── Tiempo Real ───────────────────────────────────────────────────────────────
