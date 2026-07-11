@@ -236,7 +236,7 @@ def marcar_surtidos(data: MarcarSurtidosRequest, db: Session = Depends(get_db)):
 
 @router.get("/faltantes-imei/{modulo_id}")
 def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
-    # 1. Teléfonos en el inventario del módulo (agrupados por clave con su cantidad)
+    # 1. Teléfonos en existencia del módulo (por cantidad)
     telefonos = (
         db.query(models.InventarioModulo)
         .filter(models.InventarioModulo.modulo_id == modulo_id)
@@ -244,25 +244,41 @@ def faltantes_imei(modulo_id: int, db: Session = Depends(get_db)):
         .filter(models.InventarioModulo.cantidad > 0)
         .all()
     )
-    # 2. Contar cuántos IMEIs ya dados de alta por clave en este módulo
-    ya_registrados = {}
+    # 2. Equipos ya con IMEI en este módulo, agrupados por clave (solo los que están en el módulo: surtido)
+    equipos_por_clave = {}
     equipos = (
         db.query(models.EquiposTelcel)
         .filter(models.EquiposTelcel.modulo_id == modulo_id)
+        .filter(models.EquiposTelcel.estatus == 'surtido')
         .all()
     )
     for e in equipos:
-        ya_registrados[e.clave] = ya_registrados.get(e.clave, 0) + 1
-    # 3. Explotar las filas faltantes
+        equipos_por_clave.setdefault(e.clave, []).append(e)
+    # 3. Construir la lista: por cada modelo, `cantidad` filas.
+    #    Las primeras se llenan con los equipos que ya tienen IMEI; el resto van vacías.
     filas = []
     for t in telefonos:
-        faltan = t.cantidad - ya_registrados.get(t.clave, 0)
-        for _ in range(max(0, faltan)):
-            filas.append({
-                "clave": t.clave,
-                "producto": t.producto,
-                "modulo_id": modulo_id,
-            })
+        ya = equipos_por_clave.get(t.clave, [])
+        for i in range(t.cantidad):
+            if i < len(ya):
+                eq = ya[i]
+                filas.append({
+                    "clave": t.clave,
+                    "producto": t.producto,
+                    "modulo_id": modulo_id,
+                    "imei": eq.imei,
+                    "equipo_id": eq.id,
+                    "tiene_imei": True,
+                })
+            else:
+                filas.append({
+                    "clave": t.clave,
+                    "producto": t.producto,
+                    "modulo_id": modulo_id,
+                    "imei": None,
+                    "equipo_id": None,
+                    "tiene_imei": False,
+                })
     return filas
 
 
