@@ -454,6 +454,14 @@ def estadisticas_mes(
     dt_inicio = datetime(año, m, 1, 0, 0, 0)
     dt_fin = datetime(año, m, ultimo_dia, 23, 59, 59, 999999)
 
+    # Rango especial para planes: el ultimo dia del mes anterior cuenta para este mes,
+    # y el ultimo dia de este mes se pasa al siguiente.
+    _mes_ant = 12 if m == 1 else m - 1
+    _anio_ant = año - 1 if m == 1 else año
+    _, _ult_dia_ant = calendar.monthrange(_anio_ant, _mes_ant)
+    planes_inicio = datetime(_anio_ant, _mes_ant, _ult_dia_ant, 0, 0, 0)
+    planes_fin = datetime(año, m, ultimo_dia - 1, 23, 59, 59, 999999)
+
     periodo_texto = f"{MESES_ES[m - 1]} {año}"
     mes_str = f"{año:04d}-{m:02d}"
 
@@ -678,8 +686,8 @@ def estadisticas_mes(
         )
         .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.PlanTarifario.fecha >= dt_inicio,
-            models.PlanTarifario.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= planes_inicio,
+            models.PlanTarifario.fecha <= planes_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(func.trim(models.PlanTarifario.categoria))
@@ -694,8 +702,8 @@ def estadisticas_mes(
         )
         .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.PlanTarifario.fecha >= dt_inicio,
-            models.PlanTarifario.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= planes_inicio,
+            models.PlanTarifario.fecha <= planes_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(func.trim(models.PlanTarifario.tipo_plan))
@@ -710,8 +718,8 @@ def estadisticas_mes(
         )
         .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.PlanTarifario.fecha >= dt_inicio,
-            models.PlanTarifario.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= planes_inicio,
+            models.PlanTarifario.fecha <= planes_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.PlanTarifario.contrato_listo)
@@ -813,8 +821,8 @@ def estadisticas_mes(
         )
         .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.PlanTarifario.fecha >= dt_inicio,
-            models.PlanTarifario.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= planes_inicio,
+            models.PlanTarifario.fecha <= planes_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.Modulo.nombre)
