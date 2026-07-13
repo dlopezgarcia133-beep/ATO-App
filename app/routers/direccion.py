@@ -703,6 +703,28 @@ def estadisticas_mes(
         .all()
     )
 
+    planes_contratos_rows = (
+        db.query(
+            func.count(models.PlanTarifario.id).label("cnt"),
+            models.PlanTarifario.contrato_listo.label("listo"),
+        )
+        .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
+        .filter(
+            models.PlanTarifario.fecha >= dt_inicio,
+            models.PlanTarifario.fecha <= dt_fin,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+        )
+        .group_by(models.PlanTarifario.contrato_listo)
+        .all()
+    )
+    contratos_pendientes = 0
+    contratos_listos = 0
+    for r in planes_contratos_rows:
+        if r.listo is True:
+            contratos_listos += int(r.cnt or 0)
+        else:
+            contratos_pendientes += int(r.cnt or 0)
+
     total_planes = sum(int(r.cnt or 0) for r in planes_tramite_rows)
 
     # ── Por módulo ────────────────────────────────────────────────────────────
@@ -987,6 +1009,8 @@ def estadisticas_mes(
                 )
                 for r in planes_plan_rows
             ],
+            contratos_pendientes=contratos_pendientes,
+            contratos_listos=contratos_listos,
         ),
         por_modulo=por_modulo,
         ventas_por_dia=ventas_por_dia,

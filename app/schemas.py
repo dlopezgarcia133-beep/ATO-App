@@ -946,6 +946,8 @@ class PlanesStats(BaseModel):
     total: int
     por_tramite: List[TramiteStatItem]
     por_plan: List[PlanStatItem]
+    contratos_pendientes: int = 0
+    contratos_listos: int = 0
 
 class TelefonoModuloItem(BaseModel):
     modulo: str
