@@ -1227,6 +1227,50 @@ def tiempo_real(
         for row in lista_tel_rows
     ]
 
+    # ── Planes de hoy (PlanTarifario) ─────────────────────────────────────────
+    total_planes_hoy = (
+        db.query(func.count(models.PlanTarifario.id))
+        .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
+        .filter(
+            func.date(models.PlanTarifario.fecha) == hoy,
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+        )
+        .scalar()
+        or 0
+    )
+
+    # ── Feed: últimas 10 ventas de hoy (teléfonos + accesorios, sin chips) ─────
+    ultimas_ventas_rows = (
+        db.query(
+            models.Venta.hora,
+            models.Modulo.nombre.label("modulo"),
+            models.Usuario.username.label("asesor"),
+            models.Venta.producto,
+            models.Venta.tipo_producto,
+            models.Venta.cantidad,
+        )
+        .select_from(models.Venta)
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .join(models.Usuario, models.Venta.empleado_id == models.Usuario.id)
+        .filter(*f_ventas_hoy)
+        .order_by(models.Venta.hora.desc())
+        .limit(10)
+        .all()
+    )
+
+    ultimas_ventas = [
+        {
+            "hora": row.hora.strftime("%H:%M") if row.hora else "—",
+            "modulo": row.modulo or "—",
+            "asesor": row.asesor or "—",
+            "producto": row.producto or "—",
+            "tipo": "telefono" if (row.tipo_producto or "").strip().lower() == "telefono" else "accesorio",
+            "cantidad": int(row.cantidad or 0),
+            "hora_raw": str(row.hora) if row.hora else "",
+        }
+        for row in ultimas_ventas_rows
+    ]
+
     # ── Por módulo HOY ────────────────────────────────────────────────────────
     modulo_map_tr: dict = defaultdict(lambda: {
         "total_mxn": 0.0,
@@ -1423,6 +1467,8 @@ def tiempo_real(
         ),
         lista_telefonos_hoy=lista_telefonos_hoy,
         por_modulo=por_modulo_tr,
+        total_planes_hoy=total_planes_hoy,
+        ultimas_ventas=ultimas_ventas,
     )
 
 

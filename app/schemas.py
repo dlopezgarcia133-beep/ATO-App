@@ -1016,6 +1016,8 @@ class TiempoRealResponse(BaseModel):
     accesorios: AccesoriosStats
     lista_telefonos_hoy: List[TelefonoHoyItem]
     por_modulo: List[ModuloTiempoRealItem]
+    total_planes_hoy: int = 0
+    ultimas_ventas: List[dict] = []
 
 
 # ── Asistencia semanal / jornada ──────────────────────────────────────────────
