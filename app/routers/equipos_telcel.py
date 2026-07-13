@@ -33,6 +33,13 @@ class CambiarActivacionRequest(BaseModel):
     activado: bool
 
 
+class AltaBodegaRequest(BaseModel):
+    imei: str
+    clave: str
+    producto: str
+    fecha_compra: str   # formato YYYY-MM-DD
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -379,3 +386,36 @@ def cambiar_activacion(equipo_id: int, data: CambiarActivacionRequest, db: Sessi
     equipo.activado = data.activado
     db.commit()
     return {"status": "success", "id": equipo.id, "activado": equipo.activado}
+
+
+@router.post("/alta-bodega")
+def alta_bodega(data: AltaBodegaRequest, db: Session = Depends(get_db)):
+    imei = data.imei.strip()
+    if not imei:
+        raise HTTPException(status_code=400, detail="El IMEI no puede estar vacío")
+    # IMEI duplicado
+    existe = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.imei == imei).first()
+    if existe:
+        raise HTTPException(status_code=400, detail=f"El IMEI {imei} ya está registrado")
+    clave = data.clave.strip()
+    # La clave debe existir en el catálogo
+    existe_clave = db.query(models.InventarioGeneral).filter(models.InventarioGeneral.clave == clave).first()
+    if not existe_clave:
+        raise HTTPException(status_code=400, detail=f"La clave {clave} no existe en el catálogo")
+    # Parsear fecha
+    try:
+        from datetime import date as _date
+        fecha = _date.fromisoformat(data.fecha_compra.strip())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Fecha de compra inválida (usa YYYY-MM-DD)")
+    equipo = models.EquiposTelcel(
+        imei=imei,
+        clave=clave,
+        producto=data.producto.strip(),
+        fecha_compra=fecha,
+        # estatus: se deja el default 'en_bodega' de la tabla
+    )
+    db.add(equipo)
+    db.commit()
+    db.refresh(equipo)
+    return {"status": "success", "id": equipo.id, "imei": equipo.imei, "estatus": equipo.estatus}
