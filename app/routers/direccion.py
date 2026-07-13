@@ -673,33 +673,33 @@ def estadisticas_mes(
     # ── Planes ────────────────────────────────────────────────────────────────
     planes_tramite_rows = (
         db.query(
-            func.trim(models.Plan.tipo_tramite).label("tramite"),
-            func.count(models.Plan.id).label("cnt"),
+            func.trim(models.PlanTarifario.categoria).label("tramite"),
+            func.count(models.PlanTarifario.id).label("cnt"),
         )
-        .join(models.Modulo, models.Plan.modulo_id == models.Modulo.id)
+        .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.Plan.fecha >= dt_inicio,
-            models.Plan.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= dt_inicio,
+            models.PlanTarifario.fecha <= dt_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
-        .group_by(func.trim(models.Plan.tipo_tramite))
-        .order_by(func.count(models.Plan.id).desc())
+        .group_by(func.trim(models.PlanTarifario.categoria))
+        .order_by(func.count(models.PlanTarifario.id).desc())
         .all()
     )
 
     planes_plan_rows = (
         db.query(
-            func.trim(models.Plan.tipo_plan).label("plan"),
-            func.count(models.Plan.id).label("cnt"),
+            func.trim(models.PlanTarifario.tipo_plan).label("plan"),
+            func.count(models.PlanTarifario.id).label("cnt"),
         )
-        .join(models.Modulo, models.Plan.modulo_id == models.Modulo.id)
+        .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.Plan.fecha >= dt_inicio,
-            models.Plan.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= dt_inicio,
+            models.PlanTarifario.fecha <= dt_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
-        .group_by(func.trim(models.Plan.tipo_plan))
-        .order_by(func.count(models.Plan.id).desc())
+        .group_by(func.trim(models.PlanTarifario.tipo_plan))
+        .order_by(func.count(models.PlanTarifario.id).desc())
         .all()
     )
 
@@ -787,12 +787,12 @@ def estadisticas_mes(
     planes_mod = (
         db.query(
             models.Modulo.nombre.label("modulo"),
-            func.count(models.Plan.id).label("cnt"),
+            func.count(models.PlanTarifario.id).label("cnt"),
         )
-        .join(models.Modulo, models.Plan.modulo_id == models.Modulo.id)
+        .join(models.Modulo, models.PlanTarifario.modulo_id == models.Modulo.id)
         .filter(
-            models.Plan.fecha >= dt_inicio,
-            models.Plan.fecha <= dt_fin,
+            models.PlanTarifario.fecha >= dt_inicio,
+            models.PlanTarifario.fecha <= dt_fin,
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
         )
         .group_by(models.Modulo.nombre)
