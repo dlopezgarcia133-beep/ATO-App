@@ -531,6 +531,27 @@ def estadisticas_mes(
         for d in range(1, ultimo_dia + 1)
     ]
 
+    # ── Teléfonos top (top 10 modelos, sin prefijo LIBRE/TELCEL) ──────────────
+    _modelo_expr = func.trim(
+        func.regexp_replace(models.Venta.producto, '^TELEFONO (LIBRE|TELCEL)\\s+', '', 'i')
+    )
+    tel_top_rows = (
+        db.query(
+            _modelo_expr.label("modelo"),
+            func.sum(models.Venta.cantidad).label("cnt"),
+        )
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_tel)
+        .group_by(_modelo_expr)
+        .order_by(func.sum(models.Venta.cantidad).desc())
+        .limit(10)
+        .all()
+    )
+    telefonos_top = [
+        {"modelo": r.modelo, "cantidad": int(r.cnt or 0)}
+        for r in tel_top_rows
+    ]
+
     # ── Accesorios ────────────────────────────────────────────────────────────
     acc_agg = (
         db.query(
@@ -543,6 +564,28 @@ def estadisticas_mes(
     )
     total_unidades_acc = int(acc_agg.total_unidades or 0)
     monto_acc = float(acc_agg.monto_total or 0)
+
+    # ── Accesorios por día (promedio $ por módulo activo ese día) ─────────────
+    acc_dia_rows = (
+        db.query(
+            extract("day", models.Venta.fecha).label("dia"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
+            func.count(func.distinct(models.Venta.modulo_id)).label("modulos"),
+        )
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_acc)
+        .group_by(extract("day", models.Venta.fecha))
+        .all()
+    )
+    _acc_por_dia = {}
+    for r in acc_dia_rows:
+        mods = int(r.modulos or 0)
+        monto = float(r.monto or 0)
+        _acc_por_dia[int(r.dia)] = round(monto / mods, 2) if mods > 0 else 0.0
+    accesorios_por_dia = [
+        {"dia": d, "promedio": _acc_por_dia.get(d, 0.0)}
+        for d in range(1, ultimo_dia + 1)
+    ]
 
     top5 = (
         db.query(
@@ -949,6 +992,8 @@ def estadisticas_mes(
         ventas_por_dia=ventas_por_dia,
         telefonos_por_modulo=telefonos_por_modulo,
         telefonos_por_dia=telefonos_por_dia,
+        telefonos_top=telefonos_top,
+        accesorios_por_dia=accesorios_por_dia,
     )
 
 
