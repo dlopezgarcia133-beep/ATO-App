@@ -40,6 +40,10 @@ class AltaBodegaRequest(BaseModel):
     fecha_compra: str   # formato YYYY-MM-DD
 
 
+class EditarImeiRequest(BaseModel):
+    imei: str
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -419,3 +423,25 @@ def alta_bodega(data: AltaBodegaRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(equipo)
     return {"status": "success", "id": equipo.id, "imei": equipo.imei, "estatus": equipo.estatus}
+
+
+@router.post("/editar-imei/{equipo_id}")
+def editar_imei(equipo_id: int, data: EditarImeiRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    nuevo = data.imei.strip()
+    if not nuevo:
+        raise HTTPException(status_code=400, detail="El IMEI no puede estar vacío")
+    # Si el IMEI nuevo ya lo tiene OTRO equipo, rechazar
+    otro = (
+        db.query(models.EquiposTelcel)
+        .filter(models.EquiposTelcel.imei == nuevo)
+        .filter(models.EquiposTelcel.id != equipo_id)
+        .first()
+    )
+    if otro:
+        raise HTTPException(status_code=400, detail=f"El IMEI {nuevo} ya está registrado en otro equipo")
+    equipo.imei = nuevo
+    db.commit()
+    return {"status": "success", "id": equipo.id, "imei": equipo.imei}
