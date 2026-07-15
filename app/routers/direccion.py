@@ -586,12 +586,14 @@ def estadisticas_mes(
         .all()
     )
     _acc_por_dia = {}
+    _acc_total_por_dia = {}
     for r in acc_dia_rows:
         mods = int(r.modulos or 0)
         monto = float(r.monto or 0)
         _acc_por_dia[int(r.dia)] = round(monto / mods, 2) if mods > 0 else 0.0
+        _acc_total_por_dia[int(r.dia)] = round(monto, 2)
     accesorios_por_dia = [
-        {"dia": d, "promedio": _acc_por_dia.get(d, 0.0)}
+        {"dia": d, "promedio": _acc_por_dia.get(d, 0.0), "total": _acc_total_por_dia.get(d, 0.0)}
         for d in range(1, ultimo_dia + 1)
     ]
 
