@@ -723,3 +723,4 @@ class EquiposTelcel(Base):
     activado = Column(Boolean, nullable=False, server_default="false")
     fecha_activacion = Column(Date, nullable=True)
     fecha_estatus_inicial = Column(Date, nullable=True)
+    cumple_arl = Column(Boolean, nullable=False, server_default="false")

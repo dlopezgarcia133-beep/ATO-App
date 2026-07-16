@@ -52,6 +52,10 @@ class FechaEstatusInicialRequest(BaseModel):
     fecha_estatus_inicial: str | None = None
 
 
+class CumpleArlRequest(BaseModel):
+    cumple_arl: bool
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -159,6 +163,24 @@ def listar_equipos(
 
     modulos = {m.id: m.nombre for m in db.query(models.Modulo.id, models.Modulo.nombre).all()}
 
+    # Numero de linea y clasificacion desde la venta del telefono, en UNA sola query.
+    imeis = [e.imei for e in equipos if e.imei]
+    ventas_por_imei = {}
+    if imeis:
+        ventas_rows = (
+            db.query(models.Venta.imei, models.Venta.chip_casado, models.Venta.clasificacion)
+            .filter(models.Venta.imei.in_(imeis))
+            .filter(models.Venta.tipo_producto == "telefono")
+            .filter(models.Venta.cancelada == False)  # noqa: E712
+            .filter(models.Venta.clasificacion.in_(["linea_nueva", "boletin_63", "chip_ato"]))
+            .order_by(models.Venta.id.desc())
+            .all()
+        )
+        # Al venir ordenadas por id desc, la primera de cada IMEI es la mas reciente.
+        for v in ventas_rows:
+            if v.imei not in ventas_por_imei:
+                ventas_por_imei[v.imei] = {"numero": v.chip_casado, "clasificacion": v.clasificacion}
+
     return [
         {
             "id": e.id,
@@ -173,6 +195,9 @@ def listar_equipos(
             "fecha_venta": str(e.fecha_venta) if e.fecha_venta is not None else None,
             "fecha_activacion": str(e.fecha_activacion) if e.fecha_activacion is not None else None,
             "fecha_estatus_inicial": str(e.fecha_estatus_inicial) if e.fecha_estatus_inicial is not None else None,
+            "numero_linea": (ventas_por_imei.get(e.imei) or {}).get("numero"),
+            "clasificacion_venta": (ventas_por_imei.get(e.imei) or {}).get("clasificacion"),
+            "cumple_arl": e.cumple_arl,
             "activado": e.activado,
         }
         for e in equipos
@@ -491,3 +516,13 @@ def set_fecha_estatus_inicial(equipo_id: int, data: FechaEstatusInicialRequest, 
             raise HTTPException(status_code=400, detail="Fecha inválida (usa YYYY-MM-DD)")
     db.commit()
     return {"status": "success", "id": equipo.id, "fecha_estatus_inicial": str(equipo.fecha_estatus_inicial) if equipo.fecha_estatus_inicial else None}
+
+
+@router.post("/cumple-arl/{equipo_id}")
+def set_cumple_arl(equipo_id: int, data: CumpleArlRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    equipo.cumple_arl = data.cumple_arl
+    db.commit()
+    return {"status": "success", "id": equipo.id, "cumple_arl": equipo.cumple_arl}
