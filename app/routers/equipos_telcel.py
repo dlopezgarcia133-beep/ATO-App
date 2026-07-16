@@ -44,6 +44,10 @@ class EditarImeiRequest(BaseModel):
     imei: str
 
 
+class FechaActivacionRequest(BaseModel):
+    fecha_activacion: str | None = None   # "YYYY-MM-DD" o null para limpiar
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -163,6 +167,7 @@ def listar_equipos(
             "modulo_nombre": modulos.get(e.modulo_id),
             "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
             "fecha_venta": str(e.fecha_venta) if e.fecha_venta is not None else None,
+            "fecha_activacion": str(e.fecha_activacion) if e.fecha_activacion is not None else None,
             "activado": e.activado,
         }
         for e in equipos
@@ -445,3 +450,21 @@ def editar_imei(equipo_id: int, data: EditarImeiRequest, db: Session = Depends(g
     equipo.imei = nuevo
     db.commit()
     return {"status": "success", "id": equipo.id, "imei": equipo.imei}
+
+
+@router.post("/fecha-activacion/{equipo_id}")
+def set_fecha_activacion(equipo_id: int, data: FechaActivacionRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    valor = (data.fecha_activacion or "").strip()
+    if not valor:
+        equipo.fecha_activacion = None
+    else:
+        try:
+            from datetime import date as _date
+            equipo.fecha_activacion = _date.fromisoformat(valor)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Fecha inválida (usa YYYY-MM-DD)")
+    db.commit()
+    return {"status": "success", "id": equipo.id, "fecha_activacion": str(equipo.fecha_activacion) if equipo.fecha_activacion else None}
