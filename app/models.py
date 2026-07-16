@@ -722,3 +722,4 @@ class EquiposTelcel(Base):
     folio_venta = Column(String, nullable=True)
     activado = Column(Boolean, nullable=False, server_default="false")
     fecha_activacion = Column(Date, nullable=True)
+    fecha_estatus_inicial = Column(Date, nullable=True)

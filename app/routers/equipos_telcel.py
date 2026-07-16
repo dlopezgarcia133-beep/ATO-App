@@ -48,6 +48,10 @@ class FechaActivacionRequest(BaseModel):
     fecha_activacion: str | None = None   # "YYYY-MM-DD" o null para limpiar
 
 
+class FechaEstatusInicialRequest(BaseModel):
+    fecha_estatus_inicial: str | None = None
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -168,6 +172,7 @@ def listar_equipos(
             "fecha_salida": str(e.fecha_salida) if e.fecha_salida is not None else None,
             "fecha_venta": str(e.fecha_venta) if e.fecha_venta is not None else None,
             "fecha_activacion": str(e.fecha_activacion) if e.fecha_activacion is not None else None,
+            "fecha_estatus_inicial": str(e.fecha_estatus_inicial) if e.fecha_estatus_inicial is not None else None,
             "activado": e.activado,
         }
         for e in equipos
@@ -468,3 +473,21 @@ def set_fecha_activacion(equipo_id: int, data: FechaActivacionRequest, db: Sessi
             raise HTTPException(status_code=400, detail="Fecha inválida (usa YYYY-MM-DD)")
     db.commit()
     return {"status": "success", "id": equipo.id, "fecha_activacion": str(equipo.fecha_activacion) if equipo.fecha_activacion else None}
+
+
+@router.post("/fecha-estatus-inicial/{equipo_id}")
+def set_fecha_estatus_inicial(equipo_id: int, data: FechaEstatusInicialRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    valor = (data.fecha_estatus_inicial or "").strip()
+    if not valor:
+        equipo.fecha_estatus_inicial = None
+    else:
+        try:
+            from datetime import date as _date
+            equipo.fecha_estatus_inicial = _date.fromisoformat(valor)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Fecha inválida (usa YYYY-MM-DD)")
+    db.commit()
+    return {"status": "success", "id": equipo.id, "fecha_estatus_inicial": str(equipo.fecha_estatus_inicial) if equipo.fecha_estatus_inicial else None}
