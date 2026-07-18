@@ -484,6 +484,25 @@ def cancelar_venta(
             f"Stock NO devuelto, revisar manualmente."
         )
 
+    # Revertir equipo Telcel a surtido (solo si la venta trae IMEI)
+    if venta.tipo_producto == "telefono" and venta.imei:
+        imei_limpio = str(venta.imei).strip()
+        equipo = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.imei == imei_limpio)
+            .first()
+        )
+        if equipo and equipo.folio_venta == venta.folio:
+            equipo.estatus = "surtido"
+            equipo.fecha_venta = None
+            equipo.folio_venta = None
+        else:
+            print(
+                f"[ALERTA cancelacion IMEI] Venta {venta.id} folio {venta.folio} "
+                f"imei '{venta.imei}': equipo no encontrado o folio_venta no coincide. "
+                f"IMEI NO revertido, revisar manualmente."
+            )
+
     # Marcar cancelada
     venta.cancelada = True
 
