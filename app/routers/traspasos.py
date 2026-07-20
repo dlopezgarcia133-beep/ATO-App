@@ -47,6 +47,28 @@ def crear_traspaso(
     if not inventario or inventario.cantidad < traspaso.cantidad:
         raise HTTPException(status_code=400, detail="Inventario insuficiente")
 
+    # Validar IMEI cuando el producto es telefono
+    imei_traspaso = None
+    if inventario.tipo_producto == "telefono":
+        if not traspaso.imei or not str(traspaso.imei).strip():
+            raise HTTPException(status_code=400, detail="El IMEI es obligatorio para traspasos de telefono")
+        imei_traspaso = str(traspaso.imei).strip()
+        if traspaso.cantidad != 1:
+            raise HTTPException(status_code=400, detail="Los traspasos de telefono deben ser de 1 pieza (uno por IMEI)")
+        equipo = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.imei == imei_traspaso)
+            .first()
+        )
+        if not equipo:
+            raise HTTPException(status_code=400, detail=f"El IMEI {imei_traspaso} no esta registrado")
+        if equipo.estatus != "surtido":
+            raise HTTPException(status_code=400, detail=f"El IMEI {imei_traspaso} no esta surtido (estatus: {equipo.estatus})")
+        if equipo.modulo_id != current_user.modulo.id:
+            raise HTTPException(status_code=400, detail=f"El IMEI {imei_traspaso} no pertenece a este modulo")
+        if equipo.producto != inventario.producto:
+            raise HTTPException(status_code=400, detail=f"El IMEI {imei_traspaso} corresponde a '{equipo.producto}', no a '{inventario.producto}'")
+
     # PASO 2 — folio automático T-X
     folio = db.execute(
         text("SELECT 'T-' || nextval('traspaso_folio_seq')")
@@ -63,6 +85,7 @@ def crear_traspaso(
         modulo_destino=traspaso.modulo_destino,
         solicitado_por=current_user.id,
         fecha=datetime.now(zona_horaria),
+        imei=imei_traspaso,
     )
 
     db.add(nuevo)
@@ -156,6 +179,23 @@ def actualizar_estado_traspaso(
             modulo_destino_id=modulo_destino.id,
             referencia_id=traspaso.id,
         )
+
+        # Reasignar equipo Telcel al modulo destino
+        if traspaso.tipo_producto == "telefono" and traspaso.imei:
+            imei_limpio = str(traspaso.imei).strip()
+            equipo = (
+                db.query(models.EquiposTelcel)
+                .filter(models.EquiposTelcel.imei == imei_limpio)
+                .first()
+            )
+            if equipo and equipo.estatus == "surtido" and equipo.modulo_id == modulo_origen.id:
+                equipo.modulo_id = modulo_destino.id
+            else:
+                print(
+                    f"[ALERTA traspaso IMEI] Traspaso {traspaso.id} folio {traspaso.folio} "
+                    f"imei '{traspaso.imei}': equipo no encontrado, no surtido, o no esta en el "
+                    f"modulo origen. NO reasignado, revisar manualmente."
+                )
 
         traspaso.aprobado_por = current_user.id
 

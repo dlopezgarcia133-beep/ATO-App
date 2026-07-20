@@ -183,6 +183,7 @@ class Traspaso(Base):
     solicitante = relationship("Usuario", foreign_keys=[solicitado_por])
     aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
     folio = Column(String(50), nullable=True)
+    imei = Column(String(20), nullable=True)
 
 
 class InventarioGeneral(Base):

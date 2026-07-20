@@ -346,6 +346,7 @@ class TraspasoBase(BaseModel):
     producto: str
     cantidad: int
     modulo_destino: str
+    imei: Optional[str] = None
 
 
 class TraspasoCreate(TraspasoBase):
