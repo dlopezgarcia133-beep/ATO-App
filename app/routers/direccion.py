@@ -37,6 +37,15 @@ def obtener_corte_direccion(
 ):
     _verificar_rol(user)
 
+    total_devoluciones = (
+        db.query(func.coalesce(func.sum(models.Devolucion.monto), 0.0))
+        .filter(
+            models.Devolucion.modulo_id == modulo_id,
+            models.Devolucion.fecha == fecha
+        )
+        .scalar()
+    ) or 0.0
+
     corte = (
         db.query(models.CorteDia)
         .filter(
@@ -52,7 +61,7 @@ def obtener_corte_direccion(
             models.CajaChica.fecha == fecha,
         ).first()
         caja_chica_monto = float(cc.monto) if cc else 0.0
-        if caja_chica_monto == 0.0:
+        if caja_chica_monto == 0.0 and total_devoluciones == 0.0:
             return None
         return schemas.DireccionCorteResponse(
             id=0,
@@ -80,6 +89,7 @@ def obtener_corte_direccion(
             revisado_por=None,
             revisado_at=None,
             caja_chica=caja_chica_monto,
+            devoluciones=float(total_devoluciones),
             chips_count=0,
             chips_por_tipo={},
             ventas=[],
@@ -134,6 +144,7 @@ def obtener_corte_direccion(
     ).first()
     base_data = schemas.CorteDiaResponse.model_validate(corte).model_dump()
     base_data["caja_chica"] = float(cc.monto) if cc else 0.0
+    base_data["devoluciones"] = float(total_devoluciones)
     return schemas.DireccionCorteResponse(
         **base_data,
         chips_count=len(chips),
