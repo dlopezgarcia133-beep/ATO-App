@@ -164,6 +164,33 @@ def obtener_productos_nombres(
 
     return [p.producto for p in productos]
 
+@router.get("/inventario/general/productos-con-tipo")
+def obtener_productos_con_tipo(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    productos = (
+        db.query(
+            models.InventarioModulo.producto,
+            models.InventarioModulo.tipo_producto,
+            func.min(models.InventarioModulo.precio).label("precio_min")
+        )
+        .filter(
+            models.InventarioModulo.modulo_id == current_user.modulo_id
+        )
+        .group_by(
+            models.InventarioModulo.producto,
+            models.InventarioModulo.tipo_producto
+        )
+        .order_by(func.min(models.InventarioModulo.precio).asc())
+        .all()
+    )
+
+    return [
+        {"producto": p.producto, "tipo_producto": p.tipo_producto}
+        for p in productos
+    ]
+
 @router.get("/buscar")
 def autocomplete_telefonos(
     query: str = Query(..., min_length=1, description="Texto a buscar"),
