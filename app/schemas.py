@@ -230,11 +230,14 @@ class VentaResponse(VentaCreate):
     folio: Optional[str] = None
     fecha: date
     hora: time
+    devuelta: Optional[bool] = False
+    fecha_devolucion: Optional[date] = None
+    monto_devuelto: Optional[float] = None
 
     class Config:
-        
+
         from_attributes = True
-        
+
 
 class VentaCancelada(BaseModel):
     id: int
@@ -1499,3 +1502,8 @@ class SemanaDetalle(BaseModel):
     semana_inicio: date
     semana_fin: date
     dias: List[DiaSemanaDetalle]
+
+
+class DevolucionCreate(BaseModel):
+    monto: float
+    motivo: Optional[str] = None

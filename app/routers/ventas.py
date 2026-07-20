@@ -525,6 +525,125 @@ def cancelar_venta(
     return venta
 
 
+@router.put("/ventas/{venta_id}/devolver", response_model=schemas.VentaResponse)
+def devolver_venta(
+    venta_id: int,
+    data: schemas.DevolucionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    venta = db.query(models.Venta).filter_by(id=venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if current_user.rol not in (models.RolEnum.admin, models.RolEnum.encargado):
+        raise HTTPException(status_code=403, detail="Solo encargado o admin pueden registrar devoluciones")
+    if current_user.rol == models.RolEnum.encargado and venta.modulo_id != current_user.modulo_id:
+        raise HTTPException(status_code=403, detail="No puedes devolver ventas de otro modulo")
+
+    if venta.cancelada:
+        raise HTTPException(status_code=400, detail="Esta venta esta cancelada, no se puede devolver")
+    if venta.devuelta:
+        raise HTTPException(status_code=400, detail="Esta venta ya fue devuelta")
+
+    cobrado = (venta.precio_unitario or 0) * (venta.cantidad or 0)
+    if data.monto is None or data.monto <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
+    if data.monto > cobrado + 0.01:
+        raise HTTPException(status_code=400, detail=f"El monto no puede ser mayor a lo cobrado (${cobrado:.2f})")
+
+    hoy = datetime.now(zona_horaria).date()
+
+    # Reintegrar inventario
+    prod_general = (
+        db.query(models.InventarioGeneral)
+        .filter(models.InventarioGeneral.producto == venta.producto)
+        .first()
+    )
+    inventario = None
+    if prod_general:
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.clave == prod_general.clave,
+                models.InventarioModulo.modulo_id == venta.modulo_id
+            )
+            .first()
+        )
+    if not inventario:
+        inventario = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.producto == venta.producto,
+                models.InventarioModulo.modulo_id == venta.modulo_id
+            )
+            .first()
+        )
+
+    if inventario:
+        inventario.cantidad += venta.cantidad
+    else:
+        print(
+            f"[ALERTA devolucion] Venta {venta.id} producto '{venta.producto}' "
+            f"modulo {venta.modulo_id}: sin fila en inventario_modulo. Stock NO devuelto."
+        )
+
+    # Revertir IMEI si es telefono
+    if venta.tipo_producto == "telefono" and venta.imei:
+        imei_limpio = str(venta.imei).strip()
+        equipo = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.imei == imei_limpio)
+            .first()
+        )
+        if equipo and equipo.folio_venta == venta.folio:
+            equipo.estatus = "surtido"
+            equipo.fecha_venta = None
+            equipo.folio_venta = None
+        else:
+            print(
+                f"[ALERTA devolucion IMEI] Venta {venta.id} folio {venta.folio} "
+                f"imei '{venta.imei}': no revertido, revisar manualmente."
+            )
+
+    # Marcar la venta
+    venta.devuelta = True
+    venta.fecha_devolucion = hoy
+    venta.monto_devuelto = data.monto
+    venta.devuelta_por = current_user.id
+    venta.comision_monto = 0
+
+    # Registrar en tabla devoluciones
+    dev = models.Devolucion(
+        venta_id=venta.id,
+        folio=venta.folio,
+        modulo_id=venta.modulo_id,
+        fecha=hoy,
+        monto=data.monto,
+        motivo=data.motivo,
+        usuario_id=current_user.id,
+        creado_at=datetime.now(zona_horaria).replace(tzinfo=None),
+    )
+    db.add(dev)
+
+    registrar_kardex(
+        db=db,
+        producto=venta.producto,
+        tipo_producto=venta.tipo_producto,
+        cantidad=venta.cantidad,
+        tipo_movimiento="DEVOLUCION",
+        usuario_id=current_user.id,
+        modulo_origen_id=None,
+        modulo_destino_id=venta.modulo_id,
+        referencia_id=venta.id
+    )
+
+    db.commit()
+    db.refresh(venta)
+
+    return venta
+
+
 
 
 

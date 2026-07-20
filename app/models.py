@@ -117,6 +117,10 @@ class Venta(Base):
     folio = Column(String, nullable=True)
     imei = Column(String, nullable=True)
     clasificacion = Column(String, nullable=True)
+    devuelta = Column(Boolean, default=False)
+    fecha_devolucion = Column(Date, nullable=True)
+    monto_devuelto = Column(Float, nullable=True)
+    devuelta_por = Column(Integer, nullable=True)
 
     empleado = relationship("Usuario", back_populates="ventas")
     comision_obj = relationship("Comision")
@@ -725,3 +729,17 @@ class EquiposTelcel(Base):
     fecha_activacion = Column(Date, nullable=True)
     fecha_estatus_inicial = Column(Date, nullable=True)
     cumple_arl = Column(Boolean, nullable=False, server_default="false")
+
+
+class Devolucion(Base):
+    __tablename__ = "devoluciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    venta_id = Column(Integer, ForeignKey("ventas.id"), nullable=False)
+    folio = Column(String(50), nullable=True)
+    modulo_id = Column(Integer, nullable=False)
+    fecha = Column(Date, nullable=False)
+    monto = Column(Float, nullable=False)
+    motivo = Column(Text, nullable=True)
+    usuario_id = Column(Integer, nullable=False)
+    creado_at = Column(DateTime, nullable=True)
