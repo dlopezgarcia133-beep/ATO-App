@@ -10,6 +10,8 @@ from app.database import get_db
 from app.utilidades import verificar_rol_requerido, verificar_modulo_no_congelado
 from app.routers.kardex import registrar_kardex
 
+MODULOS_IMEI_OBLIGATORIO = {"wa", "sa", "uni", "u2", "dr", "vl", "ha", "gi", "ps", "r1", "al"}
+
 router = APIRouter()
 zona_horaria = ZoneInfo("America/Mexico_City")
 
@@ -49,7 +51,8 @@ def crear_traspaso(
 
     # Validar IMEI cuando el producto es telefono
     imei_traspaso = None
-    if inventario.tipo_producto == "telefono":
+    modulo_origen_nombre = (current_user.modulo.nombre or "").strip().lower()
+    if inventario.tipo_producto == "telefono" and modulo_origen_nombre in MODULOS_IMEI_OBLIGATORIO:
         if not traspaso.imei or not str(traspaso.imei).strip():
             raise HTTPException(status_code=400, detail="El IMEI es obligatorio para traspasos de telefono")
         imei_traspaso = str(traspaso.imei).strip()
