@@ -600,6 +600,7 @@ class CorteDiaResponse(BaseModel):
     revisado_por: Optional[str] = None
     revisado_at: Optional[datetime] = None
     caja_chica: float = 0.0
+    devoluciones: Optional[float] = 0.0
 
     class Config:
         from_attributes = True

@@ -1659,6 +1659,14 @@ def obtener_corte_hoy(
     db: Session = Depends(get_db)
 ):
     target = fecha if fecha is not None else datetime.now(zona_horaria).date()
+    total_devoluciones = (
+        db.query(func.coalesce(func.sum(models.Devolucion.monto), 0.0))
+        .filter(
+            models.Devolucion.modulo_id == user.modulo_id,
+            models.Devolucion.fecha == target
+        )
+        .scalar()
+    ) or 0.0
     print(f"[cortes/hoy] fecha_param={fecha!r} target={target!r} modulo_id={user.modulo_id}")
     resultado = db.query(models.CorteDia).filter(
         models.CorteDia.fecha == target,
@@ -1671,7 +1679,7 @@ def obtener_corte_hoy(
             models.CajaChica.fecha == target,
         ).first()
         caja_chica_monto = float(cc.monto) if cc else 0.0
-        if caja_chica_monto == 0.0:
+        if caja_chica_monto == 0.0 and total_devoluciones == 0.0:
             return None
         return {
             "id": 0,
@@ -1699,6 +1707,7 @@ def obtener_corte_hoy(
             "revisado_por": None,
             "revisado_at": None,
             "caja_chica": caja_chica_monto,
+            "devoluciones": float(total_devoluciones),
         }
     cc = db.query(models.CajaChica).filter(
         models.CajaChica.modulo_id == resultado.modulo_id,
@@ -1706,6 +1715,7 @@ def obtener_corte_hoy(
     ).first()
     data = schemas.CorteDiaResponse.model_validate(resultado).model_dump()
     data["caja_chica"] = float(cc.monto) if cc else 0.0
+    data["devoluciones"] = float(total_devoluciones)
     return data
 
 
@@ -1767,6 +1777,15 @@ def guardar_salida(
     ).first()
     result = schemas.CorteDiaResponse.model_validate(corte).model_dump()
     result["caja_chica"] = float(cc.monto) if cc else 0.0
+    total_dev = (
+        db.query(func.coalesce(func.sum(models.Devolucion.monto), 0.0))
+        .filter(
+            models.Devolucion.modulo_id == corte.modulo_id,
+            models.Devolucion.fecha == corte.fecha
+        )
+        .scalar()
+    ) or 0.0
+    result["devoluciones"] = float(total_dev)
     return result
 
 
