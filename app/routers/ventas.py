@@ -546,6 +546,13 @@ def devolver_venta(
     if venta.devuelta:
         raise HTTPException(status_code=400, detail="Esta venta ya fue devuelta")
 
+    hoy_limite = datetime.now(zona_horaria).date()
+    if venta.fecha and (hoy_limite - venta.fecha).days > 30:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pueden devolver ventas con mas de 30 dias de antiguedad"
+        )
+
     cobrado = (venta.precio_unitario or 0) * (venta.cantidad or 0)
     if data.monto is None or data.monto <= 0:
         raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
