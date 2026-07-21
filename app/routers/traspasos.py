@@ -183,7 +183,7 @@ def actualizar_estado_traspaso(
             referencia_id=traspaso.id,
         )
 
-        # Reasignar equipo Telcel al modulo destino
+        # Reasignar equipo Telcel segun el destino
         if traspaso.tipo_producto == "telefono" and traspaso.imei:
             imei_limpio = str(traspaso.imei).strip()
             equipo = (
@@ -191,8 +191,14 @@ def actualizar_estado_traspaso(
                 .filter(models.EquiposTelcel.imei == imei_limpio)
                 .first()
             )
+            destino_es_bodega = (traspaso.modulo_destino or "").strip().lower() == "bo"
             if equipo and equipo.estatus == "surtido" and equipo.modulo_id == modulo_origen.id:
-                equipo.modulo_id = modulo_destino.id
+                if destino_es_bodega:
+                    equipo.estatus = "en_bodega"
+                    equipo.modulo_id = None
+                    equipo.fecha_salida = None
+                else:
+                    equipo.modulo_id = modulo_destino.id
             else:
                 print(
                     f"[ALERTA traspaso IMEI] Traspaso {traspaso.id} folio {traspaso.folio} "
