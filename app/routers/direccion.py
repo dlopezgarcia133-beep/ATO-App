@@ -622,6 +622,24 @@ def estadisticas_mes(
         .all()
     )
 
+    top10 = (
+        db.query(
+            models.Venta.producto,
+            func.sum(models.Venta.cantidad).label("total_cantidad"),
+            func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total_monto"),
+        )
+        .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
+        .filter(*f_ventas_acc)
+        .group_by(models.Venta.producto)
+        .order_by(func.sum(models.Venta.cantidad).desc())
+        .limit(10)
+        .all()
+    )
+    accesorios_top_10 = [
+        {"producto": r.producto, "cantidad": int(r.total_cantidad or 0), "monto": float(r.total_monto or 0)}
+        for r in top10
+    ]
+
     total_mxn_row = (
         db.query(
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("total"),
@@ -1002,6 +1020,7 @@ def estadisticas_mes(
                 )
                 for r in top5
             ],
+            top_10_productos=accesorios_top_10,
         ),
         chips=schemas.ChipsStats(
             total=total_chips,

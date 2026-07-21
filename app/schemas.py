@@ -941,6 +941,7 @@ class AccesoriosStats(BaseModel):
     total_unidades: int
     monto_total: float
     top_5_productos: List[TopProductoItem]
+    top_10_productos: List[dict] = []
 
 class ChipsStats(BaseModel):
     total: int
