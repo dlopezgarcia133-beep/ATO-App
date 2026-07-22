@@ -30,7 +30,8 @@ class AltaMultipleRequest(BaseModel):
 
 
 class CambiarActivacionRequest(BaseModel):
-    activado: bool
+    activado: bool | None = None
+    estado_activacion: str | None = None
 
 
 class AltaBodegaRequest(BaseModel):
@@ -199,6 +200,7 @@ def listar_equipos(
             "clasificacion_venta": (ventas_por_imei.get(e.imei) or {}).get("clasificacion"),
             "cumple_arl": e.cumple_arl,
             "activado": e.activado,
+            "estado_activacion": e.estado_activacion,
         }
         for e in equipos
     ]
@@ -417,14 +419,32 @@ def alta_multiple(data: AltaMultipleRequest, db: Session = Depends(get_db)):
     return {"status": "success", "guardados": guardados, "errores": errores}
 
 
+ESTADOS_ACTIVACION = ("no_activado", "activado", "libre", "bloqueado")
+
 @router.post("/activar/{equipo_id}")
 def cambiar_activacion(equipo_id: int, data: CambiarActivacionRequest, db: Session = Depends(get_db)):
     equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
-    equipo.activado = data.activado
+
+    if data.estado_activacion is not None:
+        nuevo = data.estado_activacion.strip().lower()
+        if nuevo not in ESTADOS_ACTIVACION:
+            raise HTTPException(status_code=400, detail=f"Estado inválido. Valores permitidos: {', '.join(ESTADOS_ACTIVACION)}")
+    elif data.activado is not None:
+        nuevo = "activado" if data.activado else "no_activado"
+    else:
+        raise HTTPException(status_code=400, detail="Debes enviar estado_activacion o activado")
+
+    equipo.estado_activacion = nuevo
+    equipo.activado = (nuevo == "activado")
     db.commit()
-    return {"status": "success", "id": equipo.id, "activado": equipo.activado}
+    return {
+        "status": "success",
+        "id": equipo.id,
+        "estado_activacion": equipo.estado_activacion,
+        "activado": equipo.activado,
+    }
 
 
 @router.post("/alta-bodega")
