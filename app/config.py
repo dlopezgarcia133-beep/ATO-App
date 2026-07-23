@@ -1,7 +1,8 @@
 
 
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 import jwt
@@ -21,9 +22,22 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
-def crear_token(data: dict, expires_delta: timedelta = timedelta(hours=12)):
+def _exp_cierre_diario() -> datetime:
+    """Devuelve el proximo 23:59 hora de Mexico City, en UTC aware."""
+    zona = ZoneInfo("America/Mexico_City")
+    ahora = datetime.now(zona)
+    corte = ahora.replace(hour=23, minute=59, second=0, microsecond=0)
+    if ahora >= corte:
+        corte = corte + timedelta(days=1)
+    return corte.astimezone(timezone.utc)
+
+
+def crear_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + expires_delta
+    if expires_delta is not None:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = _exp_cierre_diario()
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
