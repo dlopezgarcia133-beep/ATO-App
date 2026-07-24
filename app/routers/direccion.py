@@ -5,7 +5,7 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
@@ -370,7 +370,41 @@ def buscar_producto(
     if len(q.strip()) < 2:
         return []
 
-    rows = (
+    q_norm = q.strip()
+
+    # Modulos donde los telefonos aun NO se controlan por IMEI: siguen contando
+    # con inventario_modulo, igual que el resto de productos.
+    MODULOS_PENDIENTES = ["M2", "RO", "MF"]
+
+    # 1) Telefonos: contar IMEIs surtidos de equipos_telcel, agrupados por modulo.
+    #    Se une a inventario_general por clave (case-insensitive: hay claves en
+    #    minuscula) para conocer tipo_producto y usar el nombre canonico.
+    telefono_rows = (
+        db.query(
+            models.InventarioGeneral.producto.label("producto"),
+            models.Modulo.nombre.label("modulo_nombre"),
+            func.count(func.distinct(models.EquiposTelcel.id)).label("total_cant"),
+        )
+        .join(models.Modulo, models.EquiposTelcel.modulo_id == models.Modulo.id)
+        .join(
+            models.InventarioGeneral,
+            func.upper(models.InventarioGeneral.clave)
+            == func.upper(models.EquiposTelcel.clave),
+        )
+        .filter(
+            models.EquiposTelcel.estatus == "surtido",
+            models.InventarioGeneral.tipo_producto == "telefono",
+            ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
+            ~models.Modulo.nombre.in_(MODULOS_PENDIENTES),
+            models.InventarioGeneral.producto.ilike(f"%{q_norm}%"),
+        )
+        .group_by(models.InventarioGeneral.producto, models.Modulo.nombre)
+        .all()
+    )
+
+    # 2) Resto (accesorios, o telefonos en M2/RO/MF): mismo patron de hoy sobre
+    #    inventario_modulo, evitando duplicar los telefonos ya contados por IMEI.
+    resto_rows = (
         db.query(
             models.InventarioModulo.producto,
             models.Modulo.nombre.label("modulo_nombre"),
@@ -378,22 +412,30 @@ def buscar_producto(
         )
         .join(models.Modulo, models.InventarioModulo.modulo_id == models.Modulo.id)
         .filter(
-            models.InventarioModulo.producto.ilike(f"%{q.strip()}%"),
+            models.InventarioModulo.producto.ilike(f"%{q_norm}%"),
             ~models.Modulo.nombre.in_(MODULOS_EXCLUIR_SQL),
             models.InventarioModulo.cantidad > 0,
+            or_(
+                models.InventarioModulo.tipo_producto != "telefono",
+                models.Modulo.nombre.in_(MODULOS_PENDIENTES),
+            ),
         )
         .group_by(models.InventarioModulo.producto, models.Modulo.nombre)
         .all()
     )
 
-    agrupado: dict = defaultdict(list)
-    for row in rows:
-        agrupado[row.producto].append(
-            schemas.ModuloStockItem(modulo=row.modulo_nombre, cantidad=int(row.total_cant))
-        )
+    # 3) Combinar: sumar cantidades por producto + modulo. Un mismo producto
+    #    puede tener varias claves; debe salir una sola fila por modulo (sumada).
+    combinado: dict = defaultdict(lambda: defaultdict(int))
+    for row in list(telefono_rows) + list(resto_rows):
+        combinado[row.producto][row.modulo_nombre] += int(row.total_cant)
 
     resultado = []
-    for producto, modulos in agrupado.items():
+    for producto, modulos_map in combinado.items():
+        modulos = [
+            schemas.ModuloStockItem(modulo=nombre, cantidad=cant)
+            for nombre, cant in modulos_map.items()
+        ]
         total = sum(m.cantidad for m in modulos)
         resultado.append(schemas.ProductoBusquedaResult(
             producto=producto,
