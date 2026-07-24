@@ -1301,6 +1301,22 @@ class ItemAplicarDecision(BaseModel):
     producto: str
     poner_en_cero: bool = False
 
+class ItemAplicarImei(BaseModel):
+    imei: str
+    clave: str | None = None
+    producto: str | None = None
+    resultado: str          # ok | reasignado | vendido_presente | pendiente_alta
+    equipo_id: int | None = None
+    estatus_sistema: str | None = None
+    modulo_sistema_id: int | None = None
+
+class FaltanteImeiItem(BaseModel):
+    imei: str
+    clave: str
+    producto: str
+    fecha_salida: str | None = None
+    dias_en_piso: int | None = None
+
 class AplicarRequest(BaseModel):
     modulo_id: int
     archivo_nombre: str
@@ -1309,6 +1325,7 @@ class AplicarRequest(BaseModel):
     para_crear: List[ItemAplicarCrear]
     caso_por_caso: List[ItemAplicarDecision]
     notas: Optional[str] = None
+    imeis: List[ItemAplicarImei] = []
 
 class AplicarResponse(BaseModel):
     folio: str
@@ -1317,6 +1334,8 @@ class AplicarResponse(BaseModel):
     productos_creados: int
     productos_en_cero: int
     productos_conservados: int
+    faltantes_imei: List[FaltanteImeiItem] = []
+    imeis_registrados: int = 0
 
 class ConteoFisicoItemResponse(BaseModel):
     id: int

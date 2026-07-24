@@ -1,5 +1,7 @@
 import io
+from datetime import datetime
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -184,6 +186,102 @@ def aplicar_conteo(
     if not modulo:
         raise HTTPException(status_code=404, detail="Módulo no encontrado")
 
+    # ── Conteo por IMEI (opcional) ────────────────────────────────────────────
+    # REGLA MADRE: si data.imeis está vacío, nada de lo que sigue se ejecuta y el
+    # flujo se comporta EXACTAMENTE como antes.
+    snapshot_surtidos: list = []
+    imeis_scan_norm: set = set()
+    if data.imeis:
+        # PASO A ── validaciones + snapshot ANTES de tocar nada ────────────────
+        imeis_norm_list = [it.imei.strip() for it in data.imeis]
+        if len(imeis_norm_list) != len(set(imeis_norm_list)):
+            raise HTTPException(status_code=400, detail="Hay IMEIs duplicados en la lista")
+        imeis_scan_norm = set(imeis_norm_list)
+
+        snapshot_surtidos = (
+            db.query(models.EquiposTelcel)
+            .filter(
+                models.EquiposTelcel.modulo_id == data.modulo_id,
+                models.EquiposTelcel.estatus == "surtido",
+            )
+            .all()
+        )
+
+        # PASO B ── contar por clave SOLO ok/reasignado ────────────────────────
+        conteo_por_clave: dict = {}
+        clave_producto: dict = {}
+        for it in data.imeis:
+            if it.resultado in ("ok", "reasignado") and it.clave:
+                conteo_por_clave[it.clave] = conteo_por_clave.get(it.clave, 0) + 1
+                if it.producto:
+                    clave_producto.setdefault(it.clave, it.producto)
+
+        # Claves de teléfono que SÍ manejan IMEI (según el snapshot del PASO A).
+        # Solo estas se pueden mandar a cero si no se pistolearon; las demás
+        # (módulos que nunca capturaron IMEI: M2, RO, MF...) se dejan intactas.
+        claves_con_imei = {e.clave for e in snapshot_surtidos}
+
+        # PASO C ── fusionar con las listas del request ────────────────────────
+        actualizar_por_clave = {it.clave: it for it in data.para_actualizar}
+
+        # C1: cantidad pistoleada manda; sobrescribe o agrega item de actualización
+        for clave, cant in conteo_por_clave.items():
+            if clave in actualizar_por_clave:
+                actualizar_por_clave[clave].cantidad_nueva = cant
+            else:
+                prod = clave_producto.get(clave)
+                if not prod:
+                    im_ref = (
+                        db.query(models.InventarioModulo)
+                        .filter(
+                            models.InventarioModulo.clave == clave,
+                            models.InventarioModulo.modulo_id == data.modulo_id,
+                        )
+                        .first()
+                    )
+                    prod = im_ref.producto if im_ref else clave
+                nuevo = schemas.ItemAplicarActualizar(
+                    clave=clave, producto=prod, cantidad_nueva=cant
+                )
+                data.para_actualizar.append(nuevo)
+                actualizar_por_clave[clave] = nuevo
+
+        # C2: el pistoleo manda → quitar de caso_por_caso SOLO los teléfonos
+        # cuya clave maneja IMEI (está en claves_con_imei). El resto se queda
+        # para que el admin decida, igual que hoy.
+        data.caso_por_caso = [
+            it for it in data.caso_por_caso
+            if not (
+                _detectar_tipo_producto(it.clave) == "telefono"
+                and it.clave in claves_con_imei
+            )
+        ]
+
+        # C3: teléfono con stock en el módulo que NO se pistoleó → cantidad 0,
+        # SOLO si esa clave maneja IMEI (está en claves_con_imei).
+        ims_con_stock = (
+            db.query(models.InventarioModulo)
+            .filter(
+                models.InventarioModulo.modulo_id == data.modulo_id,
+                models.InventarioModulo.cantidad > 0,
+            )
+            .all()
+        )
+        for im in ims_con_stock:
+            if (
+                _detectar_tipo_producto(im.clave) == "telefono"
+                and im.clave not in conteo_por_clave
+                and im.clave in claves_con_imei
+            ):
+                if im.clave in actualizar_por_clave:
+                    actualizar_por_clave[im.clave].cantidad_nueva = 0
+                else:
+                    nuevo = schemas.ItemAplicarActualizar(
+                        clave=im.clave, producto=im.producto, cantidad_nueva=0
+                    )
+                    data.para_actualizar.append(nuevo)
+                    actualizar_por_clave[im.clave] = nuevo
+
     # Crear registro maestro para obtener el id (folio se asigna después del flush)
     conteo = models.ConteoFisico(
         folio="PENDING",
@@ -365,11 +463,70 @@ def aplicar_conteo(
 
     db.bulk_save_objects(items_db)
 
+    # ── PASO D/E/F: registro de IMEIs y faltantes ─────────────────────────────
+    faltantes_payload: list = []
+    imeis_registrados = 0
+    if data.imeis:
+        # PASO D ── un ConteoFisicoImei por item; reasignar los 'reasignado' ───
+        now_mx = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+        imeis_db: list = []
+        for it in data.imeis:
+            imei_norm = it.imei.strip()
+            imeis_db.append(models.ConteoFisicoImei(
+                conteo_id=conteo.id,
+                imei=imei_norm,
+                equipo_id=it.equipo_id,
+                clave=it.clave,
+                producto=it.producto,
+                estatus_sistema=it.estatus_sistema,
+                modulo_sistema_id=it.modulo_sistema_id,
+                resultado=it.resultado,
+                fecha=now_mx,
+            ))
+            if it.resultado == "reasignado":
+                eq = None
+                if it.equipo_id is not None:
+                    eq = (
+                        db.query(models.EquiposTelcel)
+                        .filter(models.EquiposTelcel.id == it.equipo_id)
+                        .first()
+                    )
+                if eq is None:
+                    eq = (
+                        db.query(models.EquiposTelcel)
+                        .filter(func.trim(models.EquiposTelcel.imei) == imei_norm)
+                        .first()
+                    )
+                if eq is not None:
+                    eq.modulo_id = data.modulo_id
+        db.bulk_save_objects(imeis_db)
+        imeis_registrados = len(imeis_db)
+
+        # PASO E ── faltantes: del snapshot, los que NO se pistolearon ─────────
+        hoy = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None).date()
+        for eq in snapshot_surtidos:
+            if (eq.imei or "").strip() in imeis_scan_norm:
+                continue
+            fecha_salida_str = None
+            dias_en_piso = None
+            if eq.fecha_salida:
+                fs_date = eq.fecha_salida.date() if hasattr(eq.fecha_salida, "date") else eq.fecha_salida
+                fecha_salida_str = fs_date.strftime("%Y-%m-%d")
+                dias_en_piso = (hoy - fs_date).days
+            faltantes_payload.append({
+                "imei": (eq.imei or "").strip(),
+                "clave": eq.clave,
+                "producto": eq.producto,
+                "fecha_salida": fecha_salida_str,
+                "dias_en_piso": dias_en_piso,
+            })
+
     # Descongelar automáticamente al aplicar el conteo
     modulo.congelado = False
 
     db.commit()
 
+    # PASO F ── devolver faltantes e imeis_registrados (defaults = flujo viejo) ─
     return {
         "folio": conteo.folio,
         "modulo": modulo.nombre,
@@ -377,6 +534,8 @@ def aplicar_conteo(
         "productos_creados": cnt_creados,
         "productos_en_cero": cnt_en_cero,
         "productos_conservados": cnt_conservados,
+        "faltantes_imei": faltantes_payload,
+        "imeis_registrados": imeis_registrados,
     }
 
 
