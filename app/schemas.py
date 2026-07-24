@@ -1356,6 +1356,21 @@ class RevertirResponse(BaseModel):
     items_revertidos: int
     advertencias: List[str]
 
+class ValidarImeiRequest(BaseModel):
+    modulo_id: int
+    imei: str
+
+class ValidarImeiResponse(BaseModel):
+    imei: str
+    encontrado: bool
+    resultado: str
+    clave: str | None = None
+    producto: str | None = None
+    estatus_sistema: str | None = None
+    modulo_sistema_id: int | None = None
+    modulo_sistema_nombre: str | None = None
+    mensaje: str
+
 class KardexLineaItem(BaseModel):
     fecha: datetime
     tipo: str

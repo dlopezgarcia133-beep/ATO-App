@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -669,6 +670,68 @@ def revertir_conteo(
         "items_revertidos": items_revertidos,
         "advertencias": advertencias,
     }
+
+
+# ── POST /imei/validar ────────────────────────────────────────────────────────
+
+@router.post("/imei/validar", response_model=schemas.ValidarImeiResponse)
+def validar_imei(
+    request: schemas.ValidarImeiRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    imei = request.imei.strip()
+
+    if not imei.isdigit() or len(imei) < 14:
+        raise HTTPException(status_code=400, detail="IMEI invalido")
+
+    equipo = (
+        db.query(models.EquiposTelcel)
+        .filter(func.trim(models.EquiposTelcel.imei) == imei)
+        .first()
+    )
+
+    if not equipo:
+        return schemas.ValidarImeiResponse(
+            imei=imei,
+            encontrado=False,
+            resultado="pendiente_alta",
+            mensaje="IMEI no dado de alta. Se contara y queda pendiente.",
+        )
+
+    # Nombre del módulo actual del equipo (JOIN a modulos)
+    modulo_sistema_nombre = None
+    if equipo.modulo_id is not None:
+        modulo = (
+            db.query(models.Modulo)
+            .filter(models.Modulo.id == equipo.modulo_id)
+            .first()
+        )
+        if modulo:
+            modulo_sistema_nombre = modulo.nombre
+
+    if equipo.estatus == "vendido":
+        resultado = "vendido_presente"
+        mensaje = "OJO: este equipo figura como VENDIDO pero esta fisicamente."
+    elif equipo.modulo_id != request.modulo_id:
+        resultado = "reasignado"
+        nombre_ref = modulo_sistema_nombre or "otro modulo"
+        mensaje = f"Equipo estaba en {nombre_ref}. Se reasignara a este modulo."
+    else:
+        resultado = "ok"
+        mensaje = "OK"
+
+    return schemas.ValidarImeiResponse(
+        imei=imei,
+        encontrado=True,
+        resultado=resultado,
+        clave=equipo.clave,
+        producto=equipo.producto,
+        estatus_sistema=equipo.estatus,
+        modulo_sistema_id=equipo.modulo_id,
+        modulo_sistema_nombre=modulo_sistema_nombre,
+        mensaje=mensaje,
+    )
 
 
 # ── Congelar / descongelar módulo ────────────────────────────────────────────

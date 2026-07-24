@@ -617,6 +617,7 @@ class ConteoFisico(Base):
     notas                  = Column(String, nullable=True)
 
     items = relationship("ConteoFisicoItem", back_populates="conteo", cascade="all, delete-orphan")
+    imeis = relationship("ConteoFisicoImei", cascade="all, delete-orphan")
 
 
 class ConteoFisicoItem(Base):
@@ -632,6 +633,21 @@ class ConteoFisicoItem(Base):
     producto_creado   = Column(Boolean, default=False)
 
     conteo = relationship("ConteoFisico", back_populates="items")
+
+
+class ConteoFisicoImei(Base):
+    __tablename__ = "conteos_fisicos_imeis"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    conteo_id         = Column(Integer, ForeignKey("conteos_fisicos.id", ondelete="CASCADE"), nullable=False)
+    imei              = Column(String(20), nullable=False, index=True)
+    equipo_id         = Column(Integer, ForeignKey("equipos_telcel.id", ondelete="SET NULL"), nullable=True)
+    clave             = Column(String(100), nullable=True)
+    producto          = Column(String(255), nullable=True)
+    estatus_sistema   = Column(String(30), nullable=True)
+    modulo_sistema_id = Column(Integer, nullable=True)
+    resultado         = Column(String(30), nullable=False)
+    fecha             = Column(DateTime, nullable=True)
 
 
 class PlanTarifario(Base):
