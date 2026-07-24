@@ -682,8 +682,8 @@ def validar_imei(
 ):
     imei = request.imei.strip()
 
-    if not imei.isdigit() or len(imei) < 14:
-        raise HTTPException(status_code=400, detail="IMEI invalido")
+    if not imei:
+        raise HTTPException(status_code=400, detail="IMEI vacio")
 
     equipo = (
         db.query(models.EquiposTelcel)
@@ -692,6 +692,12 @@ def validar_imei(
     )
 
     if not equipo:
+        # No existe: ahora sí exigimos formato estándar de IMEI.
+        if not imei.isdigit() or len(imei) < 14 or len(imei) > 15:
+            raise HTTPException(
+                status_code=400,
+                detail=f"IMEI invalido: {imei}. Verifica el escaneo.",
+            )
         return schemas.ValidarImeiResponse(
             imei=imei,
             encontrado=False,
