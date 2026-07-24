@@ -280,6 +280,28 @@ def catalogo_productos(
         .scalar_subquery()
     )
 
+    imei_modulos_subq = (
+        db.query(func.coalesce(func.count(models.EquiposTelcel.id), 0))
+        .filter(
+            func.upper(models.EquiposTelcel.clave)
+            == func.upper(models.InventarioGeneral.clave),
+            models.EquiposTelcel.estatus == "surtido",
+        )
+        .correlate(models.InventarioGeneral)
+        .scalar_subquery()
+    )
+
+    imei_bodega_subq = (
+        db.query(func.coalesce(func.count(models.EquiposTelcel.id), 0))
+        .filter(
+            func.upper(models.EquiposTelcel.clave)
+            == func.upper(models.InventarioGeneral.clave),
+            models.EquiposTelcel.estatus == "en_bodega",
+        )
+        .correlate(models.InventarioGeneral)
+        .scalar_subquery()
+    )
+
     rows = (
         db.query(
             models.InventarioGeneral.clave,
@@ -288,6 +310,8 @@ def catalogo_productos(
             models.InventarioGeneral.tipo_producto,
             models.Comision.cantidad.label("comision"),
             existencia_subq.label("existencia_real"),
+            imei_modulos_subq.label("imei_modulos"),
+            imei_bodega_subq.label("imei_bodega"),
         )
         .outerjoin(
             models.Comision,
@@ -306,6 +330,8 @@ def catalogo_productos(
             "tipo_producto": r.tipo_producto,
             "comision": r.comision,
             "existencia_real": int(r.existencia_real),
+            "imei_modulos": int(r.imei_modulos),
+            "imei_bodega": int(r.imei_bodega),
         }
         for r in rows
     ]
