@@ -1430,6 +1430,8 @@ class PlanTarifarioCreate(BaseModel):
     pago_inicial: Optional[bool] = False
     monto_pago_inicial: Optional[float] = 0
     metodo_pago_inicial: Optional[str] = None
+    monto_inicial_efectivo: Optional[float] = 0
+    monto_inicial_tarjeta: Optional[float] = 0
 
 
 class PlanTarifarioUpdate(BaseModel):

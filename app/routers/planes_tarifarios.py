@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
@@ -89,27 +90,48 @@ def crear_plan_tarifario(
         else:
             nombre_pi = f"PAGO INICIAL PLAN - {plan.clasificacion or ''}".strip()
 
-        venta_pi = models.Venta(
-            empleado_id=current_user.id,
-            modulo_id=modulo_id,
-            producto=nombre_pi,
-            cantidad=1,
-            precio_unitario=monto_pi,
-            tipo_venta="plan",
-            total=monto_pi,
-            comision_id=None,
-            comision_monto=None,
-            metodo_pago=metodo,
-            cancelada=False,
-            chip_casado=None,
-            fecha=ahora.date(),
-            hora=ahora.time(),
-            telefono_cliente=None,
-            tipo_producto="telefono",
-        )
-        db.add(venta_pi)
-        db.flush()
-        nuevo.venta_pi_id = venta_pi.id
+        # Determinar las partes del pago
+        if metodo == "dividido":
+            monto_efe = float(plan.monto_inicial_efectivo or 0)
+            monto_tar = float(plan.monto_inicial_tarjeta or 0)
+            if monto_efe <= 0 or monto_tar <= 0:
+                raise HTTPException(400, "En pago dividido, efectivo y tarjeta deben ser mayores a cero")
+            if round(monto_efe + monto_tar, 2) != round(monto_pi, 2):
+                raise HTTPException(400, f"La suma de efectivo (${monto_efe}) y tarjeta (${monto_tar}) debe ser igual al pago inicial (${monto_pi})")
+            partes = [("efectivo", monto_efe), ("tarjeta", monto_tar)]
+            seq = db.execute(text("SELECT nextval('venta_folio_seq')")).scalar()
+            folio_pi = f"V-{seq}"
+        else:
+            partes = [(metodo, monto_pi)]
+            folio_pi = None
+
+        primera_venta_id = None
+        for metodo_parte, monto_parte in partes:
+            venta_pi = models.Venta(
+                empleado_id=current_user.id,
+                modulo_id=modulo_id,
+                producto=nombre_pi,
+                cantidad=1,
+                precio_unitario=monto_parte,
+                tipo_venta="plan",
+                total=monto_parte,
+                comision_id=None,
+                comision_monto=None,
+                metodo_pago=metodo_parte,
+                cancelada=False,
+                chip_casado=None,
+                fecha=ahora.date(),
+                hora=ahora.time(),
+                telefono_cliente=None,
+                tipo_producto="telefono",
+                folio=folio_pi,
+            )
+            db.add(venta_pi)
+            db.flush()
+            if primera_venta_id is None:
+                primera_venta_id = venta_pi.id
+
+        nuevo.venta_pi_id = primera_venta_id
 
         # Acumular al CorteDia (mismo patron que ventas.py)
         try:
@@ -130,16 +152,17 @@ def crear_plan_tarifario(
                 db.add(corte)
                 db.flush()
 
-            es_efectivo = metodo == "efectivo" or metodo == "cash"
-            if es_efectivo:
-                corte.total_efectivo = (corte.total_efectivo or 0) + monto_pi
-                corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + monto_pi
-            else:
-                corte.total_tarjeta = (corte.total_tarjeta or 0) + monto_pi
-                corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + monto_pi
-            corte.telefonos_total = (corte.telefonos_total or 0) + monto_pi
-            corte.total_sistema = (corte.total_sistema or 0) + monto_pi
-            corte.total_general = (corte.total_general or 0) + monto_pi
+            for metodo_parte, monto_parte in partes:
+                es_efectivo = metodo_parte == "efectivo" or metodo_parte == "cash"
+                if es_efectivo:
+                    corte.total_efectivo = (corte.total_efectivo or 0) + monto_parte
+                    corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) + monto_parte
+                else:
+                    corte.total_tarjeta = (corte.total_tarjeta or 0) + monto_parte
+                    corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) + monto_parte
+                corte.telefonos_total = (corte.telefonos_total or 0) + monto_parte
+                corte.total_sistema = (corte.total_sistema or 0) + monto_parte
+                corte.total_general = (corte.total_general or 0) + monto_parte
         except Exception as e:
             print("Error actualizando CorteDia desde plan:", e)
 
@@ -277,32 +300,42 @@ def eliminar_plan_tarifario(
             referencia_id=plan.id,
         )
 
-    # 3. Borrar la venta espejo y restar del corte
+    # 3. Borrar la(s) venta(s) espejo y restar del corte
     if plan.venta_pi_id:
         venta_pi = db.query(models.Venta).filter(models.Venta.id == plan.venta_pi_id).first()
         if venta_pi:
-            monto_pi = float(venta_pi.total or 0)
-            metodo = (venta_pi.metodo_pago or "efectivo").strip().lower()
-            fecha_corte = venta_pi.fecha
+            # Si la venta espejo tiene folio, puede ser pago dividido:
+            # recuperar todas las partes que comparten ese folio.
+            if venta_pi.folio:
+                ventas_pi = db.query(models.Venta).filter(
+                    models.Venta.folio == venta_pi.folio,
+                    models.Venta.tipo_venta == "plan",
+                ).all()
+            else:
+                ventas_pi = [venta_pi]
 
-            # 4. Restar del CorteDia
-            corte = db.query(models.CorteDia).filter(
-                models.CorteDia.fecha == fecha_corte,
-                models.CorteDia.modulo_id == plan.modulo_id,
-            ).first()
-            if corte:
-                es_efectivo = metodo == "efectivo" or metodo == "cash"
-                if es_efectivo:
-                    corte.total_efectivo = (corte.total_efectivo or 0) - monto_pi
-                    corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) - monto_pi
-                else:
-                    corte.total_tarjeta = (corte.total_tarjeta or 0) - monto_pi
-                    corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) - monto_pi
-                corte.telefonos_total = (corte.telefonos_total or 0) - monto_pi
-                corte.total_sistema = (corte.total_sistema or 0) - monto_pi
-                corte.total_general = (corte.total_general or 0) - monto_pi
+            for vpi in ventas_pi:
+                monto_pi = float(vpi.total or 0)
+                metodo = (vpi.metodo_pago or "efectivo").strip().lower()
+                fecha_corte = vpi.fecha
 
-            db.delete(venta_pi)
+                corte = db.query(models.CorteDia).filter(
+                    models.CorteDia.fecha == fecha_corte,
+                    models.CorteDia.modulo_id == plan.modulo_id,
+                ).first()
+                if corte:
+                    es_efectivo = metodo == "efectivo" or metodo == "cash"
+                    if es_efectivo:
+                        corte.total_efectivo = (corte.total_efectivo or 0) - monto_pi
+                        corte.telefonos_efectivo = (corte.telefonos_efectivo or 0) - monto_pi
+                    else:
+                        corte.total_tarjeta = (corte.total_tarjeta or 0) - monto_pi
+                        corte.telefonos_tarjeta = (corte.telefonos_tarjeta or 0) - monto_pi
+                    corte.telefonos_total = (corte.telefonos_total or 0) - monto_pi
+                    corte.total_sistema = (corte.total_sistema or 0) - monto_pi
+                    corte.total_general = (corte.total_general or 0) - monto_pi
+
+                db.delete(vpi)
 
     db.delete(plan)
     db.commit()
