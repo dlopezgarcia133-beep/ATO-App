@@ -539,7 +539,7 @@ def estadisticas_mes(
     tel_tipo_rows = (
         db.query(
             models.Venta.tipo_venta,
-            func.count(models.Venta.id).label("cnt"),
+            func.count(func.distinct(func.coalesce(models.Venta.folio, func.concat('id-', models.Venta.id)))).label("cnt"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
         )
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
@@ -579,7 +579,7 @@ def estadisticas_mes(
     tel_dia_rows = (
         db.query(
             extract("day", models.Venta.fecha).label("dia"),
-            func.count(models.Venta.id).label("cnt"),
+            func.count(func.distinct(func.coalesce(models.Venta.folio, func.concat('id-', models.Venta.id)))).label("cnt"),
         )
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
         .filter(*f_ventas_tel)
@@ -841,7 +841,7 @@ def estadisticas_mes(
         db.query(
             models.Modulo.nombre.label("modulo"),
             models.Venta.tipo_venta,
-            func.count(models.Venta.id).label("cnt"),
+            func.count(func.distinct(func.coalesce(models.Venta.folio, func.concat('id-', models.Venta.id)))).label("cnt"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
         )
         .select_from(models.Venta)
@@ -1149,7 +1149,7 @@ def tiempo_real(
     tel_tipo_rows = (
         db.query(
             models.Venta.tipo_venta,
-            func.count(models.Venta.id).label("cnt"),
+            func.count(func.distinct(func.coalesce(models.Venta.folio, func.concat('id-', models.Venta.id)))).label("cnt"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
         )
         .join(models.Modulo, models.Venta.modulo_id == models.Modulo.id)
@@ -1383,7 +1383,7 @@ def tiempo_real(
         db.query(
             models.Modulo.nombre.label("modulo"),
             models.Venta.tipo_venta,
-            func.count(models.Venta.id).label("cnt"),
+            func.count(func.distinct(func.coalesce(models.Venta.folio, func.concat('id-', models.Venta.id)))).label("cnt"),
             func.sum(models.Venta.precio_unitario * models.Venta.cantidad).label("monto"),
         )
         .select_from(models.Venta)
