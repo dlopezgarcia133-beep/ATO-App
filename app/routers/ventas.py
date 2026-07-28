@@ -4,7 +4,7 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import func, text
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
@@ -1105,15 +1105,35 @@ def pagar_comisiones(
 def obtener_ventas_chips(
     empleado_id: Optional[int] = None,
     modulo_nombre: Optional[str] = None,
+    solo_pendientes: bool = False,
+    fecha_inicio: Optional[date] = None,
+    fecha_fin: Optional[date] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     print(f"[chips] usuario={current_user.username} rol={current_user.rol!r} modulo_id={current_user.modulo_id}")
+
+    def _aplicar_filtros(query):
+        query = query.options(
+            selectinload(models.VentaChip.empleado)
+            .selectinload(models.Usuario.modulo)
+        )
+        if solo_pendientes:
+            query = query.filter(
+                models.VentaChip.validado.isnot(True),
+                models.VentaChip.cancelada.isnot(True),
+            )
+        if fecha_inicio:
+            query = query.filter(models.VentaChip.fecha >= fecha_inicio)
+        if fecha_fin:
+            query = query.filter(models.VentaChip.fecha <= fecha_fin)
+        return query.order_by(models.VentaChip.fecha.desc())
+
     if current_user.is_admin:
         query = db.query(models.VentaChip)
         if empleado_id is not None:
             query = query.filter(models.VentaChip.empleado_id == empleado_id)
-        resultado = query.all()
+        resultado = _aplicar_filtros(query).all()
         print(f"[chips] admin -> {len(resultado)} chips")
         return resultado
     elif str(current_user.rol).replace("RolEnum.", "") == "encargado" or current_user.rol == "encargado":
@@ -1131,15 +1151,16 @@ def obtener_ventas_chips(
         )
         ids_empleados = [e.id for e in empleados_modulo]
         print(f"[chips] empleados en modulo {nombre_modulo!r}: {ids_empleados}")
-        resultado = (
+        query = (
             db.query(models.VentaChip)
             .filter(models.VentaChip.empleado_id.in_(ids_empleados))
-            .all()
         )
+        resultado = _aplicar_filtros(query).all()
         print(f"[chips] encargado -> {len(resultado)} chips")
         return resultado
     else:
-        resultado = db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id).all()
+        query = db.query(models.VentaChip).filter(models.VentaChip.empleado_id == current_user.id)
+        resultado = _aplicar_filtros(query).all()
         print(f"[chips] asesor -> {len(resultado)} chips")
         return resultado
 
