@@ -10,7 +10,7 @@ from app.database import get_db
 from app.utilidades import verificar_rol_requerido, verificar_modulo_no_congelado
 from app.routers.kardex import registrar_kardex
 
-MODULOS_IMEI_OBLIGATORIO = {"wa", "sa", "uni", "u2", "dr", "vl", "ha", "gi", "ps", "r1", "al"}
+MODULOS_IMEI_OBLIGATORIO = {"wa", "sa", "uni", "u2", "dr", "vl", "ha", "gi", "ps", "r1", "al", "m1", "vi"}
 
 router = APIRouter()
 zona_horaria = ZoneInfo("America/Mexico_City")
