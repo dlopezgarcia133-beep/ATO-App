@@ -357,6 +357,28 @@ def eliminar_traspaso(
             referencia_id=traspaso_id,
         )
 
+        # Revertir equipo Telcel al modulo origen
+        if traspaso.tipo_producto == "telefono" and traspaso.imei:
+            imei_limpio = str(traspaso.imei).strip()
+            equipo = (
+                db.query(models.EquiposTelcel)
+                .filter(models.EquiposTelcel.imei == imei_limpio)
+                .first()
+            )
+            destino_es_bodega = (traspaso.modulo_destino or "").strip().lower() == "bo"
+            if equipo is None:
+                print(f"[ALERTA revertir traspaso IMEI] Traspaso {traspaso_id} folio {folio} imei '{imei_limpio}': equipo no encontrado. NO revertido.")
+            elif equipo.estatus == "vendido":
+                print(f"[ALERTA revertir traspaso IMEI] Traspaso {traspaso_id} folio {folio} imei '{imei_limpio}': el equipo ya fue vendido. NO revertido, revisar manualmente.")
+            elif destino_es_bodega and equipo.estatus == "en_bodega" and equipo.modulo_id is None:
+                equipo.estatus = "surtido"
+                equipo.modulo_id = modulo_origen.id
+                equipo.fecha_salida = datetime.now(zona_horaria).replace(tzinfo=None)
+            elif (not destino_es_bodega) and equipo.estatus == "surtido" and equipo.modulo_id == modulo_destino.id:
+                equipo.modulo_id = modulo_origen.id
+            else:
+                print(f"[ALERTA revertir traspaso IMEI] Traspaso {traspaso_id} folio {folio} imei '{imei_limpio}': estado inesperado (estatus={equipo.estatus}, modulo_id={equipo.modulo_id}). NO revertido, revisar manualmente.")
+
     db.delete(traspaso)
     db.commit()
     return {"ok": True, "message": f"Traspaso {folio} eliminado correctamente"}
