@@ -173,7 +173,7 @@ def listar_equipos(
             .filter(models.Venta.imei.in_(imeis))
             .filter(models.Venta.tipo_producto == "telefono")
             .filter(models.Venta.cancelada == False)  # noqa: E712
-            .filter(models.Venta.clasificacion.in_(["linea_nueva", "boletin_63", "chip_ato"]))
+            .filter(models.Venta.clasificacion.in_(["linea_nueva", "boletin_63", "chip_ato", "chip_promo"]))
             .order_by(models.Venta.id.desc())
             .all()
         )
