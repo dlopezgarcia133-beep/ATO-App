@@ -43,6 +43,19 @@ class Usuario(Base):
     jornada_fija = Column(Numeric(5, 2), default=0)
     horario_semanal = Column(JSON, default=list)
     dia_descanso = Column(String(10), nullable=True)
+    tienda_id = Column(Integer, ForeignKey("tiendas.id"), nullable=True)
+
+    tienda = relationship("Tienda", backref="usuarios")
+
+
+class Tienda(Base):
+    __tablename__ = "tiendas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True, nullable=False)
+    activo = Column(Boolean, default=True, nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"

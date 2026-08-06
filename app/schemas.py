@@ -150,6 +150,7 @@ class UsuarioCreate(BaseModel):
     jornada_fija: Optional[float] = 0
     horario_semanal: Optional[List[Dict]] = []
     dia_descanso: Optional[str] = None
+    tienda_id: Optional[int] = None
 
 # 👉 Este es para actualizar un usuario
 class UsuarioUpdate(BaseModel):
@@ -338,6 +339,19 @@ class ModuloSelect(BaseModel):
 class ModuloResponse(BaseModel):
     id: int
     nombre: str
+
+    class Config:
+        from_attributes = True
+
+
+class TiendaCreate(BaseModel):
+    nombre: str
+
+
+class TiendaResponse(BaseModel):
+    id: int
+    nombre: str
+    activo: bool
 
     class Config:
         from_attributes = True
