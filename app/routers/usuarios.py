@@ -1,7 +1,7 @@
 
 import sys
 import traceback
-from sqlalchemy import case
+from sqlalchemy import case, func
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
 from sqlalchemy.orm import Session
@@ -62,6 +62,7 @@ def registrar_usuario(
             cuenta_interbancaria=usuario.cuenta_interbancaria or None,
             nombre_englobado=usuario.nombre_englobado or None,
             jornada_fija=usuario.jornada_fija or 0,
+            tienda_id=usuario.tienda_id or None,
         )
         db.add(usuario_nuevo)
         db.commit()
@@ -94,6 +95,43 @@ def obtener_modulos(
     current_user: models.Usuario = Depends(get_current_user)
 ):
     return db.query(models.Modulo).all()
+
+
+# ------------------- TIENDAS (catálogo para módulos Cadenas) -------------------
+@router.get("/tiendas", response_model=list[schemas.TiendaResponse])
+def obtener_tiendas(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    return (
+        db.query(models.Tienda)
+        .filter(models.Tienda.activo == True)
+        .order_by(models.Tienda.nombre)
+        .all()
+    )
+
+
+@router.post("/tiendas", response_model=schemas.TiendaResponse)
+def crear_tienda(
+    tienda: schemas.TiendaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    nombre = (tienda.nombre or "").strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre de la tienda es obligatorio")
+    existente = (
+        db.query(models.Tienda)
+        .filter(func.lower(models.Tienda.nombre) == nombre.lower())
+        .first()
+    )
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe una tienda con ese nombre")
+    nueva = models.Tienda(nombre=nombre)
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
 
 
 
