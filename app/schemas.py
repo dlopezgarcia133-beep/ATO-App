@@ -348,6 +348,11 @@ class TiendaCreate(BaseModel):
     nombre: str
 
 
+class TiendaUpdate(BaseModel):
+    nombre: Optional[str] = None
+    activo: Optional[bool] = None
+
+
 class TiendaResponse(BaseModel):
     id: int
     nombre: str

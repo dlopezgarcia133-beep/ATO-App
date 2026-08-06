@@ -100,15 +100,43 @@ def obtener_modulos(
 # ------------------- TIENDAS (catálogo para módulos Cadenas) -------------------
 @router.get("/tiendas", response_model=list[schemas.TiendaResponse])
 def obtener_tiendas(
+    incluir_inactivas: bool = False,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    return (
-        db.query(models.Tienda)
-        .filter(models.Tienda.activo == True)
-        .order_by(models.Tienda.nombre)
-        .all()
-    )
+    query = db.query(models.Tienda)
+    if not incluir_inactivas:
+        query = query.filter(models.Tienda.activo == True)
+    return query.order_by(models.Tienda.nombre).all()
+
+
+@router.put("/tiendas/{tienda_id}", response_model=schemas.TiendaResponse)
+def actualizar_tienda(
+    tienda_id: int,
+    datos: schemas.TiendaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    tienda = db.query(models.Tienda).filter_by(id=tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    if datos.nombre is not None:
+        nombre = datos.nombre.strip()
+        if not nombre:
+            raise HTTPException(status_code=400, detail="El nombre de la tienda es obligatorio")
+        duplicada = (
+            db.query(models.Tienda)
+            .filter(func.lower(models.Tienda.nombre) == nombre.lower(), models.Tienda.id != tienda_id)
+            .first()
+        )
+        if duplicada:
+            raise HTTPException(status_code=400, detail="Ya existe una tienda con ese nombre")
+        tienda.nombre = nombre
+    if datos.activo is not None:
+        tienda.activo = datos.activo
+    db.commit()
+    db.refresh(tienda)
+    return tienda
 
 
 @router.post("/tiendas", response_model=schemas.TiendaResponse)
