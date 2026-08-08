@@ -216,9 +216,12 @@ def aplicar_conteo(
                 if it.producto:
                     clave_producto.setdefault(it.clave, it.producto)
 
-        # Claves de teléfono que SÍ manejan IMEI (según el snapshot del PASO A).
-        # Todos los módulos activos capturan IMEI hoy, así que este conjunto ya
-        # NO sirve como salvaguarda: en la práctica cubre casi todo el módulo.
+        # Claves que SÍ manejan IMEI en este módulo (según el snapshot del
+        # PASO A). Este es el criterio ÚNICO: si una clave tiene equipos
+        # surtidos con IMEI aquí, se pistolea; si no, no se toca. No se filtra
+        # por tipo de producto — el prefijo TELI/TETE dejaba fuera tablets,
+        # módems y teléfonos que sí se pistolean (TABSAMA11, TETIPSEN, TEMOD*).
+        # Este conjunto NO es una salvaguarda: hoy cubre casi todo el módulo.
         # Quien decide si una clave no pistoleada se manda a cero es el flag
         # data.conteo_imei_completo (ver C3); sin él, un conteo parcial dejaría
         # en cero todo lo que no alcanzó a escanearse.
@@ -249,19 +252,16 @@ def aplicar_conteo(
                 data.para_actualizar.append(nuevo)
                 actualizar_por_clave[clave] = nuevo
 
-        # C2: el pistoleo manda → quitar de caso_por_caso SOLO los teléfonos
-        # cuya clave maneja IMEI (está en claves_con_imei). El resto se queda
-        # para que el admin decida, igual que hoy.
+        # C2: el pistoleo manda → quitar de caso_por_caso SOLO las claves que
+        # manejan IMEI en este módulo (están en claves_con_imei). El resto se
+        # queda para que el admin decida, igual que hoy.
         data.caso_por_caso = [
             it for it in data.caso_por_caso
-            if not (
-                _detectar_tipo_producto(it.clave) == "telefono"
-                and it.clave in claves_con_imei
-            )
+            if it.clave not in claves_con_imei
         ]
 
-        # C3: teléfono con stock en el módulo que NO se pistoleó → cantidad 0,
-        # SOLO si esa clave maneja IMEI (está en claves_con_imei).
+        # C3: clave con stock en el módulo que NO se pistoleó → cantidad 0,
+        # SOLO si esa clave maneja IMEI aquí (está en claves_con_imei).
         # Bajo bandera: únicamente cuando el usuario declara que el pistoleo del
         # módulo está COMPLETO. En un conteo parcial, lo no escaneado se respeta.
         if data.conteo_imei_completo:
@@ -275,8 +275,7 @@ def aplicar_conteo(
             )
             for im in ims_con_stock:
                 if (
-                    _detectar_tipo_producto(im.clave) == "telefono"
-                    and im.clave not in conteo_por_clave
+                    im.clave not in conteo_por_clave
                     and im.clave in claves_con_imei
                 ):
                     if im.clave in actualizar_por_clave:
@@ -947,9 +946,10 @@ def estado_congelado_modulos(
 # ── Resumen IMEI del módulo (solo lectura) ───────────────────────────────────
 # Alimenta el diálogo de confirmación del frontend ANTES de aplicar un conteo
 # por IMEI. Repite a propósito las dos consultas del PASO A y de C3 en
-# /aplicar, con el mismo _detectar_tipo_producto: si el número que ve el
-# usuario saliera por otro criterio que el del borrado, el diálogo daría una
-# falsa tranquilidad justo cuando más caro cuesta equivocarse.
+# /aplicar, con el mismo criterio único (tener IMEI registrado en el módulo):
+# si el número que ve el usuario saliera por otro criterio que el del borrado,
+# el diálogo daría una falsa tranquilidad justo cuando más caro cuesta
+# equivocarse.
 
 @router.get("/modulos/{modulo_id}/resumen-imei")
 def resumen_imei_modulo(
@@ -991,8 +991,7 @@ def resumen_imei_modulo(
             "cantidad_actual": im.cantidad,
         }
         for im in ims_con_stock
-        if _detectar_tipo_producto(im.clave) == "telefono"
-        and im.clave in claves_con_imei
+        if im.clave in claves_con_imei
     ]
     claves_zeroables.sort(key=lambda x: x["clave"])
 
