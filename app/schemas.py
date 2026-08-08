@@ -1345,6 +1345,9 @@ class AplicarRequest(BaseModel):
     caso_por_caso: List[ItemAplicarDecision]
     notas: Optional[str] = None
     imeis: List[ItemAplicarImei] = []
+    # Solo si es True se manda a cero el telefono que no se pistoleo (bloque C3
+    # de /aplicar). False = conteo parcial: lo no escaneado se queda como esta.
+    conteo_imei_completo: bool = False
 
 class AplicarResponse(BaseModel):
     folio: str

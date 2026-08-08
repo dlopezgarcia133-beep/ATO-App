@@ -217,8 +217,11 @@ def aplicar_conteo(
                     clave_producto.setdefault(it.clave, it.producto)
 
         # Claves de teléfono que SÍ manejan IMEI (según el snapshot del PASO A).
-        # Solo estas se pueden mandar a cero si no se pistolearon; las demás
-        # (módulos que nunca capturaron IMEI: M2, RO, MF...) se dejan intactas.
+        # Todos los módulos activos capturan IMEI hoy, así que este conjunto ya
+        # NO sirve como salvaguarda: en la práctica cubre casi todo el módulo.
+        # Quien decide si una clave no pistoleada se manda a cero es el flag
+        # data.conteo_imei_completo (ver C3); sin él, un conteo parcial dejaría
+        # en cero todo lo que no alcanzó a escanearse.
         claves_con_imei = {e.clave for e in snapshot_surtidos}
 
         # PASO C ── fusionar con las listas del request ────────────────────────
@@ -259,28 +262,31 @@ def aplicar_conteo(
 
         # C3: teléfono con stock en el módulo que NO se pistoleó → cantidad 0,
         # SOLO si esa clave maneja IMEI (está en claves_con_imei).
-        ims_con_stock = (
-            db.query(models.InventarioModulo)
-            .filter(
-                models.InventarioModulo.modulo_id == data.modulo_id,
-                models.InventarioModulo.cantidad > 0,
+        # Bajo bandera: únicamente cuando el usuario declara que el pistoleo del
+        # módulo está COMPLETO. En un conteo parcial, lo no escaneado se respeta.
+        if data.conteo_imei_completo:
+            ims_con_stock = (
+                db.query(models.InventarioModulo)
+                .filter(
+                    models.InventarioModulo.modulo_id == data.modulo_id,
+                    models.InventarioModulo.cantidad > 0,
+                )
+                .all()
             )
-            .all()
-        )
-        for im in ims_con_stock:
-            if (
-                _detectar_tipo_producto(im.clave) == "telefono"
-                and im.clave not in conteo_por_clave
-                and im.clave in claves_con_imei
-            ):
-                if im.clave in actualizar_por_clave:
-                    actualizar_por_clave[im.clave].cantidad_nueva = 0
-                else:
-                    nuevo = schemas.ItemAplicarActualizar(
-                        clave=im.clave, producto=im.producto, cantidad_nueva=0
-                    )
-                    data.para_actualizar.append(nuevo)
-                    actualizar_por_clave[im.clave] = nuevo
+            for im in ims_con_stock:
+                if (
+                    _detectar_tipo_producto(im.clave) == "telefono"
+                    and im.clave not in conteo_por_clave
+                    and im.clave in claves_con_imei
+                ):
+                    if im.clave in actualizar_por_clave:
+                        actualizar_por_clave[im.clave].cantidad_nueva = 0
+                    else:
+                        nuevo = schemas.ItemAplicarActualizar(
+                            clave=im.clave, producto=im.producto, cantidad_nueva=0
+                        )
+                        data.para_actualizar.append(nuevo)
+                        actualizar_por_clave[im.clave] = nuevo
 
     # Crear registro maestro para obtener el id (folio se asigna después del flush)
     conteo = models.ConteoFisico(
@@ -936,3 +942,62 @@ def estado_congelado_modulos(
 ):
     modulos = db.query(models.Modulo).order_by(models.Modulo.nombre).all()
     return [{"id": m.id, "nombre": m.nombre, "congelado": m.congelado} for m in modulos]
+
+
+# ── Resumen IMEI del módulo (solo lectura) ───────────────────────────────────
+# Alimenta el diálogo de confirmación del frontend ANTES de aplicar un conteo
+# por IMEI. Repite a propósito las dos consultas del PASO A y de C3 en
+# /aplicar, con el mismo _detectar_tipo_producto: si el número que ve el
+# usuario saliera por otro criterio que el del borrado, el diálogo daría una
+# falsa tranquilidad justo cuando más caro cuesta equivocarse.
+
+@router.get("/modulos/{modulo_id}/resumen-imei")
+def resumen_imei_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
+):
+    modulo = db.query(models.Modulo).filter(models.Modulo.id == modulo_id).first()
+    if not modulo:
+        raise HTTPException(status_code=404, detail="Módulo no encontrado")
+
+    # Misma consulta que el snapshot del PASO A de /aplicar.
+    snapshot_surtidos = (
+        db.query(models.EquiposTelcel)
+        .filter(
+            models.EquiposTelcel.modulo_id == modulo_id,
+            models.EquiposTelcel.estatus == "surtido",
+        )
+        .all()
+    )
+    claves_con_imei = {e.clave for e in snapshot_surtidos}
+
+    # Misma consulta que ims_con_stock de C3.
+    ims_con_stock = (
+        db.query(models.InventarioModulo)
+        .filter(
+            models.InventarioModulo.modulo_id == modulo_id,
+            models.InventarioModulo.cantidad > 0,
+        )
+        .all()
+    )
+
+    # Universo COMPLETO que C3 pondría en cero si no se pistolea. El frontend
+    # resta lo que ya escaneó; aquí no se descuenta nada.
+    claves_zeroables = [
+        {
+            "clave": im.clave,
+            "producto": im.producto,
+            "cantidad_actual": im.cantidad,
+        }
+        for im in ims_con_stock
+        if _detectar_tipo_producto(im.clave) == "telefono"
+        and im.clave in claves_con_imei
+    ]
+    claves_zeroables.sort(key=lambda x: x["clave"])
+
+    return {
+        "total_surtidos": len(snapshot_surtidos),
+        "claves_con_imei": len(claves_con_imei),
+        "claves_zeroables": claves_zeroables,
+    }
