@@ -569,10 +569,76 @@ def detalle_conteo(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin)),
 ):
-    conteo = db.query(models.ConteoFisico).filter(models.ConteoFisico.folio == folio).first()
+    conteo = db.query(models.ConteoFisico).filter(
+        models.ConteoFisico.folio == folio
+    ).first()
     if not conteo:
         raise HTTPException(status_code=404, detail=f"Conteo {folio} no encontrado")
-    return conteo
+
+    # IMEIs escaneados en este conteo, agrupados por clave normalizada
+    filas_imei = db.query(models.ConteoFisicoImei).filter(
+        models.ConteoFisicoImei.conteo_id == conteo.id
+    ).all()
+
+    imeis_por_clave = {}
+    imeis_sin_clave = []
+    for f in filas_imei:
+        if f.clave:
+            k = f.clave.strip().upper()
+            imeis_por_clave.setdefault(k, []).append(f.imei)
+        else:
+            imeis_sin_clave.append(f.imei)
+
+    # Claves que SÍ manejan IMEI (existen en equipos_telcel)
+    claves_items = [
+        i.clave.strip().upper() for i in conteo.items if i.clave
+    ]
+    claves_con_imei = set()
+    if claves_items:
+        rows = db.query(models.EquiposTelcel.clave).filter(
+            func.upper(func.trim(models.EquiposTelcel.clave)).in_(claves_items)
+        ).distinct().all()
+        claves_con_imei = {r[0].strip().upper() for r in rows if r[0]}
+
+    items_out = []
+    for i in conteo.items:
+        k = i.clave.strip().upper() if i.clave else ""
+        lista = sorted(imeis_por_clave.get(k, []))
+        aplica = k in claves_con_imei or len(lista) > 0
+        check = None
+        if aplica:
+            check = "ok" if len(lista) == (i.cantidad_nueva or 0) else "descuadre"
+        items_out.append(schemas.ConteoFisicoItemResponse(
+            id=i.id,
+            clave=i.clave,
+            producto=i.producto,
+            cantidad_anterior=i.cantidad_anterior,
+            cantidad_nueva=i.cantidad_nueva,
+            accion=i.accion,
+            producto_creado=bool(i.producto_creado),
+            imeis=lista,
+            imeis_escaneados=len(lista),
+            imei_aplica=aplica,
+            imei_check=check,
+        ))
+
+    return schemas.ConteoFisicoDetalleResponse(
+        id=conteo.id,
+        folio=conteo.folio,
+        modulo=conteo.modulo,
+        fecha=conteo.fecha,
+        usuario=conteo.usuario,
+        archivo_nombre=conteo.archivo_nombre,
+        total_filas=conteo.total_filas,
+        productos_actualizados=conteo.productos_actualizados,
+        productos_creados=conteo.productos_creados,
+        productos_en_cero=conteo.productos_en_cero,
+        estado=conteo.estado,
+        notas=conteo.notas,
+        items=items_out,
+        imeis_sin_clave=sorted(imeis_sin_clave),
+        total_imeis=len(filas_imei),
+    )
 
 
 # ── GET /{folio}/kardex/{clave} ───────────────────────────────────────────────

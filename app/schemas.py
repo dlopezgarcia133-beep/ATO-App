@@ -1367,6 +1367,10 @@ class ConteoFisicoItemResponse(BaseModel):
     cantidad_nueva: Optional[int] = None
     accion: Optional[str] = None
     producto_creado: bool = False
+    imeis: List[str] = []
+    imeis_escaneados: int = 0
+    imei_aplica: bool = False
+    imei_check: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -1390,6 +1394,8 @@ class ConteoFisicoListItem(BaseModel):
 
 class ConteoFisicoDetalleResponse(ConteoFisicoListItem):
     items: List[ConteoFisicoItemResponse]
+    imeis_sin_clave: List[str] = []
+    total_imeis: int = 0
 
 class RevertirResponse(BaseModel):
     folio: str
