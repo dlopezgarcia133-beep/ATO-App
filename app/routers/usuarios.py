@@ -4,7 +4,7 @@ import traceback
 from sqlalchemy import case, func
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.config import get_current_user
 from app.database import get_db
@@ -97,16 +97,56 @@ def obtener_modulos(
     return db.query(models.Modulo).all()
 
 
-# ------------------- TIENDAS (catálogo para módulos Cadenas) -------------------
-@router.get("/tiendas", response_model=list[schemas.TiendaResponse])
-def obtener_tiendas(
+# ------------------- CADENAS (catálogo padre de tiendas) -------------------
+@router.get("/cadenas", response_model=list[schemas.CadenaResponse])
+def obtener_cadenas(
     incluir_inactivas: bool = False,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(models.Tienda)
+    query = db.query(models.Cadena)
+    if not incluir_inactivas:
+        query = query.filter(models.Cadena.activo == True)
+    return query.order_by(models.Cadena.nombre).all()
+
+
+# ------------------- TIENDAS (catálogo para módulos Cadenas) -------------------
+CAMPOS_TIENDA = [
+    "cadena_id", "num_tienda", "garantizados",
+    "clave_1", "clave_2", "clave_3", "clave_4",
+]
+
+
+def _validar_cadena(db: Session, cadena_id):
+    if cadena_id is None:
+        return
+    existe = db.query(models.Cadena).filter_by(id=cadena_id).first()
+    if not existe:
+        raise HTTPException(status_code=400, detail="La cadena indicada no existe")
+
+
+def _validar_num_tienda(db: Session, num_tienda, excluir_id=None):
+    if num_tienda is None:
+        return
+    query = db.query(models.Tienda).filter(models.Tienda.num_tienda == num_tienda)
+    if excluir_id is not None:
+        query = query.filter(models.Tienda.id != excluir_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail=f"Ya existe una tienda con el número {num_tienda}")
+
+
+@router.get("/tiendas", response_model=list[schemas.TiendaResponse])
+def obtener_tiendas(
+    incluir_inactivas: bool = False,
+    cadena_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    query = db.query(models.Tienda).options(joinedload(models.Tienda.cadena))
     if not incluir_inactivas:
         query = query.filter(models.Tienda.activo == True)
+    if cadena_id is not None:
+        query = query.filter(models.Tienda.cadena_id == cadena_id)
     return query.order_by(models.Tienda.nombre).all()
 
 
@@ -120,8 +160,11 @@ def actualizar_tienda(
     tienda = db.query(models.Tienda).filter_by(id=tienda_id).first()
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
-    if datos.nombre is not None:
-        nombre = datos.nombre.strip()
+
+    enviados = datos.model_dump(exclude_unset=True)
+
+    if "nombre" in enviados:
+        nombre = (enviados["nombre"] or "").strip()
         if not nombre:
             raise HTTPException(status_code=400, detail="El nombre de la tienda es obligatorio")
         duplicada = (
@@ -132,8 +175,20 @@ def actualizar_tienda(
         if duplicada:
             raise HTTPException(status_code=400, detail="Ya existe una tienda con ese nombre")
         tienda.nombre = nombre
-    if datos.activo is not None:
-        tienda.activo = datos.activo
+
+    if "activo" in enviados:
+        tienda.activo = enviados["activo"]
+
+    if "cadena_id" in enviados:
+        _validar_cadena(db, enviados["cadena_id"])
+
+    if "num_tienda" in enviados:
+        _validar_num_tienda(db, enviados["num_tienda"], excluir_id=tienda_id)
+
+    for campo in CAMPOS_TIENDA:
+        if campo in enviados:
+            setattr(tienda, campo, enviados[campo])
+
     db.commit()
     db.refresh(tienda)
     return tienda
@@ -148,6 +203,7 @@ def crear_tienda(
     nombre = (tienda.nombre or "").strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="El nombre de la tienda es obligatorio")
+
     existente = (
         db.query(models.Tienda)
         .filter(func.lower(models.Tienda.nombre) == nombre.lower())
@@ -155,7 +211,20 @@ def crear_tienda(
     )
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe una tienda con ese nombre")
-    nueva = models.Tienda(nombre=nombre)
+
+    _validar_cadena(db, tienda.cadena_id)
+    _validar_num_tienda(db, tienda.num_tienda)
+
+    nueva = models.Tienda(
+        nombre=nombre,
+        cadena_id=tienda.cadena_id,
+        num_tienda=tienda.num_tienda,
+        garantizados=tienda.garantizados,
+        clave_1=tienda.clave_1,
+        clave_2=tienda.clave_2,
+        clave_3=tienda.clave_3,
+        clave_4=tienda.clave_4,
+    )
     db.add(nueva)
     db.commit()
     db.refresh(nueva)

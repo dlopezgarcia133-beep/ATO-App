@@ -48,6 +48,16 @@ class Usuario(Base):
     tienda = relationship("Tienda", backref="usuarios")
 
 
+class Cadena(Base):
+    __tablename__ = "cadenas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(20), unique=True, nullable=False)
+    nombre = Column(String(100), nullable=False)
+    activo = Column(Boolean, default=True, nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Tienda(Base):
     __tablename__ = "tiendas"
 
@@ -55,6 +65,16 @@ class Tienda(Base):
     nombre = Column(String, unique=True, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    cadena_id = Column(Integer, ForeignKey("cadenas.id"), nullable=True)
+    num_tienda = Column(Integer, nullable=True)
+    garantizados = Column(Numeric(5, 2), default=0)
+    clave_1 = Column(String(30), nullable=True)
+    clave_2 = Column(String(30), nullable=True)
+    clave_3 = Column(String(30), nullable=True)
+    clave_4 = Column(String(30), nullable=True)
+
+    cadena = relationship("Cadena", backref="tiendas")
 
 
 class AsistenciaLegacy(Base):

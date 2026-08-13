@@ -344,19 +344,51 @@ class ModuloResponse(BaseModel):
         from_attributes = True
 
 
+class CadenaResponse(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    activo: bool
+
+    class Config:
+        from_attributes = True
+
+
 class TiendaCreate(BaseModel):
     nombre: str
+    cadena_id: Optional[int] = None
+    num_tienda: Optional[int] = None
+    garantizados: Optional[float] = 0
+    clave_1: Optional[str] = None
+    clave_2: Optional[str] = None
+    clave_3: Optional[str] = None
+    clave_4: Optional[str] = None
 
 
 class TiendaUpdate(BaseModel):
     nombre: Optional[str] = None
     activo: Optional[bool] = None
+    cadena_id: Optional[int] = None
+    num_tienda: Optional[int] = None
+    garantizados: Optional[float] = None
+    clave_1: Optional[str] = None
+    clave_2: Optional[str] = None
+    clave_3: Optional[str] = None
+    clave_4: Optional[str] = None
 
 
 class TiendaResponse(BaseModel):
     id: int
     nombre: str
     activo: bool
+    cadena_id: Optional[int] = None
+    num_tienda: Optional[int] = None
+    garantizados: Optional[float] = None
+    clave_1: Optional[str] = None
+    clave_2: Optional[str] = None
+    clave_3: Optional[str] = None
+    clave_4: Optional[str] = None
+    cadena: Optional[CadenaResponse] = None
 
     class Config:
         from_attributes = True
