@@ -125,6 +125,14 @@ def _validar_cadena(db: Session, cadena_id):
         raise HTTPException(status_code=400, detail="La cadena indicada no existe")
 
 
+def _validar_tienda(db: Session, tienda_id):
+    if tienda_id is None:
+        return
+    existe = db.query(models.Tienda).filter_by(id=tienda_id).first()
+    if not existe:
+        raise HTTPException(status_code=400, detail="La tienda indicada no existe")
+
+
 def _validar_num_tienda(db: Session, num_tienda, excluir_id=None):
     if num_tienda is None:
         return
@@ -282,6 +290,9 @@ def editar_usuario(
             usuario_db.forma_pago = datos.forma_pago or None
         if "cuenta_clabe" in datos.model_fields_set:
             usuario_db.cuenta_clabe = datos.cuenta_clabe or None
+        if "tienda_id" in datos.model_fields_set:
+            _validar_tienda(db, datos.tienda_id)
+            usuario_db.tienda_id = datos.tienda_id
         if "cuenta_interbancaria" in datos.model_fields_set:
             usuario_db.cuenta_interbancaria = datos.cuenta_interbancaria or None
         if "nombre_englobado" in datos.model_fields_set:

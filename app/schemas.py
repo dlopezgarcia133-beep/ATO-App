@@ -168,6 +168,7 @@ class UsuarioUpdate(BaseModel):
     jornada_fija: Optional[float] = None
     horario_semanal: Optional[List[Dict]] = None
     dia_descanso: Optional[str] = None
+    tienda_id: Optional[int] = None
 
 # 👉 Este para devolver la respuesta
 class ModuloOut(BaseModel):
