@@ -193,6 +193,8 @@ class UsuarioResponse(BaseModel):
     jornada_fija: Optional[float] = 0
     horario_semanal: Optional[List[Dict]] = []
     dia_descanso: Optional[str] = None
+    tienda_id: Optional[int] = None
+    tienda: Optional["TiendaResponse"] = None
 
     class Config:
         from_attributes = True
@@ -1607,3 +1609,7 @@ class SemanaDetalle(BaseModel):
 class DevolucionCreate(BaseModel):
     monto: float
     motivo: Optional[str] = None
+
+
+# TiendaResponse se define despues de UsuarioResponse: resuelve la forward ref.
+UsuarioResponse.model_rebuild()

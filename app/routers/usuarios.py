@@ -346,6 +346,10 @@ def obtener_usuarios(
 ):
     return (
         db.query(models.Usuario)
+        .options(
+            joinedload(models.Usuario.modulo),
+            joinedload(models.Usuario.tienda).joinedload(models.Tienda.cadena),
+        )
         .filter(models.Usuario.activo == True)
         .order_by(
             case(
