@@ -1371,6 +1371,7 @@ class ConteoFisicoItemResponse(BaseModel):
     imeis_escaneados: int = 0
     imei_aplica: bool = False
     imei_check: Optional[str] = None
+    imeis_faltantes: List[str] = []
 
     class Config:
         from_attributes = True

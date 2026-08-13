@@ -589,6 +589,28 @@ def detalle_conteo(
         else:
             imeis_sin_clave.append(f.imei)
 
+    # IMEIs surtidos hoy en el módulo del conteo que NO se escanearon
+    imeis_escaneados_set = {
+        (f.imei or "").strip() for f in filas_imei
+    }
+    faltantes_por_clave = {}
+    if conteo.modulo_id:
+        surtidos = db.query(
+            models.EquiposTelcel.imei,
+            models.EquiposTelcel.clave,
+        ).filter(
+            models.EquiposTelcel.modulo_id == conteo.modulo_id,
+            models.EquiposTelcel.estatus == "surtido",
+        ).all()
+        for imei_s, clave_s in surtidos:
+            if not imei_s or not clave_s:
+                continue
+            if imei_s.strip() in imeis_escaneados_set:
+                continue
+            faltantes_por_clave.setdefault(
+                clave_s.strip().upper(), []
+            ).append(imei_s.strip())
+
     # Claves que SÍ manejan IMEI (existen en equipos_telcel)
     claves_items = [
         i.clave.strip().upper() for i in conteo.items if i.clave
@@ -604,10 +626,12 @@ def detalle_conteo(
     for i in conteo.items:
         k = i.clave.strip().upper() if i.clave else ""
         lista = sorted(imeis_por_clave.get(k, []))
-        aplica = k in claves_con_imei or len(lista) > 0
+        faltan = sorted(faltantes_por_clave.get(k, []))
+        aplica = k in claves_con_imei or len(lista) > 0 or len(faltan) > 0
         check = None
         if aplica:
-            check = "ok" if len(lista) == (i.cantidad_nueva or 0) else "descuadre"
+            cuadra_cantidad = len(lista) == (i.cantidad_nueva or 0)
+            check = "ok" if (not faltan and cuadra_cantidad) else "descuadre"
         items_out.append(schemas.ConteoFisicoItemResponse(
             id=i.id,
             clave=i.clave,
@@ -620,6 +644,7 @@ def detalle_conteo(
             imeis_escaneados=len(lista),
             imei_aplica=aplica,
             imei_check=check,
+            imeis_faltantes=faltan,
         ))
 
     return schemas.ConteoFisicoDetalleResponse(
