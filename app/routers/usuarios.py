@@ -158,6 +158,53 @@ def obtener_tiendas(
     return query.order_by(models.Tienda.nombre).all()
 
 
+@router.get("/garantizados")
+def obtener_garantizados(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    import math
+
+    tiendas = (
+        db.query(models.Tienda)
+        .options(joinedload(models.Tienda.cadena))
+        .filter(models.Tienda.activo == True)
+        .all()
+    )
+
+    usuarios = (
+        db.query(models.Usuario)
+        .filter(models.Usuario.activo == True, models.Usuario.tienda_id.isnot(None))
+        .order_by(models.Usuario.username)
+        .all()
+    )
+
+    por_tienda = {}
+    for u in usuarios:
+        por_tienda.setdefault(u.tienda_id, []).append(u.username)
+
+    resultado = []
+    for t in tiendas:
+        garantizados = float(t.garantizados or 0)
+        requeridos = math.ceil(garantizados)
+        promotores = por_tienda.get(t.id, [])
+        resultado.append({
+            "tienda_id": t.id,
+            "num_tienda": t.num_tienda,
+            "cadena": t.cadena.codigo if t.cadena else None,
+            "cadena_id": t.cadena_id,
+            "nombre": t.nombre,
+            "garantizados": garantizados,
+            "requeridos": requeridos,
+            "promotores": promotores,
+            "asignados": len(promotores),
+            "cumple": len(promotores) >= requeridos,
+        })
+
+    resultado.sort(key=lambda x: (x["garantizados"] == 0, x["cadena"] or "", x["nombre"]))
+    return resultado
+
+
 @router.put("/tiendas/{tienda_id}", response_model=schemas.TiendaResponse)
 def actualizar_tienda(
     tienda_id: int,
