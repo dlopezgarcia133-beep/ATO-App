@@ -582,12 +582,40 @@ def detalle_conteo(
 
     imeis_por_clave = {}
     imeis_sin_clave = []
+
+    # Un IMEI pudo darse de alta DESPUÉS de cerrar el conteo: la fila guardada
+    # conserva clave NULL para siempre. Resolvemos esas filas contra
+    # equipos_telcel con una sola consulta, no un query por fila.
+    imeis_pendientes = {
+        (f.imei or "").strip().upper()
+        for f in filas_imei
+        if not f.clave and (f.imei or "").strip()
+    }
+    clave_por_imei = {}
+    if imeis_pendientes:
+        rows_eq = db.query(
+            models.EquiposTelcel.imei,
+            models.EquiposTelcel.clave,
+        ).filter(
+            func.upper(func.trim(models.EquiposTelcel.imei)).in_(
+                sorted(imeis_pendientes)
+            )
+        ).all()
+        for imei_e, clave_e in rows_eq:
+            if not imei_e or not clave_e:
+                continue
+            clave_por_imei[imei_e.strip().upper()] = clave_e.strip().upper()
+
     for f in filas_imei:
         if f.clave:
             k = f.clave.strip().upper()
             imeis_por_clave.setdefault(k, []).append(f.imei)
         else:
-            imeis_sin_clave.append(f.imei)
+            k = clave_por_imei.get((f.imei or "").strip().upper())
+            if k:
+                imeis_por_clave.setdefault(k, []).append(f.imei)
+            else:
+                imeis_sin_clave.append(f.imei)
 
     # IMEIs surtidos hoy en el módulo del conteo que NO se escanearon
     imeis_escaneados_set = {
