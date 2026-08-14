@@ -187,7 +187,10 @@ def obtener_garantizados(
 
     por_tienda = {}
     for u in usuarios:
-        por_tienda.setdefault(u.tienda_id, []).append(u.username)
+        por_tienda.setdefault(u.tienda_id, []).append({
+            "username": u.username,
+            "asegurado": bool(u.asegurado),
+        })
 
     resultado = []
     for t in tiendas:
