@@ -133,14 +133,20 @@ def _validar_tienda(db: Session, tienda_id):
         raise HTTPException(status_code=400, detail="La tienda indicada no existe")
 
 
-def _validar_num_tienda(db: Session, num_tienda, excluir_id=None):
-    if num_tienda is None:
+def _validar_num_tienda(db: Session, num_tienda, cadena_id, excluir_id=None):
+    if num_tienda is None or cadena_id is None:
         return
-    query = db.query(models.Tienda).filter(models.Tienda.num_tienda == num_tienda)
+    query = db.query(models.Tienda).filter(
+        models.Tienda.num_tienda == num_tienda,
+        models.Tienda.cadena_id == cadena_id,
+    )
     if excluir_id is not None:
         query = query.filter(models.Tienda.id != excluir_id)
     if query.first():
-        raise HTTPException(status_code=400, detail=f"Ya existe una tienda con el número {num_tienda}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe una tienda con el número {num_tienda} en esa cadena",
+        )
 
 
 @router.get("/tiendas", response_model=list[schemas.TiendaResponse])
@@ -237,8 +243,10 @@ def actualizar_tienda(
     if "cadena_id" in enviados:
         _validar_cadena(db, enviados["cadena_id"])
 
-    if "num_tienda" in enviados:
-        _validar_num_tienda(db, enviados["num_tienda"], excluir_id=tienda_id)
+    if "num_tienda" in enviados or "cadena_id" in enviados:
+        nuevo_num = enviados.get("num_tienda", tienda.num_tienda)
+        nueva_cadena = enviados.get("cadena_id", tienda.cadena_id)
+        _validar_num_tienda(db, nuevo_num, nueva_cadena, excluir_id=tienda_id)
 
     for campo in CAMPOS_TIENDA:
         if campo in enviados:
@@ -268,7 +276,7 @@ def crear_tienda(
         raise HTTPException(status_code=400, detail="Ya existe una tienda con ese nombre")
 
     _validar_cadena(db, tienda.cadena_id)
-    _validar_num_tienda(db, tienda.num_tienda)
+    _validar_num_tienda(db, tienda.num_tienda, tienda.cadena_id)
 
     nueva = models.Tienda(
         nombre=nombre,
