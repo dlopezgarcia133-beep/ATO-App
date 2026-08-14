@@ -169,6 +169,7 @@ class UsuarioUpdate(BaseModel):
     horario_semanal: Optional[List[Dict]] = None
     dia_descanso: Optional[str] = None
     tienda_id: Optional[int] = None
+    asegurado: Optional[bool] = None
 
 # 👉 Este para devolver la respuesta
 class ModuloOut(BaseModel):
@@ -195,6 +196,7 @@ class UsuarioResponse(BaseModel):
     dia_descanso: Optional[str] = None
     tienda_id: Optional[int] = None
     tienda: Optional["TiendaResponse"] = None
+    asegurado: Optional[bool] = False
 
     class Config:
         from_attributes = True

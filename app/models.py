@@ -44,6 +44,7 @@ class Usuario(Base):
     horario_semanal = Column(JSON, default=list)
     dia_descanso = Column(String(10), nullable=True)
     tienda_id = Column(Integer, ForeignKey("tiendas.id"), nullable=True)
+    asegurado = Column(Boolean, default=False, nullable=False)
 
     tienda = relationship("Tienda", backref="usuarios")
 

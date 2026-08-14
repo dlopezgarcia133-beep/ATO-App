@@ -348,6 +348,8 @@ def editar_usuario(
         if "tienda_id" in datos.model_fields_set:
             _validar_tienda(db, datos.tienda_id)
             usuario_db.tienda_id = datos.tienda_id
+        if "asegurado" in datos.model_fields_set:
+            usuario_db.asegurado = bool(datos.asegurado)
         if "cuenta_interbancaria" in datos.model_fields_set:
             usuario_db.cuenta_interbancaria = datos.cuenta_interbancaria or None
         if "nombre_englobado" in datos.model_fields_set:
