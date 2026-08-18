@@ -475,13 +475,23 @@ def recalcular_nomina(
     try:
         # Actualizar campos de la nómina existente (NO crear nueva)
         nomina.etiqueta = data.etiqueta.strip()
-        nomina.ciclo_horas_extras_id = data.ciclo_horas_extras_id
-        nomina.fecha_inicio_asesores = data.fecha_inicio_asesores
-        nomina.fecha_fin_asesores = data.fecha_fin_asesores
-        nomina.fecha_inicio_encargados = data.fecha_inicio_encargados
-        nomina.fecha_fin_encargados = data.fecha_fin_encargados
-        nomina.fecha_inicio_cadenas = data.fecha_inicio_cadenas
-        nomina.fecha_fin_cadenas = data.fecha_fin_cadenas
+
+        # Solo sobrescribir los campos que el cliente envio explicitamente.
+        # Antes se asignaban siempre, y un cliente que mandaba solo
+        # {etiqueta, datos} borraba las fechas y el ciclo con None.
+        enviados = data.model_fields_set
+        for campo in (
+            "ciclo_horas_extras_id",
+            "fecha_inicio_asesores",
+            "fecha_fin_asesores",
+            "fecha_inicio_encargados",
+            "fecha_fin_encargados",
+            "fecha_inicio_cadenas",
+            "fecha_fin_cadenas",
+        ):
+            if campo in enviados:
+                setattr(nomina, campo, getattr(data, campo))
+
         nomina.total_pago = round(total, 2)
         nomina.datos = data.datos
 
