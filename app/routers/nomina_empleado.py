@@ -240,3 +240,168 @@ def mi_recibo_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ── Detalle del recibo (solo lectura, no afecta el cálculo de nómina) ─────────
+
+_EXTRA_POR_TIPO = {"Contado": 10, "Paguitos": 110, "Pajoy": 100}
+
+
+def _comision_unitaria(v) -> float:
+    """Misma fórmula que services.calcular_totales_comisiones."""
+    base = float(getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0)
+    if v.tipo_producto == "telefono":
+        tipo = v.tipo_venta or ""
+        if tipo == "Contado" and base > 0:
+            return base
+        return base + _EXTRA_POR_TIPO.get(tipo, 0)
+    return base
+
+
+def _periodo_de_fila(nomina, fila):
+    seccion = (fila.get("seccion") or "").strip()
+    if seccion == "encargado":
+        return nomina.fecha_inicio_encargados, nomina.fecha_fin_encargados
+    if seccion == "cadena":
+        return nomina.fecha_inicio_cadenas, nomina.fecha_fin_cadenas
+    return nomina.fecha_inicio_asesores, nomina.fecha_fin_asesores
+
+
+@router.get("/mi-recibo/detalle")
+def mi_recibo_detalle(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    from sqlalchemy.orm import joinedload
+
+    nomina = _get_nomina_publicada(db)
+    fila = _get_mi_fila(nomina, current_user)
+
+    ids = fila.get("usuario_ids", [])
+    inicio, fin = _periodo_de_fila(nomina, fila)
+
+    if not ids or not inicio or not fin:
+        return {
+            "disponible": False,
+            "motivo": "Esta nómina no tiene periodo de comisiones registrado",
+            "periodo": None,
+            "accesorios": [],
+            "telefonos": [],
+            "chips": [],
+            "cuadre": None,
+        }
+
+    ventas = (
+        db.query(models.Venta)
+        .options(joinedload(models.Venta.comision_obj))
+        .filter(
+            models.Venta.empleado_id.in_(ids),
+            models.Venta.cancelada == False,
+            models.Venta.fecha >= inicio,
+            models.Venta.fecha <= fin,
+        )
+        .all()
+    )
+
+    chips = (
+        db.query(models.VentaChip)
+        .filter(
+            models.VentaChip.empleado_id.in_(ids),
+            models.VentaChip.cancelada == False,
+            models.VentaChip.es_incubadora == False,
+            models.VentaChip.validado == True,
+            models.VentaChip.numero_telefono.isnot(None),
+            models.VentaChip.fecha >= inicio,
+            models.VentaChip.fecha <= fin,
+        )
+        .all()
+    )
+
+    grupos_acc: dict = {}
+    grupos_tel: dict = {}
+
+    for v in ventas:
+        unit = _comision_unitaria(v)
+        if unit <= 0:
+            continue
+        cant = int(v.cantidad or 0)
+        if cant <= 0:
+            continue
+
+        if v.tipo_producto == "telefono":
+            key = ((v.producto or "").strip(), unit, (v.tipo_venta or "").strip())
+            destino = grupos_tel
+        elif v.tipo_producto == "accesorios":
+            key = ((v.producto or "").strip(), unit, None)
+            destino = grupos_acc
+        else:
+            continue
+
+        if key not in destino:
+            destino[key] = {
+                "producto": key[0],
+                "comision_unitaria": round(unit, 2),
+                "piezas": 0,
+                "subtotal": 0.0,
+            }
+            if key[2] is not None:
+                destino[key]["tipo_venta"] = key[2]
+        destino[key]["piezas"] += cant
+        destino[key]["subtotal"] += unit * cant
+
+    grupos_chip: dict = {}
+    for c in chips:
+        com = float(c.comision or 0)
+        if com <= 0:
+            continue
+        key = ((c.tipo_chip or "").strip(), float(c.monto_recarga or 0), com)
+        if key not in grupos_chip:
+            grupos_chip[key] = {
+                "tipo_chip": key[0],
+                "monto_recarga": key[1],
+                "comision_unitaria": round(com, 2),
+                "piezas": 0,
+                "subtotal": 0.0,
+            }
+        grupos_chip[key]["piezas"] += 1
+        grupos_chip[key]["subtotal"] += com
+
+    def _ordenar(d):
+        filas = sorted(d.values(), key=lambda x: (-x["subtotal"], x.get("producto", "")))
+        for f in filas:
+            f["subtotal"] = round(f["subtotal"], 2)
+        return filas
+
+    lista_acc = _ordenar(grupos_acc)
+    lista_tel = _ordenar(grupos_tel)
+    lista_chip = sorted(
+        grupos_chip.values(), key=lambda x: (-x["subtotal"], x["tipo_chip"])
+    )
+    for f in lista_chip:
+        f["subtotal"] = round(f["subtotal"], 2)
+
+    calc = {
+        "accesorios": round(sum(f["subtotal"] for f in lista_acc), 2),
+        "telefonos": round(sum(f["subtotal"] for f in lista_tel), 2),
+        "chips": round(sum(f["subtotal"] for f in lista_chip), 2),
+    }
+    pagado = {
+        "accesorios": round(float(fila.get("accesorios", 0) or 0), 2),
+        "telefonos": round(float(fila.get("telefonos", 0) or 0), 2),
+        "chips": round(float(fila.get("chips", 0) or 0), 2),
+    }
+    cuadra = all(abs(calc[k] - pagado[k]) < 0.01 for k in calc)
+
+    return {
+        "disponible": True,
+        "motivo": None,
+        "periodo": {"inicio": str(inicio), "fin": str(fin)},
+        "accesorios": lista_acc,
+        "telefonos": lista_tel,
+        "chips": lista_chip,
+        "cuadre": {
+            "cuadra": cuadra,
+            "calculado": calc,
+            "pagado": pagado,
+        },
+    }
