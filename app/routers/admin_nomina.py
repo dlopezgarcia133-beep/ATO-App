@@ -492,8 +492,25 @@ def recalcular_nomina(
             if campo in enviados:
                 setattr(nomina, campo, getattr(data, campo))
 
+        # Merge por empleado, NO reemplazo total: el cliente solo manda las llaves
+        # que edita, y un `nomina.datos = data.datos` borraba para siempre las que
+        # no viajan (sueldo_detalle, sueldo_suma_modulos, total...). La fila nueva
+        # gana en las llaves que trae; las demas se conservan de la fila previa.
+        previas = {}
+        for fila in (nomina.datos or []):
+            if isinstance(fila, dict) and fila.get("empleado") is not None:
+                previas[str(fila["empleado"])] = fila
+
+        datos_merged: List[dict] = []
+        for fila in data.datos:
+            emp = fila.get("empleado") if isinstance(fila, dict) else None
+            previa = previas.get(str(emp)) if emp is not None else None
+            # Sin previa (o sin "empleado"): la fila nueva se usa tal cual.
+            # Las previas cuyo empleado ya no viene se descartan: el admin las quito.
+            datos_merged.append({**previa, **fila} if previa else fila)
+
         nomina.total_pago = round(total, 2)
-        nomina.datos = data.datos
+        nomina.datos = datos_merged
 
         # IMPORTANTE: NO tocar el estado publicada (a diferencia del POST, la edición
         # no debe despublicar las demás ni cambiar cuál está publicada).
