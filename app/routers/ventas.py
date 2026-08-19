@@ -1106,6 +1106,7 @@ def obtener_ventas_chips(
     empleado_id: Optional[int] = None,
     modulo_nombre: Optional[str] = None,
     solo_pendientes: bool = False,
+    solo_incubadora: bool = False,
     fecha_inicio: Optional[date] = None,
     fecha_fin: Optional[date] = None,
     db: Session = Depends(get_db),
@@ -1123,6 +1124,8 @@ def obtener_ventas_chips(
                 models.VentaChip.validado.isnot(True),
                 models.VentaChip.cancelada.isnot(True),
             )
+        if solo_incubadora:
+            query = query.filter(models.VentaChip.es_incubadora == True)
         if fecha_inicio:
             query = query.filter(models.VentaChip.fecha >= fecha_inicio)
         if fecha_fin:
