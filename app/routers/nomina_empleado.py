@@ -29,41 +29,6 @@ def _get_mi_fila(nomina: models.Nomina, current_user: models.Usuario) -> dict:
     return fila
 
 
-def _agregar_sueldo_detalle(fila: dict, nomina: models.Nomina, db: Session) -> None:
-    """Copia el desglose de sueldo por módulo (modulos_sueldo) desde el ciclo de
-    sueldos encargados conectado a la nómina. Solo lee datos ya calculados."""
-    ciclo_id = getattr(nomina, "ciclo_sueldos_encargados_id", None)
-    if not ciclo_id:
-        return
-    ciclo = (
-        db.query(models.CicloGuardado)
-        .filter(models.CicloGuardado.id == ciclo_id)
-        .first()
-    )
-    if not ciclo or not ciclo.datos:
-        return
-    ids = set(fila.get("usuario_ids", []))
-    if not ids:
-        return
-    fila_ciclo = next(
-        (item for item in ciclo.datos if ids & set(item.get("usuario_ids", []))),
-        None,
-    )
-    if not fila_ciclo:
-        return
-    modulos_sueldo = fila_ciclo.get("modulos_sueldo")
-    # solo mostrar desglose si hay más de un módulo
-    if modulos_sueldo and len(modulos_sueldo) > 1:
-        fila["sueldo_detalle"] = [
-            {"modulo": m.get("modulo"), "monto": float(m.get("monto") or 0)}
-            for m in modulos_sueldo
-        ]
-        fila["sueldo_periodo"] = {
-            "inicio": str(ciclo.fecha_inicio),
-            "fin": str(ciclo.fecha_fin),
-        }
-
-
 def _build_periodos(nomina: models.Nomina) -> dict:
     periodos: dict = {}
     if nomina.ciclo_horas_extras:
@@ -96,7 +61,10 @@ def mi_recibo(
 ):
     nomina = _get_nomina_publicada(db)
     fila = _get_mi_fila(nomina, current_user)
-    _agregar_sueldo_detalle(fila, nomina, db)
+    # El desglose de sueldo por modulo (sueldo_detalle, sueldo_suma_modulos,
+    # sueldo_minimo_aplicado) ya viene dentro de la fila, escrito por
+    # CrearNominaDialog al guardar la nomina. No consultar ciclos_guardados:
+    # nomina.ciclo_sueldos_encargados_id nunca se llena.
     return {
         "etiqueta": nomina.etiqueta,
         "creado_en": nomina.creado_en.isoformat() if nomina.creado_en else None,
@@ -112,7 +80,6 @@ def mi_recibo_pdf(
 ):
     nomina = _get_nomina_publicada(db)
     fila = _get_mi_fila(nomina, current_user)
-    _agregar_sueldo_detalle(fila, nomina, db)
     periodos = _build_periodos(nomina)
 
     from reportlab.lib import colors
