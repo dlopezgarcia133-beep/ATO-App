@@ -214,6 +214,32 @@ def autocomplete_telefonos(
     return [{"clave": p.clave, "producto": p.producto} for p in productos]
 
 
+@router.get("/buscar-catalogo")
+def autocomplete_catalogo_telefonos(
+    query: str = Query(..., min_length=1, description="Texto a buscar"),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    # Catalogo general (inventario_general): sin filtro de modulo ni de existencia,
+    # para poder dar de alta en bodega un equipo que aun no se movio a ningun modulo.
+    # /buscar sigue consultando inventario_modulo y no se toca.
+    productos = (
+        db.query(models.InventarioGeneral.clave, models.InventarioGeneral.producto)
+        .filter(
+            models.InventarioGeneral.tipo_producto == "telefono",
+            or_(
+                models.InventarioGeneral.clave.ilike(f"%{query}%"),
+                models.InventarioGeneral.producto.ilike(f"%{query}%"),
+            )
+        )
+        .order_by(models.InventarioGeneral.clave)
+        .limit(10)
+        .all()
+    )
+
+    return [{"clave": p.clave, "producto": p.producto} for p in productos]
+
+
 
 
 @router.get("/inventario/general/{producto}", response_model=schemas.InventarioGeneralResponse)
@@ -587,6 +613,33 @@ def eliminar_entrada_mercancia(
     if not entrada:
         raise HTTPException(status_code=404, detail="Entrada no encontrada")
 
+    # El folio se lee aquí: después del db.delete() + commit la instancia queda
+    # expirada y cualquier acceso truena con ObjectDeletedError.
+    folio_entrada = entrada.folio
+
+    # Equipos ligados a esta entrada por folio. Si alguno ya se vendió no se
+    # puede revertir: la venta quedaría sin equipo de respaldo.
+    # PENDIENTE: esta consulta va antes del with_for_update() de la entrada, así
+    # que una venta concurrente entre este chequeo y el commit no se bloquea.
+    # Cerrarlo exige mover la consulta después del lock y reordenar las fases.
+    equipos_entrada = []
+    if folio_entrada:
+        equipos_entrada = (
+            db.query(models.EquiposTelcel)
+            .filter(models.EquiposTelcel.folio == folio_entrada)
+            .all()
+        )
+        vendidos = [e for e in equipos_entrada if e.estatus == "vendido"]
+        if vendidos:
+            imeis_vendidos = ", ".join(sorted(e.imei for e in vendidos if e.imei))
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"No se puede eliminar la entrada: {len(vendidos)} equipo(s) "
+                    f"de este folio ya están vendidos: {imeis_vendidos}"
+                ),
+            )
+
     kardex_items = (
         db.query(models.KardexMovimiento)
         .filter(
@@ -671,9 +724,27 @@ def eliminar_entrada_mercancia(
             referencia_id=entrada_id,
         )
 
+    # Devolver a bodega los equipos surtidos por esta entrada, en la misma
+    # transacción que el borrado. El folio se limpia en todos: si la entrada
+    # deja de existir, nadie debe conservar la referencia.
+    equipos_revertidos = 0
+    for e in equipos_entrada:
+        if e.estatus == "vendido":
+            continue
+        if e.estatus == "surtido":
+            e.estatus = "en_bodega"
+            e.modulo_id = None
+            e.fecha_salida = None
+            equipos_revertidos += 1
+        e.folio = None
+
     db.delete(entrada)
     db.commit()
-    return {"ok": True, "message": f"Entrada {entrada.folio} eliminada correctamente"}
+    return {
+        "ok": True,
+        "message": f"Entrada {folio_entrada} eliminada correctamente",
+        "equipos_revertidos": equipos_revertidos,
+    }
 
 
 @router.put("/inventario/entradas/{entrada_id}")
