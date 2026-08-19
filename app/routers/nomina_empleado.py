@@ -316,22 +316,29 @@ def mi_recibo_detalle(
         destino[key]["piezas"] += cant
         destino[key]["subtotal"] += unit * cant
 
-    # Un renglon por chip (no agrupado): el empleado necesita ver fecha y numero
-    # para reclamar un chip faltante. piezas=1 y subtotal=comision se conservan
-    # para que el frontend actual siga pintando la columna sin cambios.
-    filas_chip: list = []
+    # Agrupado por (tipo, recarga, comision) como siempre, pero cada grupo lleva
+    # sus numeros con fecha: asi no se repite "Activacion $100" nueve veces y el
+    # empleado sigue pudiendo identificar un chip faltante.
+    grupos_chip: dict = {}
     for c in chips:
         com = float(c.comision or 0)
         if com <= 0:
             continue
-        filas_chip.append({
-            "tipo_chip": (c.tipo_chip or "").strip(),
-            "monto_recarga": float(c.monto_recarga or 0),
-            "comision_unitaria": round(com, 2),
-            "piezas": 1,
-            "subtotal": round(com, 2),
+        key = ((c.tipo_chip or "").strip(), float(c.monto_recarga or 0), com)
+        if key not in grupos_chip:
+            grupos_chip[key] = {
+                "tipo_chip": key[0],
+                "monto_recarga": key[1],
+                "comision_unitaria": round(com, 2),
+                "piezas": 0,
+                "subtotal": 0.0,
+                "numeros": [],
+            }
+        grupos_chip[key]["piezas"] += 1
+        grupos_chip[key]["subtotal"] += com
+        grupos_chip[key]["numeros"].append({
             "fecha": str(c.fecha),
-            "numero_telefono": c.numero_telefono,
+            "numero": c.numero_telefono,
         })
 
     def _ordenar(d):
@@ -343,8 +350,11 @@ def mi_recibo_detalle(
     lista_acc = _ordenar(grupos_acc)
     lista_tel = _ordenar(grupos_tel)
     lista_chip = sorted(
-        filas_chip, key=lambda x: (x["fecha"], x["numero_telefono"] or "")
+        grupos_chip.values(), key=lambda x: (-x["subtotal"], x["tipo_chip"])
     )
+    for f in lista_chip:
+        f["subtotal"] = round(f["subtotal"], 2)
+        f["numeros"].sort(key=lambda n: (n["fecha"], n["numero"] or ""))
 
     calc = {
         "accesorios": round(sum(f["subtotal"] for f in lista_acc), 2),
