@@ -316,22 +316,23 @@ def mi_recibo_detalle(
         destino[key]["piezas"] += cant
         destino[key]["subtotal"] += unit * cant
 
-    grupos_chip: dict = {}
+    # Un renglon por chip (no agrupado): el empleado necesita ver fecha y numero
+    # para reclamar un chip faltante. piezas=1 y subtotal=comision se conservan
+    # para que el frontend actual siga pintando la columna sin cambios.
+    filas_chip: list = []
     for c in chips:
         com = float(c.comision or 0)
         if com <= 0:
             continue
-        key = ((c.tipo_chip or "").strip(), float(c.monto_recarga or 0), com)
-        if key not in grupos_chip:
-            grupos_chip[key] = {
-                "tipo_chip": key[0],
-                "monto_recarga": key[1],
-                "comision_unitaria": round(com, 2),
-                "piezas": 0,
-                "subtotal": 0.0,
-            }
-        grupos_chip[key]["piezas"] += 1
-        grupos_chip[key]["subtotal"] += com
+        filas_chip.append({
+            "tipo_chip": (c.tipo_chip or "").strip(),
+            "monto_recarga": float(c.monto_recarga or 0),
+            "comision_unitaria": round(com, 2),
+            "piezas": 1,
+            "subtotal": round(com, 2),
+            "fecha": str(c.fecha),
+            "numero_telefono": c.numero_telefono,
+        })
 
     def _ordenar(d):
         filas = sorted(d.values(), key=lambda x: (-x["subtotal"], x.get("producto", "")))
@@ -342,10 +343,8 @@ def mi_recibo_detalle(
     lista_acc = _ordenar(grupos_acc)
     lista_tel = _ordenar(grupos_tel)
     lista_chip = sorted(
-        grupos_chip.values(), key=lambda x: (-x["subtotal"], x["tipo_chip"])
+        filas_chip, key=lambda x: (x["fecha"], x["numero_telefono"] or "")
     )
-    for f in lista_chip:
-        f["subtotal"] = round(f["subtotal"], 2)
 
     calc = {
         "accesorios": round(sum(f["subtotal"] for f in lista_acc), 2),
