@@ -399,6 +399,39 @@ class TiendaResponse(BaseModel):
         from_attributes = True
 
 
+class TiendaClaveResponse(BaseModel):
+    id: int
+    tienda_id: int
+    clave: str
+    en_uso: bool
+    usuario: Optional[str] = None
+    password: Optional[str] = None
+    notas: Optional[str] = None
+    tienda_nombre: Optional[str] = None
+    cadena: Optional[str] = None
+    num_tienda: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TiendaClaveCreate(BaseModel):
+    tienda_id: int
+    clave: str
+    en_uso: Optional[bool] = False
+    usuario: Optional[str] = None
+    password: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class TiendaClaveUpdate(BaseModel):
+    clave: Optional[str] = None
+    en_uso: Optional[bool] = None
+    usuario: Optional[str] = None
+    password: Optional[str] = None
+    notas: Optional[str] = None
+
+
 
 
 class TraspasoBase(BaseModel):

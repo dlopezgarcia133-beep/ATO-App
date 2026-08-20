@@ -1,6 +1,8 @@
 
 import sys
 import traceback
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy import case, func
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg2 import IntegrityError
@@ -290,6 +292,137 @@ def crear_tienda(
         clave_2=tienda.clave_2,
         clave_3=tienda.clave_3,
         clave_4=tienda.clave_4,
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
+
+
+# ------------------- CLAVES DE TIENDA -------------------
+CAMPOS_CLAVE = ["en_uso", "usuario", "password", "notas"]
+
+
+def _ahora_mx():
+    return datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+
+
+def _normalizar_clave(clave):
+    return (clave or "").strip().upper()
+
+
+def _validar_clave_unica(db: Session, clave, excluir_id=None):
+    query = db.query(models.TiendaClave).filter(models.TiendaClave.clave == clave)
+    if excluir_id is not None:
+        query = query.filter(models.TiendaClave.id != excluir_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail=f"Ya existe la clave {clave}")
+
+
+@router.get("/claves", response_model=list[schemas.TiendaClaveResponse])
+def obtener_claves(
+    tienda_id: int | None = None,
+    solo_en_uso: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    query = db.query(models.TiendaClave).options(
+        joinedload(models.TiendaClave.tienda).joinedload(models.Tienda.cadena)
+    )
+    if tienda_id is not None:
+        query = query.filter(models.TiendaClave.tienda_id == tienda_id)
+    if solo_en_uso:
+        query = query.filter(models.TiendaClave.en_uso == True)
+
+    resultado = []
+    for c in query.all():
+        resultado.append({
+            "id": c.id,
+            "tienda_id": c.tienda_id,
+            "clave": c.clave,
+            "en_uso": c.en_uso,
+            "usuario": c.usuario,
+            "password": c.password,
+            "notas": c.notas,
+            "tienda_nombre": c.tienda.nombre if c.tienda else None,
+            "cadena": c.tienda.cadena.codigo if c.tienda and c.tienda.cadena else None,
+            "num_tienda": c.tienda.num_tienda if c.tienda else None,
+        })
+
+    resultado.sort(key=lambda x: (x["cadena"] or "", x["tienda_nombre"] or "", x["clave"] or ""))
+    return resultado
+
+
+@router.patch("/claves/{clave_id}/uso")
+def alternar_uso_clave(
+    clave_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    clave = db.query(models.TiendaClave).filter_by(id=clave_id).first()
+    if not clave:
+        raise HTTPException(status_code=404, detail="Clave no encontrada")
+
+    clave.en_uso = not clave.en_uso
+    clave.actualizado_en = _ahora_mx()
+
+    db.commit()
+    db.refresh(clave)
+    return {"id": clave.id, "clave": clave.clave, "en_uso": clave.en_uso}
+
+
+@router.put("/claves/{clave_id}", response_model=schemas.TiendaClaveResponse)
+def actualizar_clave(
+    clave_id: int,
+    datos: schemas.TiendaClaveUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    clave = db.query(models.TiendaClave).filter_by(id=clave_id).first()
+    if not clave:
+        raise HTTPException(status_code=404, detail="Clave no encontrada")
+
+    enviados = datos.model_dump(exclude_unset=True)
+
+    if "clave" in enviados:
+        nueva_clave = _normalizar_clave(enviados["clave"])
+        if not nueva_clave:
+            raise HTTPException(status_code=400, detail="La clave es obligatoria")
+        _validar_clave_unica(db, nueva_clave, excluir_id=clave_id)
+        clave.clave = nueva_clave
+
+    for campo in CAMPOS_CLAVE:
+        if campo in enviados:
+            setattr(clave, campo, enviados[campo])
+
+    clave.actualizado_en = _ahora_mx()
+
+    db.commit()
+    db.refresh(clave)
+    return clave
+
+
+@router.post("/tiendas/{tienda_id}/claves", response_model=schemas.TiendaClaveResponse)
+def crear_clave_tienda(
+    tienda_id: int,
+    datos: schemas.TiendaClaveCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(verificar_rol_requerido(models.RolEnum.admin))
+):
+    _validar_tienda(db, tienda_id)
+
+    clave = _normalizar_clave(datos.clave)
+    if not clave:
+        raise HTTPException(status_code=400, detail="La clave es obligatoria")
+    _validar_clave_unica(db, clave)
+
+    nueva = models.TiendaClave(
+        tienda_id=tienda_id,
+        clave=clave,
+        en_uso=datos.en_uso or False,
+        usuario=datos.usuario,
+        password=datos.password,
+        notas=datos.notas,
     )
     db.add(nueva)
     db.commit()

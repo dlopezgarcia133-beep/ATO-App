@@ -78,6 +78,22 @@ class Tienda(Base):
     cadena = relationship("Cadena", backref="tiendas")
 
 
+class TiendaClave(Base):
+    __tablename__ = "tienda_claves"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tienda_id = Column(Integer, ForeignKey("tiendas.id", ondelete="CASCADE"), nullable=False)
+    clave = Column(String(50), unique=True, nullable=False)
+    en_uso = Column(Boolean, default=False, nullable=False)
+    usuario = Column(String(100), nullable=True)
+    password = Column(String(200), nullable=True)
+    notas = Column(Text, nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    tienda = relationship("Tienda", backref="claves")
+
+
 class AsistenciaLegacy(Base):
     __tablename__ = "asistencias"
 
