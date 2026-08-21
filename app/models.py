@@ -1,6 +1,6 @@
 import enum
 from sqlite3.dbapi2 import Timestamp
-from sqlalchemy import Boolean, Column, Date, Float, Integer, JSON, Numeric, String, Text, Enum, DateTime, Time, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Column, Date, Float, Integer, JSON, Numeric, String, Text, Enum, DateTime, Time, UniqueConstraint, func
 import sqlalchemy
 from .database import Base
 from datetime import date, datetime, timezone
@@ -774,6 +774,27 @@ class JustificacionAsistencia(Base):
     estado = Column(String(20), nullable=False)   # 'falta'|'justificada'|'vacaciones'
     nota = Column(Text, nullable=True)
     creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SolicitudCorreccionAsistencia(Base):
+    __tablename__ = "solicitudes_correccion_asistencia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asistencia_id = Column(
+        BigInteger,
+        ForeignKey("asistencia.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    usuario_id = Column(Integer, nullable=False)
+    username = Column(String, nullable=False)
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String, nullable=False)
+    motivo = Column(Text, nullable=True)
+    estado = Column(String, nullable=False, server_default="pendiente")
+    resuelto_por = Column(Integer, nullable=True)
+    resuelto_en = Column(DateTime(timezone=True), nullable=True)
+    nota_admin = Column(Text, nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 

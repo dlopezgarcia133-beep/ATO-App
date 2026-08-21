@@ -76,6 +76,34 @@ class JustificacionCreate(BaseModel):
     nota: str | None = None
 
 
+class SolicitudCorreccionCreate(BaseModel):
+    asistencia_id: int
+    motivo: str
+
+
+class SolicitudCorreccionResolver(BaseModel):
+    aprobar: bool
+    nota_admin: str | None = None
+
+
+class SolicitudCorreccionResponse(BaseModel):
+    id: int
+    asistencia_id: Optional[int] = None
+    usuario_id: int
+    username: str
+    fecha: date
+    tipo: str
+    motivo: Optional[str] = None
+    estado: str
+    resuelto_por: Optional[int] = None
+    resuelto_en: Optional[datetime] = None
+    nota_admin: Optional[str] = None
+    creado_en: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ModuloUbicacionUpdate(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None

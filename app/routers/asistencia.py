@@ -929,3 +929,117 @@ def borrar_justificacion(
     db.commit()
 
     return {"ok": True, "borradas": borradas}
+
+
+# ── Solicitudes de corrección de asistencia ──────────────────────────────────
+
+@router.post("/solicitud-correccion", response_model=schemas.SolicitudCorreccionResponse)
+def crear_solicitud_correccion(
+    body: schemas.SolicitudCorreccionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("asesor", "encargado"):
+        raise HTTPException(403, "Solo asesores y encargados pueden solicitar correcciones")
+
+    registro = db.query(models.Asistencia).filter(
+        models.Asistencia.id == body.asistencia_id,
+    ).first()
+    if not registro or registro.usuario_id != current_user.id:
+        raise HTTPException(403, "Ese registro de asistencia no es tuyo")
+
+    fecha_actual = datetime.now(ZONA).date()
+    if registro.fecha != fecha_actual:
+        raise HTTPException(400, "Solo se puede corregir el registro de hoy")
+
+    pendiente = db.query(models.SolicitudCorreccionAsistencia).filter(
+        models.SolicitudCorreccionAsistencia.asistencia_id == registro.id,
+        models.SolicitudCorreccionAsistencia.estado == "pendiente",
+    ).first()
+    if pendiente:
+        raise HTTPException(400, "Ya tienes una solicitud pendiente")
+
+    solicitud = models.SolicitudCorreccionAsistencia(
+        asistencia_id=registro.id,
+        usuario_id=registro.usuario_id,
+        username=registro.username,
+        fecha=registro.fecha,
+        tipo=registro.tipo,
+        motivo=body.motivo,
+        estado="pendiente",
+    )
+    db.add(solicitud)
+    db.commit()
+    db.refresh(solicitud)
+    return solicitud
+
+
+@router.get("/solicitudes-correccion", response_model=List[schemas.SolicitudCorreccionResponse])
+def listar_solicitudes_correccion(
+    estado: Optional[str] = Query("pendiente"),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    q = db.query(models.SolicitudCorreccionAsistencia)
+    if estado:
+        q = q.filter(models.SolicitudCorreccionAsistencia.estado == estado)
+    return q.order_by(models.SolicitudCorreccionAsistencia.creado_en.desc()).all()
+
+
+@router.post(
+    "/solicitudes-correccion/{solicitud_id}/resolver",
+    response_model=schemas.SolicitudCorreccionResponse,
+)
+def resolver_solicitud_correccion(
+    solicitud_id: int,
+    body: schemas.SolicitudCorreccionResolver,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ("admin", "direccion"):
+        raise HTTPException(403, "Solo admin y dirección")
+
+    solicitud = db.query(models.SolicitudCorreccionAsistencia).filter(
+        models.SolicitudCorreccionAsistencia.id == solicitud_id,
+    ).first()
+    if not solicitud:
+        raise HTTPException(404, "Solicitud no encontrada")
+    if solicitud.estado != "pendiente":
+        raise HTTPException(400, f"La solicitud ya fue {solicitud.estado}")
+
+    ahora = datetime.now(ZONA)
+
+    try:
+        solicitud.resuelto_por = current_user.id
+        solicitud.resuelto_en = ahora
+        solicitud.nota_admin = body.nota_admin
+
+        if body.aprobar:
+            registro = db.query(models.Asistencia).filter(
+                models.Asistencia.id == solicitud.asistencia_id,
+            ).first()
+
+            solicitud.estado = "aprobada"
+            # La FK es ON DELETE CASCADE: hay que soltar la referencia ANTES de
+            # borrar la asistencia, si no la propia solicitud se borraría con ella
+            # y se perdería el registro de quién la aprobó.
+            solicitud.asistencia_id = None
+            db.flush()
+
+            if registro:
+                # Las notificaciones ligadas a esta asistencia las borra Postgres
+                # solo: esa FK tambien es ON DELETE CASCADE.
+                db.delete(registro)
+        else:
+            solicitud.estado = "rechazada"
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    db.refresh(solicitud)
+    return solicitud
