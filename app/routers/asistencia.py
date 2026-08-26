@@ -631,11 +631,15 @@ def _hm_mx(dt: datetime) -> str:
 
 @router.get("/mi-semana", response_model=schemas.SemanaDetalle)
 def mi_semana(
+    offset: int = 0,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user),
 ):
+    if abs(offset) > 52:
+        raise HTTPException(status_code=400, detail="Rango de semanas fuera de limite")
+
     hoy = datetime.now(ZONA).date()
-    lunes = hoy - timedelta(days=hoy.weekday())
+    lunes = hoy - timedelta(days=hoy.weekday()) + timedelta(weeks=offset)
     domingo = lunes + timedelta(days=6)
 
     registros = (
