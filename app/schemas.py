@@ -56,6 +56,8 @@ class AsistenciaResumenDia(BaseModel):
     fecha: date
     entrada: Optional[datetime] = None
     salida: Optional[datetime] = None
+    entrada_id: Optional[int] = None
+    salida_id: Optional[int] = None
     horas_trabajadas: float = 0.0
     foto_entrada_url: Optional[str] = None
     foto_salida_url: Optional[str] = None
