@@ -1679,3 +1679,24 @@ class DevolucionCreate(BaseModel):
 
 # TiendaResponse se define despues de UsuarioResponse: resuelve la forward ref.
 UsuarioResponse.model_rebuild()
+
+
+class CapturaTelcelResponse(BaseModel):
+    id: int
+    username: str
+    fecha: date
+    tipo: str
+    clave: str
+    hora_entrada: Optional[time] = None
+    hora_salida: Optional[time] = None
+    duracion_minutos: Optional[int] = None
+    foto_url: str
+
+    class Config:
+        from_attributes = True
+
+
+class CapturaTelcelCreate(BaseModel):
+    tipo: str
+    foto_base64: str
+    usuario_id: Optional[int] = None

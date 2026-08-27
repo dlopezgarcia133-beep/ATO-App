@@ -59,3 +59,5 @@ postgrest==0.17.2
 realtime==2.0.6
 supafunc==0.6.2
 twilio
+anthropic==0.95.0
+Pillow==12.1.1

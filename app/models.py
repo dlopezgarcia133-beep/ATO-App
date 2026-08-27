@@ -6,6 +6,7 @@ from .database import Base
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy import ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 
@@ -850,3 +851,29 @@ class Devolucion(Base):
     motivo = Column(Text, nullable=True)
     usuario_id = Column(Integer, nullable=False)
     creado_at = Column(DateTime, nullable=True)
+
+
+class CapturaTelcel(Base):
+    __tablename__ = "capturas_telcel"
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "fecha", "tipo",
+                         name="uq_captura_usuario_fecha_tipo"),
+    )
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    username = Column(Text, nullable=False)
+    modulo_id = Column(Integer, nullable=True)
+    tienda_id = Column(Integer, nullable=True)
+    fecha = Column(Date, nullable=False)
+    tipo = Column(Text, nullable=False)
+    clave = Column(String(30), nullable=False)
+    hora_entrada = Column(Time, nullable=True)
+    hora_salida = Column(Time, nullable=True)
+    duracion_minutos = Column(Integer, nullable=True)
+    foto_url = Column(Text, nullable=False)
+    json_ia = Column(JSONB, nullable=True)
+    subido_at = Column(DateTime(timezone=True), server_default=func.now())
+    creada_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario = relationship("Usuario")
