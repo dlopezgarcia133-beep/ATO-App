@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -1049,3 +1050,107 @@ def resolver_solicitud_correccion(
 
     db.refresh(solicitud)
     return solicitud
+
+
+# ── Candado de check-in ───────────────────────────────────────────────────────
+
+ROLES_CANDADO = ("asesor", "encargado")
+
+
+def _cuentas_englobadas(db: Session, current_user):
+    """Todas las cuentas de la misma persona (mismo nombre_englobado)."""
+    eng = (current_user.nombre_englobado or "").strip()
+    if not eng:
+        return [current_user.id], [current_user.username or ""]
+
+    filas = db.query(models.Usuario.id, models.Usuario.username).filter(
+        func.upper(func.trim(models.Usuario.nombre_englobado)) == eng.upper()
+    ).all()
+
+    ids = [f[0] for f in filas] or [current_user.id]
+    usernames = [f[1] or "" for f in filas] or [current_user.username or ""]
+    return ids, usernames
+
+
+def _estado_dia(db: Session, current_user, hoy: date) -> dict:
+    """Calcula si la persona ya cumplió el requisito de asistencia de hoy."""
+    if current_user.rol not in ROLES_CANDADO:
+        return {
+            "aplica_candado": False,
+            "puede_usar": True,
+            "hizo_checkin": True,
+            "es_descanso": False,
+            "englobado": current_user.nombre_englobado,
+            "fecha": hoy.isoformat(),
+        }
+
+    ids, usernames = _cuentas_englobadas(db, current_user)
+
+    descanso = db.query(models.DiaDescanso).filter(
+        models.DiaDescanso.usuario_id.in_(ids),
+        models.DiaDescanso.fecha == hoy,
+    ).first()
+
+    # Fuente 1: módulos → tabla asistencia
+    hizo_checkin = db.query(models.Asistencia).filter(
+        models.Asistencia.usuario_id.in_(ids),
+        models.Asistencia.fecha == hoy,
+        models.Asistencia.tipo == "entrada",
+    ).first() is not None
+
+    # Fuente 2: Cadenas → tabla registros (idx = username)
+    if not hizo_checkin and usernames:
+        fila = db.execute(
+            text(
+                "SELECT 1 FROM registros "
+                "WHERE TRIM(fecha) = :f "
+                "AND UPPER(TRIM(idx)) = ANY(:us) "
+                "AND entrada IS NOT NULL AND TRIM(entrada) <> '' LIMIT 1"
+            ),
+            {"f": hoy.isoformat(), "us": [u.strip().upper() for u in usernames if u]},
+        ).first()
+        hizo_checkin = fila is not None
+
+    return {
+        "aplica_candado": True,
+        "puede_usar": bool(hizo_checkin or descanso),
+        "hizo_checkin": hizo_checkin,
+        "es_descanso": descanso is not None,
+        "englobado": current_user.nombre_englobado,
+        "fecha": hoy.isoformat(),
+    }
+
+
+@router.get("/estado-hoy")
+def estado_hoy(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    return _estado_dia(db, current_user, datetime.now(ZONA).date())
+
+
+@router.post("/dia-descanso")
+def marcar_dia_descanso(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if current_user.rol not in ROLES_CANDADO:
+        raise HTTPException(403, "Este registro es solo para asesores y encargados")
+
+    hoy = datetime.now(ZONA).date()
+
+    ya = db.query(models.DiaDescanso).filter(
+        models.DiaDescanso.usuario_id == current_user.id,
+        models.DiaDescanso.fecha == hoy,
+    ).first()
+
+    if not ya:
+        db.add(models.DiaDescanso(
+            usuario_id=current_user.id,
+            username=current_user.username,
+            modulo_id=current_user.modulo_id,
+            fecha=hoy,
+        ))
+        db.commit()
+
+    return _estado_dia(db, current_user, hoy)

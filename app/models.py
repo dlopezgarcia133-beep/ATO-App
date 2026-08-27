@@ -130,6 +130,22 @@ class Asistencia(Base):
     modulo_rel = relationship("Modulo", foreign_keys=[modulo_id])
 
 
+class DiaDescanso(Base):
+    __tablename__ = "dias_descanso"
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "fecha", name="uq_dias_descanso_usuario_fecha"),
+    )
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    username = Column(Text, nullable=False)
+    modulo_id = Column(Integer, nullable=True)
+    fecha = Column(Date, nullable=False, index=True)
+    creada_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+
+
 class NotificacionAsistencia(Base):
     __tablename__ = "notificaciones_asistencia"
 
