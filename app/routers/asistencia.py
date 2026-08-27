@@ -1078,7 +1078,6 @@ def resolver_solicitud_correccion(
 # ── Candado de check-in ───────────────────────────────────────────────────────
 
 ROLES_CANDADO = ("asesor", "encargado")
-MODULO_CADENAS = "Cadenas C."
 
 
 def _cuentas_englobadas(db: Session, current_user):
@@ -1136,18 +1135,13 @@ def _estado_dia(db: Session, current_user, hoy: date) -> dict:
         ).first()
         hizo_checkin = fila is not None
 
-    modulo = db.query(models.Modulo).filter(
-        models.Modulo.id == current_user.modulo_id
-    ).first()
-    es_cadenas = bool(modulo and (modulo.nombre or "").strip() == MODULO_CADENAS)
-
     return {
         "aplica_candado": True,
         "puede_usar": bool(hizo_checkin or descanso),
         "hizo_checkin": hizo_checkin,
         "es_descanso": descanso is not None,
         "englobado": current_user.nombre_englobado,
-        "ruta_checkin": "/checkin" if es_cadenas else "/asistencia",
+        "ruta_checkin": "/asistencia",
         "fecha": hoy.isoformat(),
     }
 
