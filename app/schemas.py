@@ -1170,6 +1170,7 @@ class EmpleadoAcumuladoSemanal(BaseModel):
     horas_extra: Optional[float] = None
     jornada_fija: Optional[float] = 0
     sueldo_base: Optional[float] = 0
+    descansos: List[str] = []
 
 
 class JornadaUpsert(BaseModel):

@@ -386,6 +386,28 @@ def acumulado_semanal(
             (j.usuario_id, j.ciclo_inicio): float(j.horas) for j in jornadas
         }
 
+        # ── Dias de descanso, propagados por nombre_englobado ────────────────
+        grupos: Dict[str, List[int]] = {}
+        grupo_de: Dict[int, str] = {}
+        for emp in empleados:
+            eng = (emp.nombre_englobado or "").strip().upper()
+            clave = eng if eng else f"__solo__{emp.id}"
+            grupos.setdefault(clave, []).append(emp.id)
+            grupo_de[emp.id] = clave
+
+        ids_empleados = [e.id for e in empleados]
+        descansos_sem = db.query(models.DiaDescanso).filter(
+            models.DiaDescanso.usuario_id.in_(ids_empleados),
+            models.DiaDescanso.fecha >= lunes,
+            models.DiaDescanso.fecha <= domingo,
+        ).all() if ids_empleados else []
+
+        descansos_por_grupo: Dict[str, set] = {}
+        for d in descansos_sem:
+            clave = grupo_de.get(d.usuario_id)
+            if clave:
+                descansos_por_grupo.setdefault(clave, set()).add(d.fecha.isoformat())
+
         resultado = []
         for emp in empleados:
             dias_emp = por_username.get(emp.username, {})
@@ -424,6 +446,7 @@ def acumulado_semanal(
                 horas_extra=horas_extra,
                 jornada_fija=float(emp.jornada_fija) if emp.jornada_fija is not None else 0.0,
                 sueldo_base=float(emp.sueldo_base) if emp.sueldo_base is not None else 0.0,
+                descansos=sorted(descansos_por_grupo.get(grupo_de.get(emp.id, ""), set())),
             ))
 
         return resultado
@@ -1124,7 +1147,7 @@ def _estado_dia(db: Session, current_user, hoy: date) -> dict:
         "hizo_checkin": hizo_checkin,
         "es_descanso": descanso is not None,
         "englobado": current_user.nombre_englobado,
-        "ruta_checkin": "/checkin" if es_cadenas else "/mi-asistencia",
+        "ruta_checkin": "/checkin" if es_cadenas else "/asistencia",
         "fecha": hoy.isoformat(),
     }
 
