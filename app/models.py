@@ -142,8 +142,11 @@ class DiaDescanso(Base):
     modulo_id = Column(Integer, nullable=True)
     fecha = Column(Date, nullable=False, index=True)
     creada_at = Column(DateTime(timezone=True), server_default=func.now())
+    cancelado_at = Column(DateTime(timezone=True), nullable=True)
+    cancelado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    cancelador = relationship("Usuario", foreign_keys=[cancelado_por])
 
 
 class NotificacionAsistencia(Base):

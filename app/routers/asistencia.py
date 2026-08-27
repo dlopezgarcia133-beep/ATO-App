@@ -400,6 +400,7 @@ def acumulado_semanal(
             models.DiaDescanso.usuario_id.in_(ids_empleados),
             models.DiaDescanso.fecha >= lunes,
             models.DiaDescanso.fecha <= domingo,
+            models.DiaDescanso.cancelado_at.is_(None),
         ).all() if ids_empleados else []
 
         descansos_por_grupo: Dict[str, set] = {}
@@ -1113,6 +1114,7 @@ def _estado_dia(db: Session, current_user, hoy: date) -> dict:
     descanso = db.query(models.DiaDescanso).filter(
         models.DiaDescanso.usuario_id.in_(ids),
         models.DiaDescanso.fecha == hoy,
+        models.DiaDescanso.cancelado_at.is_(None),
     ).first()
 
     # Fuente 1: módulos → tabla asistencia
@@ -1169,7 +1171,7 @@ def marcar_dia_descanso(
         models.DiaDescanso.fecha == hoy,
     ).first()
 
-    if not ya:
+    if ya is None:
         db.add(models.DiaDescanso(
             usuario_id=current_user.id,
             username=current_user.username,
@@ -1177,5 +1179,38 @@ def marcar_dia_descanso(
             fecha=hoy,
         ))
         db.commit()
+    elif ya.cancelado_at is not None:
+        # UNIQUE (usuario_id, fecha) impide insertar de nuevo: se reactiva la fila
+        ya.cancelado_at = None
+        ya.cancelado_por = None
+        db.commit()
+
+    return _estado_dia(db, current_user, hoy)
+
+
+@router.post("/dia-descanso/cancelar")
+def cancelar_dia_descanso(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    """Marca como cancelado el descanso de hoy. No borra la fila: deja rastro."""
+    if current_user.rol not in ROLES_CANDADO:
+        raise HTTPException(403, "Este registro es solo para asesores y encargados")
+
+    hoy = datetime.now(ZONA).date()
+    ids, _ = _cuentas_englobadas(db, current_user)
+
+    descanso = db.query(models.DiaDescanso).filter(
+        models.DiaDescanso.usuario_id.in_(ids),
+        models.DiaDescanso.fecha == hoy,
+        models.DiaDescanso.cancelado_at.is_(None),
+    ).first()
+
+    if descanso is None:
+        raise HTTPException(404, "No hay descanso activo hoy para cancelar")
+
+    descanso.cancelado_at = datetime.now(ZONA)
+    descanso.cancelado_por = current_user.id
+    db.commit()
 
     return _estado_dia(db, current_user, hoy)
