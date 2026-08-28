@@ -1,7 +1,7 @@
 import base64
 import os
 import traceback
-from datetime import datetime, date as _date, time as _time
+from datetime import datetime, date as _date, time as _time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -349,3 +349,48 @@ def resumen_dia(
         "sin_nada": sin_nada,
         "promotores": resultado,
     }
+
+
+def _dias_semana_bes():
+    d = datetime.now(ZONA)
+    dom = d - timedelta(days=d.weekday() + 1) if d.weekday() != 6 else d
+    return [(dom + timedelta(days=i)).date() for i in range(7)]
+
+
+@router.get("/mi-semana")
+def mi_semana(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    dias = _dias_semana_bes()
+    hoy = datetime.now(ZONA).date()
+
+    filas = db.query(models.CapturaTelcel).filter(
+        models.CapturaTelcel.usuario_id == current_user.id,
+        models.CapturaTelcel.fecha >= dias[0],
+        models.CapturaTelcel.fecha <= dias[6],
+    ).all()
+
+    por_dia = {}
+    for f in filas:
+        por_dia.setdefault(f.fecha, {})[f.tipo] = f
+
+    resultado = []
+    for d in dias:
+        reg = por_dia.get(d, {})
+        ap = reg.get("apertura")
+        ci = reg.get("cierre")
+        resultado.append({
+            "fecha": d.isoformat(),
+            "apertura": bool(ap),
+            "cierre": bool(ci),
+            "hora_entrada": (
+                ap.hora_entrada.strftime("%H:%M") if ap and ap.hora_entrada
+                else ci.hora_entrada.strftime("%H:%M") if ci and ci.hora_entrada
+                else None
+            ),
+            "hora_salida": ci.hora_salida.strftime("%H:%M") if ci and ci.hora_salida else None,
+            "duracion_minutos": ci.duracion_minutos if ci else None,
+        })
+
+    return {"dias": resultado, "hoy": hoy.isoformat()}
