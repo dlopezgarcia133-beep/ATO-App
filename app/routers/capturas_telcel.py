@@ -434,32 +434,50 @@ def mi_semana(
     dias = _dias_semana_bes()
     hoy = datetime.now(ZONA).date()
 
-    filas = db.query(models.CapturaTelcel).filter(
+    # La semana sale de registros: incluye lo capturado a mano en
+    # ZEliCheck y lo espejado desde BES. El ciclo es hibrido.
+    filas = db.execute(text("""
+        SELECT TRIM(fecha) AS fecha, entrada, salida, horas, cumple
+        FROM registros
+        WHERE UPPER(TRIM(idx)) = UPPER(TRIM(:idx))
+          AND TRIM(fecha) BETWEEN :desde AND :hasta
+    """), {
+        "idx": current_user.username,
+        "desde": dias[0].isoformat(),
+        "hasta": dias[6].isoformat(),
+    }).mappings().all()
+
+    por_dia = {f["fecha"]: f for f in filas}
+
+    # Que dias tienen captura BES, para distinguir el origen
+    caps = db.query(models.CapturaTelcel).filter(
         models.CapturaTelcel.usuario_id == current_user.id,
         models.CapturaTelcel.fecha >= dias[0],
         models.CapturaTelcel.fecha <= dias[6],
     ).all()
-
-    por_dia = {}
-    for f in filas:
-        por_dia.setdefault(f.fecha, {})[f.tipo] = f
+    tipos_por_dia = {}
+    for c in caps:
+        tipos_por_dia.setdefault(c.fecha.isoformat(), set()).add(c.tipo)
 
     resultado = []
     for d in dias:
-        reg = por_dia.get(d, {})
-        ap = reg.get("apertura")
-        ci = reg.get("cierre")
+        k = d.isoformat()
+        r = por_dia.get(k)
+        t = tipos_por_dia.get(k, set())
+        cumple_txt = (r["cumple"] or "").strip().upper() if r else ""
         resultado.append({
-            "fecha": d.isoformat(),
-            "apertura": bool(ap),
-            "cierre": bool(ci),
-            "hora_entrada": (
-                ap.hora_entrada.strftime("%H:%M") if ap and ap.hora_entrada
-                else ci.hora_entrada.strftime("%H:%M") if ci and ci.hora_entrada
-                else None
+            "fecha": k,
+            "apertura": "apertura" in t,
+            "cierre": "cierre" in t,
+            "hora_entrada": (r["entrada"] or None) if r else None,
+            "hora_salida": (r["salida"] or None) if r else None,
+            "duracion_minutos": (
+                int(round(float(r["horas"]) * 60))
+                if r and r["horas"] is not None else None
             ),
-            "hora_salida": ci.hora_salida.strftime("%H:%M") if ci and ci.hora_salida else None,
-            "duracion_minutos": ci.duracion_minutos if ci else None,
+            "cumple": True if cumple_txt == "TRUE" else (
+                False if cumple_txt == "FALSE" else None
+            ),
         })
 
     return {"dias": resultado, "hoy": hoy.isoformat()}
