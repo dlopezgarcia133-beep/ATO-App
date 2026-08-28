@@ -238,3 +238,13 @@ def subir_captura(
              f"para el {fecha_captura.strftime('%d/%m/%Y')}.")
     db.refresh(registro)
     return registro
+
+
+@router.get("/aplica")
+def aplica_capturas(
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    return {
+        "aplica": current_user.modulo_id == MODULO_CADENAS
+        and _rol(current_user) in ("asesor", "encargado"),
+    }
