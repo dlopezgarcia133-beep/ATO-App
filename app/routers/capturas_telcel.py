@@ -2,6 +2,7 @@ import base64
 import os
 import traceback
 from datetime import datetime, date as _date, time as _time
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -247,4 +248,104 @@ def aplica_capturas(
     return {
         "aplica": current_user.modulo_id == MODULO_CADENAS
         and _rol(current_user) in ("asesor", "encargado"),
+    }
+
+
+@router.get("/mis-capturas")
+def mis_capturas(
+    fecha: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if fecha:
+        try:
+            dia = _date.fromisoformat(fecha)
+        except ValueError:
+            _err("FECHA_INVALIDA", "Fecha invalida.")
+    else:
+        dia = datetime.now(ZONA).date()
+
+    filas = db.query(models.CapturaTelcel).filter(
+        models.CapturaTelcel.usuario_id == current_user.id,
+        models.CapturaTelcel.fecha == dia,
+    ).all()
+
+    out = {"fecha": dia.isoformat(), "apertura": None, "cierre": None}
+    for f in filas:
+        out[f.tipo] = {
+            "id": f.id,
+            "clave": f.clave,
+            "hora_entrada": f.hora_entrada.strftime("%H:%M") if f.hora_entrada else None,
+            "hora_salida": f.hora_salida.strftime("%H:%M") if f.hora_salida else None,
+            "duracion_minutos": f.duracion_minutos,
+            "foto_url": f.foto_url,
+            "subido_at": f.subido_at.isoformat() if f.subido_at else None,
+        }
+    return out
+
+
+@router.get("/resumen-dia")
+def resumen_dia(
+    fecha: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    if _rol(current_user) not in ROLES_ADMIN:
+        _err("SIN_PERMISO", "No tienes permiso para ver esto.", 403)
+
+    if fecha:
+        try:
+            dia = _date.fromisoformat(fecha)
+        except ValueError:
+            _err("FECHA_INVALIDA", "Fecha invalida.")
+    else:
+        dia = datetime.now(ZONA).date()
+
+    promotores = db.query(models.Usuario).filter(
+        models.Usuario.modulo_id == MODULO_CADENAS,
+        models.Usuario.activo == True,
+    ).order_by(models.Usuario.username).all()
+
+    filas = db.query(models.CapturaTelcel).filter(
+        models.CapturaTelcel.fecha == dia,
+    ).all()
+
+    por_usuario = {}
+    for f in filas:
+        por_usuario.setdefault(f.usuario_id, {})[f.tipo] = f
+
+    def _pack(f):
+        if not f:
+            return None
+        return {
+            "id": f.id,
+            "clave": f.clave,
+            "hora_entrada": f.hora_entrada.strftime("%H:%M") if f.hora_entrada else None,
+            "hora_salida": f.hora_salida.strftime("%H:%M") if f.hora_salida else None,
+            "duracion_minutos": f.duracion_minutos,
+            "foto_url": f.foto_url,
+        }
+
+    resultado = []
+    for p in promotores:
+        d = por_usuario.get(p.id, {})
+        resultado.append({
+            "usuario_id": p.id,
+            "username": p.username,
+            "nombre_completo": p.nombre_completo,
+            "apertura": _pack(d.get("apertura")),
+            "cierre": _pack(d.get("cierre")),
+        })
+
+    completos = sum(1 for r in resultado if r["apertura"] and r["cierre"])
+    parciales = sum(1 for r in resultado if bool(r["apertura"]) != bool(r["cierre"]))
+    sin_nada = sum(1 for r in resultado if not r["apertura"] and not r["cierre"])
+
+    return {
+        "fecha": dia.isoformat(),
+        "total": len(resultado),
+        "completos": completos,
+        "parciales": parciales,
+        "sin_nada": sin_nada,
+        "promotores": resultado,
     }
