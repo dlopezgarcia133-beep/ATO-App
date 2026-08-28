@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -142,10 +142,32 @@ def editar(d: dict = Body(...), db: Session = Depends(get_db), _: models.Usuario
 
 
 @router.post("/semana/reset")
-def reset_semana(db: Session = Depends(get_db), _: models.Usuario = Depends(get_current_user)):
-    db.execute(text("DELETE FROM registros"))
+def reset_semana(
+    d: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user),
+):
+    rol = current_user.rol.value if hasattr(current_user.rol, "value") else str(current_user.rol)
+    if rol not in ("admin", "direccion"):
+        raise HTTPException(403, detail={
+            "codigo": "SIN_PERMISO",
+            "mensaje": "Solo administracion puede borrar registros.",
+        })
+
+    inicio = (d or {}).get("inicio")
+    fin = (d or {}).get("fin")
+    if not inicio or not fin:
+        raise HTTPException(400, detail={
+            "codigo": "RANGO_REQUERIDO",
+            "mensaje": "Hay que indicar el rango de fechas a borrar.",
+        })
+
+    res = db.execute(
+        text("DELETE FROM registros WHERE TRIM(fecha) BETWEEN :inicio AND :fin"),
+        {"inicio": inicio, "fin": fin},
+    )
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "borrados": res.rowcount}
 
 
 @router.post("/cerrar-semana")
