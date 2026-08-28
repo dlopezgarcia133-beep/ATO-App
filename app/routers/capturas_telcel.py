@@ -6,6 +6,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -51,6 +52,57 @@ def _decodificar_foto(foto_base64: str) -> bytes:
     if len(img) < 3072:
         _err("FOTO_INVALIDA", "La imagen es demasiado pequeña. Vuelve a subirla.")
     return img
+
+
+def _espejo_registros(db, username: str, fecha, tipo: str,
+                      hora_entrada, hora_salida, duracion_minutos):
+    """Refleja la captura BES en la tabla registros, que es de donde
+    sale el bono. Formato identico al que escribe ZEliCheck."""
+    fecha_str = fecha.isoformat()
+    idx = username
+
+    if tipo == "apertura":
+        # Protegido: solo llena una fila vacia. Si ya hay entrada o salida
+        # (ZEliCheck o correccion manual), no toca nada.
+        db.execute(text("""
+            INSERT INTO registros (fecha, idx, entrada, salida, horas, cumple)
+            VALUES (:fecha, :idx, :entrada, NULL, NULL, NULL)
+            ON CONFLICT (fecha, idx) DO UPDATE SET
+                entrada = EXCLUDED.entrada
+            WHERE registros.salida IS NULL
+              AND registros.entrada IS NULL
+        """), {"fecha": fecha_str, "idx": idx, "entrada": hora_entrada})
+        return
+
+    # cierre: fila completa
+    # Si la IA no pudo leer la duracion, se reconstruye de las horas.
+    if duracion_minutos is None and hora_entrada and hora_salida:
+        he, me = map(int, hora_entrada.split(":"))
+        hs, ms = map(int, hora_salida.split(":"))
+        duracion_minutos = (hs * 60 + ms) - (he * 60 + me)
+        if duracion_minutos < 0:
+            duracion_minutos += 1440
+
+    if duracion_minutos is None:
+        return
+
+    horas = round(duracion_minutos / 60, 2)
+    cumple_str = "TRUE" if duracion_minutos >= 360 else "FALSE"
+
+    db.execute(text("""
+        INSERT INTO registros (fecha, idx, entrada, salida, horas, cumple)
+        VALUES (:fecha, :idx, :entrada, :salida, :horas, :cumple)
+        ON CONFLICT (fecha, idx) DO UPDATE SET
+            entrada = EXCLUDED.entrada,
+            salida  = EXCLUDED.salida,
+            horas   = EXCLUDED.horas,
+            cumple  = EXCLUDED.cumple
+        WHERE registros.cumple IS DISTINCT FROM 'TRUE'
+    """), {
+        "fecha": fecha_str, "idx": idx,
+        "entrada": hora_entrada, "salida": hora_salida,
+        "horas": horas, "cumple": cumple_str,
+    })
 
 
 @router.post("/subir", response_model=schemas.CapturaTelcelResponse)
@@ -237,6 +289,23 @@ def subir_captura(
         _err("DUPLICADA",
              f"Ya está registrada la captura de {body.tipo} de {destino.username} "
              f"para el {fecha_captura.strftime('%d/%m/%Y')}.")
+
+    # Espejo a registros (bono). Si falla, la captura ya quedo guardada.
+    try:
+        _espejo_registros(
+            db,
+            username=destino.username,
+            fecha=fecha_captura,
+            tipo=body.tipo,
+            hora_entrada=t_entrada.strftime("%H:%M") if t_entrada else None,
+            hora_salida=t_salida.strftime("%H:%M") if t_salida else None,
+            duracion_minutos=datos.get("duracion_minutos"),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        traceback.print_exc()
+
     db.refresh(registro)
     return registro
 
