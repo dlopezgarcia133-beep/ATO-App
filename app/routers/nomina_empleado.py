@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.config import get_current_user
+from app.congelamiento import aplicar_congelamiento, dias_congelados_batch
 from app.database import get_db
 
 router = APIRouter()
@@ -284,6 +285,10 @@ def mi_recibo_detalle(
         .all()
     )
 
+    # Una sola llamada por request, con TODAS las cuentas del empleado.
+    congelados = dias_congelados_batch(db, list(ids), inicio, fin)
+    fechas_congeladas: set = set()
+
     grupos_acc: dict = {}
     grupos_tel: dict = {}
 
@@ -310,11 +315,21 @@ def mi_recibo_detalle(
                 "comision_unitaria": round(unit, 2),
                 "piezas": 0,
                 "subtotal": 0.0,
+                "piezas_congeladas": 0,
+                "congelado": False,
             }
             if key[2] is not None:
                 destino[key]["tipo_venta"] = key[2]
+
+        subtotal, congelado = aplicar_congelamiento(
+            unit * cant, v.fecha in congelados.get(v.empleado_id, set())
+        )
         destino[key]["piezas"] += cant
-        destino[key]["subtotal"] += unit * cant
+        destino[key]["subtotal"] += subtotal
+        if congelado:
+            fechas_congeladas.add(v.fecha)
+            destino[key]["piezas_congeladas"] += cant
+            destino[key]["congelado"] = True
 
     # Agrupado por (tipo, recarga, comision) como siempre, pero cada grupo lleva
     # sus numeros con fecha: asi no se repite "Activacion $100" nueve veces y el
@@ -333,12 +348,22 @@ def mi_recibo_detalle(
                 "piezas": 0,
                 "subtotal": 0.0,
                 "numeros": [],
+                "piezas_congeladas": 0,
+                "congelado": False,
             }
+        subtotal, congelado = aplicar_congelamiento(
+            com, c.fecha in congelados.get(c.empleado_id, set())
+        )
         grupos_chip[key]["piezas"] += 1
-        grupos_chip[key]["subtotal"] += com
+        grupos_chip[key]["subtotal"] += subtotal
+        if congelado:
+            fechas_congeladas.add(c.fecha)
+            grupos_chip[key]["piezas_congeladas"] += 1
+            grupos_chip[key]["congelado"] = True
         grupos_chip[key]["numeros"].append({
             "fecha": str(c.fecha),
             "numero": c.numero_telefono,
+            "congelado": congelado,
         })
 
     def _ordenar(d):
@@ -380,4 +405,6 @@ def mi_recibo_detalle(
             "calculado": calc,
             "pagado": pagado,
         },
+        "dias_congelados": len(fechas_congeladas),
+        "congelado": bool(fechas_congeladas),
     }

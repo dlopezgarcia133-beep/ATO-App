@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.config import get_current_user
+from app.congelamiento import aplicar_congelamiento, dias_congelados_batch
 from app.database import get_db
 from app.utilidades import verificar_rol_requerido
 
@@ -117,12 +118,17 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
         "pajoy": 100
     }
 
+    # Una sola llamada por request, nunca dentro de los bucles de abajo.
+    congelados = dias_congelados_batch(db, [empleado_id], inicio, fin).get(empleado_id, set())
+    fechas_congeladas = set()
+
     for v in ventas:
 
         comision_base = (v.comision_monto if v.comision_monto is not None
                          else getattr(getattr(v, "comision_obj", None), "cantidad", 0) or 0)
         cantidad = getattr(v, "cantidad", 0) or 0
         tipo_venta = (getattr(v, "tipo_venta", "") or "").strip().lower()
+        esta_congelado = v.fecha in congelados if v.fecha else False
 
         if getattr(v, "tipo_producto", "") == "telefono":
             if tipo_venta == "contado" and comision_base > 0:
@@ -130,6 +136,9 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
             else:
                 comision_extra = comisiones_por_tipo.get(tipo_venta, 0)
                 comision_total = (comision_base + comision_extra) * cantidad
+            comision_total, congelado = aplicar_congelamiento(comision_total, esta_congelado)
+            if congelado:
+                fechas_congeladas.add(v.fecha)
             total_telefonos += comision_total
             telefonos.append({
                 "producto": v.producto,
@@ -139,10 +148,15 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "tipo_venta": tipo_venta,
                 "fecha": v.fecha if v.fecha else None,
                 "hora": v.hora if v.hora else None,
+                "congelado": congelado,
             })
 
         elif getattr(v, "tipo_producto", "") == "accesorios":
-            comision_total = comision_base * cantidad
+            comision_total, congelado = aplicar_congelamiento(
+                comision_base * cantidad, esta_congelado
+            )
+            if congelado:
+                fechas_congeladas.add(v.fecha)
             total_accesorios += comision_total
             accesorios.append({
                 "producto": v.producto,
@@ -152,10 +166,14 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
                 "comision_total": comision_total,
                 "fecha": v.fecha if v.fecha else None,
                 "hora": v.hora if v.hora else None,
+                "congelado": congelado,
             })
 
     for v in ventas_chips:
-        comision = float(v.comision or 0)
+        esta_congelado = v.fecha in congelados if v.fecha else False
+        comision, congelado = aplicar_congelamiento(float(v.comision or 0), esta_congelado)
+        if congelado:
+            fechas_congeladas.add(v.fecha)
         total_chips += comision
         chips.append({
             "tipo_chip": v.tipo_chip,
@@ -164,6 +182,7 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
             "es_incubadora": bool(v.es_incubadora),
             "fecha": v.fecha if v.fecha else None,
             "hora": v.hora if v.hora else None,
+            "congelado": congelado,
         })
 
     total_general = total_accesorios + total_telefonos + total_chips
@@ -177,7 +196,9 @@ def calcular_comisiones(db, empleado_id, inicio, fin):
         "total_general": total_general,
         "ventas_accesorios": accesorios,
         "ventas_telefonos": telefonos,
-        "ventas_chips": chips
+        "ventas_chips": chips,
+        "dias_congelados": len(fechas_congeladas),
+        "congelado": bool(fechas_congeladas),
     }
 
 @router.get("/ciclo_por_fechas", response_model=schemas.ComisionesCicloResponse)

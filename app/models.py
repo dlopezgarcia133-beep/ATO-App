@@ -877,3 +877,20 @@ class CapturaTelcel(Base):
     creada_at = Column(DateTime(timezone=True), server_default=func.now())
 
     usuario = relationship("Usuario")
+
+
+class DescongelacionComision(Base):
+    __tablename__ = "descongelaciones_comision"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    fecha = Column(Date, nullable=False, index=True)
+    motivo = Column(Text, nullable=False)
+    autorizado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    cancelado_en = Column(DateTime(timezone=True), nullable=True)
+    cancelado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    autorizador = relationship("Usuario", foreign_keys=[autorizado_por])
+    cancelador = relationship("Usuario", foreign_keys=[cancelado_por])

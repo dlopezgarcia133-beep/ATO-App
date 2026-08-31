@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.config import get_current_user
+from app.congelamiento import aplicar_congelamiento, dias_congelados_batch
 from app.database import get_db
 from app.services import obtener_comisiones_por_empleado_optimizado
 
@@ -73,7 +74,49 @@ def _es_telefono(nombre_norm: str) -> bool:
     return nombre_norm.startswith("TELEFONO")
 
 
-def _sueldo_total_modulo(db: Session, modulo_nombre: str, fecha_inicio: date, fecha_fin: date) -> float:
+def _encargado_de_modulo(db: Session, modulo_nombre: str):
+    """id del encargado activo del modulo, o None si no tiene.
+
+    Mismo criterio que asistencia.encargado_del_modulo: rol encargado + activo.
+    """
+    fila = (
+        db.query(models.Usuario.id)
+        .join(models.Modulo, models.Usuario.modulo_id == models.Modulo.id)
+        .filter(
+            models.Modulo.nombre == modulo_nombre,
+            models.Usuario.rol == models.RolEnum.encargado,
+            models.Usuario.activo == True,  # noqa: E712
+        )
+        .first()
+    )
+    return fila[0] if fila else None
+
+
+def _dias_congelados_encargado(
+    db: Session, modulo_nombre: str, inicio: date, fin: date
+) -> set:
+    """Dias congelados del ENCARGADO del modulo (no del asesor que vendio).
+
+    Cada quien responde por su propio check-out. Modulo sin encargado
+    asignado -> set() vacio: no se congela nada (falla abierto).
+    """
+    encargado_id = _encargado_de_modulo(db, modulo_nombre)
+    if encargado_id is None:
+        return set()
+    return dias_congelados_batch(db, [encargado_id], inicio, fin).get(encargado_id, set())
+
+
+def _sueldo_total_modulo(
+    db: Session,
+    modulo_nombre: str,
+    fecha_inicio: date,
+    fecha_fin: date,
+    congelados: set | None = None,
+) -> float:
+    """`congelados` son los dias congelados DEL ENCARGADO de este modulo.
+
+    Se recibe ya calculado cuando esto corre dentro de un bucle de modulos;
+    si viene None se calcula aqui (uso suelto)."""
     comision_mod = (
         db.query(models.ComisionModulo)
         .filter(models.ComisionModulo.modulo == modulo_nombre)
@@ -91,12 +134,16 @@ def _sueldo_total_modulo(db: Session, modulo_nombre: str, fecha_inicio: date, fe
         )
         .all()
     )
+    if congelados is None:
+        congelados = _dias_congelados_encargado(db, modulo_nombre, fecha_inicio, fecha_fin)
+
     total = 0.0
     for v in ventas:
         nombre_norm = _normalizar(v.producto)
         neto = round(v.precio_unitario * v.cantidad, 2)
         comision, label = _calcular_comision(nombre_norm, v.precio_unitario, v.cantidad, neto, porcentaje)
         if label != "excluido":
+            comision, _ = aplicar_congelamiento(comision, v.fecha in congelados)
             total += comision
     return round(total, 2)
 
@@ -136,15 +183,22 @@ def sueldos_encargados(
 
     print(f"[SUELDO] módulo={modulo!r} rango={fecha_inicio}→{fecha_fin} ventas={len(ventas)} porcentaje={porcentaje}%")
 
+    # Una sola llamada por request, nunca dentro de los bucles de abajo.
+    # Se congela por el check-out DEL ENCARGADO del modulo, no del vendedor.
+    congelados = _dias_congelados_encargado(db, modulo, fecha_inicio, fecha_fin)
+    fechas_congeladas = {v.fecha for v in ventas if v.fecha in congelados}
+
     # ── Bloque A: resumen por producto ──────────────────────────────────────
     producto_map: dict = defaultdict(
-        lambda: {"cantidad": 0, "neto": 0.0, "comision": 0.0, "tipo": "", "porcentaje_label": ""}
+        lambda: {"cantidad": 0, "neto": 0.0, "comision": 0.0, "tipo": "",
+                 "porcentaje_label": "", "congelado": False}
     )
 
     for i, v in enumerate(ventas):
         nombre_norm = _normalizar(v.producto)
         neto = round(v.precio_unitario * v.cantidad, 2)
         comision, label = _calcular_comision(nombre_norm, v.precio_unitario, v.cantidad, neto, porcentaje)
+        comision, esta_congelado = aplicar_congelamiento(comision, v.fecha in congelados)
 
         if label == "excluido":
             categoria = "EXCLUIDO"
@@ -176,6 +230,7 @@ def sueldos_encargados(
         p["comision"] = round(p["comision"] + comision, 2)
         p["tipo"] = tipo
         p["porcentaje_label"] = label
+        p["congelado"] = p["congelado"] or esta_congelado
 
     productos = [
         schemas.ProductoResumen(
@@ -185,6 +240,7 @@ def sueldos_encargados(
             neto=d["neto"],
             porcentaje_label=d["porcentaje_label"],
             comision=d["comision"],
+            congelado=d["congelado"],
         )
         for nombre, d in producto_map.items()
     ]
@@ -219,6 +275,7 @@ def sueldos_encargados(
                 label=dia.strftime("%A %d %b").lower(),
                 equipos=equipos,
                 accesorios=round(accesorios, 2),
+                congelado=dia in fechas_congeladas,
             )
         )
         total_equipos += equipos
@@ -243,6 +300,8 @@ def sueldos_encargados(
         productos=productos,
         desglose_diario=desglose,
         sueldo_total=sueldo_total,
+        dias_congelados=len(fechas_congeladas),
+        congelado=bool(fechas_congeladas),
     )
 
 
@@ -271,6 +330,13 @@ def sueldos_encargados_todos(
         key = u.nombre_englobado or u.username
         groups[key].append(u)
 
+    # Una sola llamada para TODOS los encargados, fuera de los dos bucles de
+    # abajo. Cada perfil de `encargados` YA es el encargado de su modulo, asi
+    # que no hace falta el lookup modulo -> encargado aqui.
+    congelados_por_encargado = dias_congelados_batch(
+        db, sorted({u.id for u in encargados}), fecha_inicio, fecha_fin
+    )
+
     result = []
     for group_name, perfiles in sorted(groups.items()):
         sueldo_total = 0.0
@@ -279,7 +345,10 @@ def sueldos_encargados_todos(
         for p in perfiles:
             modulo_nombre = p.modulo.nombre if p.modulo else None
             if modulo_nombre:
-                monto = _sueldo_total_modulo(db, modulo_nombre, fecha_inicio, fecha_fin)
+                monto = _sueldo_total_modulo(
+                    db, modulo_nombre, fecha_inicio, fecha_fin,
+                    congelados_por_encargado.get(p.id, set()),
+                )
                 sueldo_total += monto
                 modulos.append(modulo_nombre)
                 modulos_sueldo.append({"modulo": modulo_nombre, "monto": round(monto, 2)})

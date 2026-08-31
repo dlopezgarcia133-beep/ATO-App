@@ -629,6 +629,7 @@ class VentaAccesorioConComision(BaseModel):
     comision_total: Optional[float] = None
     fecha: Optional[date] = None
     hora: Optional[time] = None
+    congelado: bool = False
 
 
 class VentaTelefonoConComision(BaseModel):
@@ -639,6 +640,7 @@ class VentaTelefonoConComision(BaseModel):
     comision_total: float
     fecha: Optional[date] = None
     hora: Optional[time] = None
+    congelado: bool = False
 
 
 class VentaChipConComision(BaseModel):
@@ -648,6 +650,7 @@ class VentaChipConComision(BaseModel):
     es_incubadora: Optional[bool] = False
     fecha: Optional[date] = None
     hora: Optional[time] = None
+    congelado: bool = False
 
 class ComisionesCicloResponse(BaseModel):
     inicio_ciclo: date
@@ -660,6 +663,8 @@ class ComisionesCicloResponse(BaseModel):
     ventas_accesorios: List[VentaAccesorioConComision]
     ventas_telefonos: List[VentaTelefonoConComision]
     ventas_chips: List[VentaChipConComision]
+    dias_congelados: int = 0
+    congelado: bool = False
 
 class CorteDiaCreate(BaseModel):
     fecha: date
@@ -1188,6 +1193,7 @@ class ProductoResumen(BaseModel):
     neto: float
     porcentaje_label: str  # "$10 fijo" | "7.00%"
     comision: float
+    congelado: bool = False
 
 
 class DiaDiario(BaseModel):
@@ -1195,6 +1201,7 @@ class DiaDiario(BaseModel):
     label: str
     equipos: int
     accesorios: float
+    congelado: bool = False
 
 
 class SueldoEncargadoResponse(BaseModel):
@@ -1205,6 +1212,8 @@ class SueldoEncargadoResponse(BaseModel):
     productos: List[ProductoResumen]
     desglose_diario: List[DiaDiario]
     sueldo_total: float
+    dias_congelados: int = 0
+    congelado: bool = False
 
 
 class ResumenEmpleadoNomina(BaseModel):
