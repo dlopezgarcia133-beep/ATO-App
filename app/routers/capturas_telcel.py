@@ -180,20 +180,10 @@ def subir_captura(
     if fecha_captura > hoy:
         _err("FECHA_FUTURA", "La captura tiene fecha futura.")
 
-    # Clave contra la tienda
+    # Clave: solo informativa. Ya no valida ni bloquea.
+    # El texto del encabezado cambia segun el telefono y generaba
+    # falsos rechazos. Se guarda lo que se alcance a leer.
     clave_leida = (datos.get("clave") or "").strip().upper()
-    if not clave_leida:
-        _err("CLAVE_ILEGIBLE", "No se pudo leer la clave de la captura. Vuelve a tomarla.")
-
-    clave_ok = db.query(models.TiendaClave).filter(
-        models.TiendaClave.tienda_id == destino.tienda_id,
-    ).all()
-    claves_validas = {(c.clave or "").strip().upper() for c in clave_ok}
-
-    if clave_leida not in claves_validas:
-        _err("CLAVE_AJENA",
-             f"La clave {clave_leida} no corresponde a tu tienda. "
-             "Verifica que subiste tu propia captura.")
 
     # Horas
     if not datos.get("hora_entrada"):
