@@ -31,8 +31,15 @@ Reglas:
 - La fecha viene como dd/mm/aa. El anio 26 significa 2026.
 - NO conviertas las horas. Copialas exactamente como se ven.
   Si dice "01:47 p. m." entonces entrada_hora es "01:47" y entrada_meridiano es "pm".
-- El recuadro VERDE es la entrada. El recuadro ROJO es la salida.
-- Si solo hay recuadro verde, los campos de salida son null.
+- IGNORA por completo el titulo de la pantalla y el boton circular grande de
+  color (rojo o verde). Ese boton es solo un boton, NO es un registro.
+  Que diga "Check Out" arriba no significa que la hora de abajo sea una salida.
+- Los unicos registros validos son los RECUADROS de abajo que tienen los
+  encabezados "Fecha" y "Hora".
+- Si hay UN SOLO recuadro con fecha y hora, esa hora SIEMPRE es la entrada.
+  entrada_hora se llena con ella y los campos de salida quedan en null.
+- Si hay DOS recuadros, el primero (icono verde) es la entrada y el segundo
+  (icono rojo) es la salida.
 - Si la imagen no es de esta app o no se alcanza a leer, pon "legible": false
   y el resto en null.
 """
