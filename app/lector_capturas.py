@@ -20,6 +20,7 @@ Campos:
   "legible": true/false,
   "clave": "codigo del encabezado, ej CPLCCCP01",
   "fecha": "YYYY-MM-DD",
+  "fecha_cruda": "los caracteres de la fecha tal cual se ven, ej 01/09/26",
   "entrada_hora": "HH:MM tal cual aparece, sin convertir",
   "entrada_meridiano": "am" o "pm",
   "salida_hora": "HH:MM tal cual aparece, sin convertir, o null",
@@ -29,7 +30,9 @@ Campos:
 }
 
 Reglas:
-- La fecha viene como dd/mm/aa. El anio 26 significa 2026.
+- fecha_cruda son los digitos de la fecha copiados EXACTAMENTE como aparecen,
+  sin reordenar y sin interpretar. Si se ve "01/09/26" escribe "01/09/26".
+- La app siempre usa dia/mes/anio. NO reordenes. "01/09/26" es 1 de septiembre.
 - NO conviertas las horas. Copialas exactamente como se ven.
   Si dice "01:47 p. m." entonces entrada_hora es "01:47" y entrada_meridiano es "pm".
 - Si las horas traen a.m. o p.m., formato_hora es "12h".
@@ -95,9 +98,31 @@ def _a_24h(hora: str, meridiano: str, formato: str = "12h"):
     return f"{h:02d}:{m:02d}"
 
 
+def _fecha_iso(cruda: str, respaldo: str):
+    # La app de Telcel siempre muestra dd/mm/aa. Se arma aqui en vez de
+    # confiar en la conversion del modelo, que con dias menores a 13
+    # puede invertir dia y mes.
+    if cruda:
+        texto = str(cruda).strip().replace("-", "/").replace(".", "/")
+        partes = [p for p in texto.split("/") if p]
+        if len(partes) == 3:
+            try:
+                d, m, a = (int(p) for p in partes)
+            except ValueError:
+                d = m = a = 0
+            if 1 <= d <= 31 and 1 <= m <= 12:
+                if a < 100:
+                    a += 2000
+                if 2000 <= a <= 2100:
+                    return f"{a:04d}-{m:02d}-{d:02d}"
+    return respaldo
+
+
 def _normalizar(datos: dict) -> dict:
     if not datos.get("legible"):
         return datos
+
+    datos["fecha"] = _fecha_iso(datos.get("fecha_cruda"), datos.get("fecha"))
 
     formato = datos.get("formato_hora")
     entrada = _a_24h(datos.get("entrada_hora"), datos.get("entrada_meridiano"), formato)
