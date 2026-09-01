@@ -184,6 +184,10 @@ def subir_captura(
     # El texto del encabezado cambia segun el telefono y generaba
     # falsos rechazos. Se guarda lo que se alcance a leer.
     clave_leida = (datos.get("clave") or "").strip().upper()
+    if not clave_leida:
+        _err("SIN_CLAVE",
+             "No se alcanza a leer el codigo del encabezado de la app de Telcel. "
+             "Sube la pantalla completa de la app, no una captura de otra pantalla.")
 
     # Horas
     if not datos.get("hora_entrada"):
