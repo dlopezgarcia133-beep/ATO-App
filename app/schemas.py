@@ -312,6 +312,8 @@ class VentaChipCreate(BaseModel):
     cvip: bool
     imei: Optional[str] = None
     iccid: Optional[str] = None
+    curp: Optional[str] = None
+    nip: Optional[str] = None
     cambio_chip: bool = False
   
 

@@ -994,6 +994,8 @@ def crear_venta_chip(
         hora=fecha_actual.time(),
         imei=venta.imei,
         iccid=venta.iccid,
+        curp=venta.curp,
+        nip=venta.nip,
         cambio_chip=venta.cambio_chip,
     )
 
@@ -1193,7 +1195,7 @@ def validar_chip(
         return chip
 
     tipo = chip.tipo_chip
-    monto = int(chip.monto_recarga)
+    monto = int(chip.monto_recarga or 0)
 
     if tipo == "Activacion":
         if data.comision_manual is None:
@@ -1339,7 +1341,7 @@ def validar_chip_incubadora(
         raise HTTPException(status_code=400, detail="El chip ya está validado")
 
     tipo = chip.tipo_chip
-    monto = int(chip.monto_recarga)
+    monto = int(chip.monto_recarga or 0)
 
     comisiones_por_chip = {
         "Chip Equipo": [

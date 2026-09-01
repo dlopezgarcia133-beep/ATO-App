@@ -216,6 +216,8 @@ class VentaChip(Base):
     fecha_validacion = Column(DateTime(timezone=True), nullable=True)
     imei = Column(String, nullable=True)
     iccid = Column(String, nullable=True)
+    curp = Column(String, nullable=True)
+    nip = Column(String, nullable=True)
     cambio_chip = Column(Boolean, default=False, nullable=False)
 
     empleado = relationship("Usuario", foreign_keys=[empleado_id])
