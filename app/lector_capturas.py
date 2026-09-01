@@ -24,13 +24,17 @@ Campos:
   "entrada_meridiano": "am" o "pm",
   "salida_hora": "HH:MM tal cual aparece, sin convertir, o null",
   "salida_meridiano": "am" o "pm" o null,
-  "duracion_texto": "texto de Duracion de Jornada tal cual, o null"
+  "duracion_texto": "texto de Duracion de Jornada tal cual, o null",
+  "formato_hora": "12h" o "24h"
 }
 
 Reglas:
 - La fecha viene como dd/mm/aa. El anio 26 significa 2026.
 - NO conviertas las horas. Copialas exactamente como se ven.
   Si dice "01:47 p. m." entonces entrada_hora es "01:47" y entrada_meridiano es "pm".
+- Si las horas traen a.m. o p.m., formato_hora es "12h".
+- Si las horas NO traen ningun a.m. ni p.m. (ej "14:08"), formato_hora es "24h"
+  y los campos de meridiano quedan en null. Copia la hora tal cual.
 - IGNORA por completo el titulo de la pantalla y el boton circular grande de
   color (rojo o verde). Ese boton es solo un boton, NO es un registro.
   Que diga "Check Out" arriba no significa que la hora de abajo sea una salida.
@@ -57,21 +61,33 @@ def _preparar_imagen(contenido: bytes) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def _a_24h(hora: str, meridiano: str):
-    if not hora or not meridiano:
+def _a_24h(hora: str, meridiano: str, formato: str = "12h"):
+    if not hora:
         return None
     try:
         h, m = hora.strip().split(":")
         h, m = int(h), int(m)
     except (ValueError, AttributeError):
         return None
-    if not (1 <= h <= 12 and 0 <= m <= 59):
+    if not (0 <= m <= 59):
+        return None
+
+    es_24h = (formato or "").strip().lower().replace(" ", "") in ("24h", "24")
+
+    if not meridiano:
+        # Sin meridiano solo se acepta si la pantalla venia en formato 24 horas.
+        # Si no, la hora es ambigua y se rechaza en vez de adivinar.
+        if not es_24h or not (0 <= h <= 23):
+            return None
+        return f"{h:02d}:{m:02d}"
+
+    if not (1 <= h <= 12):
         return None
     mer = meridiano.strip().lower().replace(".", "").replace(" ", "")
-    if mer in ("pm", "p.m", "pm."):
+    if mer == "pm":
         if h != 12:
             h += 12
-    elif mer in ("am", "a.m", "am."):
+    elif mer == "am":
         if h == 12:
             h = 0
     else:
@@ -83,8 +99,9 @@ def _normalizar(datos: dict) -> dict:
     if not datos.get("legible"):
         return datos
 
-    entrada = _a_24h(datos.get("entrada_hora"), datos.get("entrada_meridiano"))
-    salida = _a_24h(datos.get("salida_hora"), datos.get("salida_meridiano"))
+    formato = datos.get("formato_hora")
+    entrada = _a_24h(datos.get("entrada_hora"), datos.get("entrada_meridiano"), formato)
+    salida = _a_24h(datos.get("salida_hora"), datos.get("salida_meridiano"), formato)
 
     datos["hora_entrada"] = entrada
     datos["hora_salida"] = salida
