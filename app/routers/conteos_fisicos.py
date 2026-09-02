@@ -471,6 +471,7 @@ def aplicar_conteo(
     # ── PASO D/E/F: registro de IMEIs y faltantes ─────────────────────────────
     faltantes_payload: list = []
     imeis_registrados = 0
+    faltantes_dados_de_baja = 0
     if data.imeis:
         # PASO D ── un ConteoFisicoImei por item; reasignar los 'reasignado' ───
         now_mx = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
@@ -526,6 +527,20 @@ def aplicar_conteo(
                 "dias_en_piso": dias_en_piso,
             })
 
+        # PASO E2 - baja de faltantes. Doble candado: el conteo debe estar
+        # declarado COMPLETO y el admin debe confirmar explicitamente.
+        # Si falta cualquiera de los dos, los faltantes solo se reportan.
+        if data.conteo_imei_completo and data.dar_de_baja_faltantes:
+            imeis_faltantes = {f["imei"] for f in faltantes_payload if f["imei"]}
+            for eq in snapshot_surtidos:
+                imei_eq = (eq.imei or "").strip()
+                if not imei_eq or imei_eq not in imeis_faltantes:
+                    continue
+                eq.estatus = "vendido"
+                eq.fecha_venta = now_mx
+                eq.folio_venta = f"AJUSTE-{conteo.folio}"
+                faltantes_dados_de_baja += 1
+
     # Descongelar automáticamente al aplicar el conteo
     modulo.congelado = False
 
@@ -541,6 +556,7 @@ def aplicar_conteo(
         "productos_conservados": cnt_conservados,
         "faltantes_imei": faltantes_payload,
         "imeis_registrados": imeis_registrados,
+        "faltantes_dados_de_baja": faltantes_dados_de_baja,
     }
 
 

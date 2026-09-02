@@ -1460,6 +1460,10 @@ class AplicarRequest(BaseModel):
     # Solo si es True se manda a cero el telefono que no se pistoleo (bloque C3
     # de /aplicar). False = conteo parcial: lo no escaneado se queda como esta.
     conteo_imei_completo: bool = False
+    # Segunda confirmacion explicita del admin para dar de baja los IMEIs
+    # faltantes. Solo surte efecto si conteo_imei_completo tambien es True.
+    # False = flujo actual: los faltantes solo se reportan, no se tocan.
+    dar_de_baja_faltantes: bool = False
 
 class AplicarResponse(BaseModel):
     folio: str
@@ -1470,6 +1474,7 @@ class AplicarResponse(BaseModel):
     productos_conservados: int
     faltantes_imei: List[FaltanteImeiItem] = []
     imeis_registrados: int = 0
+    faltantes_dados_de_baja: int = 0
 
 class ConteoFisicoItemResponse(BaseModel):
     id: int
