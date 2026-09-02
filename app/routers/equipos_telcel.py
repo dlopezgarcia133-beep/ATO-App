@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import Optional
 
 from app import models
 from app.database import get_db
@@ -23,6 +24,7 @@ class AltaIndividualRequest(BaseModel):
     clave: str
     producto: str
     modulo_id: int
+    folio: Optional[str] = None
 
 
 class AltaMultipleRequest(BaseModel):
@@ -382,6 +384,7 @@ def alta_individual(data: AltaIndividualRequest, db: Session = Depends(get_db)):
         estatus="surtido",
         modulo_id=data.modulo_id,
         fecha_salida=_fecha_entrada_real(db, data.producto.strip(), data.modulo_id),
+        folio=data.folio,
     )
     db.add(equipo)
     db.commit()
@@ -413,6 +416,7 @@ def alta_multiple(data: AltaMultipleRequest, db: Session = Depends(get_db)):
             estatus="surtido",
             modulo_id=eq.modulo_id,
             fecha_salida=_fecha_entrada_real(db, eq.producto.strip(), eq.modulo_id),
+            folio=eq.folio,
         ))
         guardados += 1
     db.commit()
