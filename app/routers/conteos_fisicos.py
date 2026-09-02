@@ -623,15 +623,28 @@ def detalle_conteo(
     }
     faltantes_por_clave = {}
     if conteo.modulo_id:
+        # Corte por fecha: un equipo surtido al modulo DESPUES de la fecha
+        # del conteo no pudo estar fisicamente ese dia, no es faltante.
+        # conteo.fecha es aware (UTC); fecha_salida se guarda naive en
+        # hora Mexico, hay que igualarlas antes de comparar.
+        corte = conteo.fecha
+        if corte is not None and corte.tzinfo is not None:
+            corte = corte.astimezone(
+                ZoneInfo("America/Mexico_City")
+            ).replace(tzinfo=None)
+
         surtidos = db.query(
             models.EquiposTelcel.imei,
             models.EquiposTelcel.clave,
+            models.EquiposTelcel.fecha_salida,
         ).filter(
             models.EquiposTelcel.modulo_id == conteo.modulo_id,
             models.EquiposTelcel.estatus == "surtido",
         ).all()
-        for imei_s, clave_s in surtidos:
+        for imei_s, clave_s, fsalida_s in surtidos:
             if not imei_s or not clave_s:
+                continue
+            if corte is not None and fsalida_s is not None and fsalida_s > corte:
                 continue
             if imei_s.strip() in imeis_escaneados_set:
                 continue
