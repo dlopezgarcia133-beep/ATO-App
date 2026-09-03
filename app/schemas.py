@@ -335,6 +335,28 @@ class VentaChipResponse(VentaChipCreate):
         from_attributes = True
 
 
+class PortabilidadItem(BaseModel):
+    id: int
+    fecha: date
+    hora: time
+    tipo_chip: str
+    numero_telefono: str
+    curp: Optional[str] = None
+    iccid: Optional[str] = None
+    nip: Optional[str] = None
+    asesor: Optional[str] = None
+    modulo: Optional[str] = None
+    portabilidad_realizada: bool
+    fecha_portabilidad: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MarcarPortabilidadRequest(BaseModel):
+    realizada: bool
+
+
 class PagarComisionesInput(BaseModel):
     chip_ids: list[int]
 

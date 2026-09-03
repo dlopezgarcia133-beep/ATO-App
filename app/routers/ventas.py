@@ -2031,3 +2031,114 @@ def editar_precio_venta(
     db.commit()
 
     return {"ok": True, "message": "Precio actualizado correctamente", "nuevo_total": venta.total}
+
+
+# ── Portabilidades ─────────────────────────────────────────────────────────
+# Los chips de portabilidad requieren un tramite posterior a la venta, asi que
+# se marcan aparte cuando ya se realizo. Solo lo ve y lo mueve admin/direccion.
+TIPOS_PORTABILIDAD = ["Portabilidad", "Porta Otras cadenas"]
+
+
+def _nombre_asesor(empleado):
+    if not empleado:
+        return None
+    return (empleado.nombre_englobado or "").strip() or empleado.nombre_completo or empleado.username
+
+
+@router.get("/portabilidades", response_model=List[schemas.PortabilidadItem])
+def listar_portabilidades(
+    estado: str = "pendientes",
+    fecha_inicio: Optional[date] = None,
+    fecha_fin: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion])
+    ),
+):
+    if estado not in ("pendientes", "realizadas", "todas"):
+        raise HTTPException(
+            status_code=400,
+            detail="estado debe ser 'pendientes', 'realizadas' o 'todas'",
+        )
+
+    query = (
+        db.query(models.VentaChip)
+        .options(
+            joinedload(models.VentaChip.empleado).joinedload(models.Usuario.modulo)
+        )
+        .filter(models.VentaChip.tipo_chip.in_(TIPOS_PORTABILIDAD))
+        .filter(models.VentaChip.cancelada == False)  # noqa: E712
+    )
+
+    if estado == "pendientes":
+        query = query.filter(models.VentaChip.portabilidad_realizada == False)  # noqa: E712
+    elif estado == "realizadas":
+        query = query.filter(models.VentaChip.portabilidad_realizada == True)  # noqa: E712
+
+    if fecha_inicio:
+        query = query.filter(models.VentaChip.fecha >= fecha_inicio)
+    if fecha_fin:
+        query = query.filter(models.VentaChip.fecha <= fecha_fin)
+
+    filas = (
+        query.order_by(models.VentaChip.fecha.desc(), models.VentaChip.hora.desc())
+        .limit(500)
+        .all()
+    )
+
+    return [
+        schemas.PortabilidadItem(
+            id=c.id,
+            fecha=c.fecha,
+            hora=c.hora,
+            tipo_chip=c.tipo_chip,
+            numero_telefono=c.numero_telefono,
+            curp=c.curp,
+            iccid=c.iccid,
+            nip=c.nip,
+            asesor=_nombre_asesor(c.empleado),
+            modulo=getattr(getattr(c.empleado, "modulo", None), "nombre", None),
+            portabilidad_realizada=bool(c.portabilidad_realizada),
+            fecha_portabilidad=c.fecha_portabilidad,
+        )
+        for c in filas
+    ]
+
+
+@router.patch("/portabilidades/{venta_id}", response_model=schemas.PortabilidadItem)
+def marcar_portabilidad(
+    venta_id: int,
+    data: schemas.MarcarPortabilidadRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(
+        verificar_rol_requerido([models.RolEnum.admin, models.RolEnum.direccion])
+    ),
+):
+    chip = db.query(models.VentaChip).filter(models.VentaChip.id == venta_id).first()
+    if not chip:
+        raise HTTPException(status_code=404, detail="Portabilidad no encontrada")
+
+    if data.realizada:
+        chip.portabilidad_realizada = True
+        chip.fecha_portabilidad = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None)
+    else:
+        chip.portabilidad_realizada = False
+        chip.fecha_portabilidad = None
+
+    db.commit()
+    db.refresh(chip)
+
+    return schemas.PortabilidadItem(
+        id=chip.id,
+        fecha=chip.fecha,
+        hora=chip.hora,
+        tipo_chip=chip.tipo_chip,
+        numero_telefono=chip.numero_telefono,
+        curp=chip.curp,
+        iccid=chip.iccid,
+        nip=chip.nip,
+        asesor=_nombre_asesor(chip.empleado),
+        modulo=getattr(getattr(chip.empleado, "modulo", None), "nombre", None),
+        portabilidad_realizada=bool(chip.portabilidad_realizada),
+        fecha_portabilidad=chip.fecha_portabilidad,
+    )

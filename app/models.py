@@ -218,6 +218,8 @@ class VentaChip(Base):
     iccid = Column(String, nullable=True)
     curp = Column(String, nullable=True)
     nip = Column(String, nullable=True)
+    portabilidad_realizada = Column(Boolean, default=False, nullable=False)
+    fecha_portabilidad = Column(DateTime, nullable=True)
     cambio_chip = Column(Boolean, default=False, nullable=False)
 
     empleado = relationship("Usuario", foreign_keys=[empleado_id])
