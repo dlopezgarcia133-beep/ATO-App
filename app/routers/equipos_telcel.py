@@ -1,6 +1,7 @@
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.params import File
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
@@ -184,6 +185,40 @@ def listar_equipos(
             if v.imei not in ventas_por_imei:
                 ventas_por_imei[v.imei] = {"numero": v.chip_casado, "clasificacion": v.clasificacion}
 
+    # Vendedor: equipos_telcel.folio_venta -> ventas.folio -> usuarios.
+    # El folio es texto libre de los dos lados (no hay FK), asi que el match va
+    # normalizado con upper+trim en ambos. Solo se resuelve para vendidos: las
+    # otras pantallas que pegan a este endpoint (VentasPage con estatus=surtido)
+    # no pagan la query extra.
+    def _folio_norm(equipo):
+        if equipo.estatus != "vendido" or not equipo.folio_venta:
+            return None
+        return equipo.folio_venta.strip().upper() or None
+
+    vendedor_por_folio = {}
+    folios = {f for f in (_folio_norm(e) for e in equipos) if f}
+    if folios:
+        folio_col = func.upper(func.trim(models.Venta.folio))
+        vendedor_rows = (
+            db.query(
+                folio_col.label("folio"),
+                models.Usuario.nombre_englobado,
+                models.Usuario.nombre_completo,
+                models.Usuario.username,
+            )
+            .join(models.Usuario, models.Venta.empleado_id == models.Usuario.id)
+            .filter(folio_col.in_(list(folios)))
+            .filter(models.Venta.cancelada == False)  # noqa: E712
+            .order_by(models.Venta.id.desc())
+            .all()
+        )
+        # Mismo criterio que ventas_por_imei: al venir por id desc, la primera
+        # de cada folio es la mas reciente.
+        for v in vendedor_rows:
+            if v.folio not in vendedor_por_folio:
+                nombre = (v.nombre_englobado or "").strip() or v.nombre_completo or v.username or ""
+                vendedor_por_folio[v.folio] = nombre.strip().upper()
+
     return [
         {
             "id": e.id,
@@ -203,6 +238,7 @@ def listar_equipos(
             "cumple_arl": e.cumple_arl,
             "activado": e.activado,
             "estado_activacion": e.estado_activacion,
+            "vendedor": vendedor_por_folio.get(_folio_norm(e)) or "—",
         }
         for e in equipos
     ]
