@@ -2036,7 +2036,9 @@ def editar_precio_venta(
 # ── Portabilidades ─────────────────────────────────────────────────────────
 # Los chips de portabilidad requieren un tramite posterior a la venta, asi que
 # se marcan aparte cuando ya se realizo. Solo lo ve y lo mueve admin/direccion.
-TIPOS_PORTABILIDAD = ["Portabilidad", "Porta Otras cadenas"]
+# El control del tramite es solo para Cadenas: se deja fuera "Portabilidad" y
+# "Portabilidad Coppel".
+TIPOS_PORTABILIDAD = ["Porta Otras cadenas"]
 
 
 def _nombre_asesor(empleado):
@@ -2068,6 +2070,11 @@ def listar_portabilidades(
         )
         .filter(models.VentaChip.tipo_chip.in_(TIPOS_PORTABILIDAD))
         .filter(models.VentaChip.cancelada == False)  # noqa: E712
+        # Las portabilidades registradas antes del cambio de formulario no traen
+        # estos datos y no sirven para el control del tramite.
+        .filter(models.VentaChip.curp.isnot(None), models.VentaChip.curp != "")
+        .filter(models.VentaChip.iccid.isnot(None), models.VentaChip.iccid != "")
+        .filter(models.VentaChip.nip.isnot(None), models.VentaChip.nip != "")
     )
 
     if estado == "pendientes":
