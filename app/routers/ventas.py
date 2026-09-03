@@ -1,5 +1,5 @@
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -984,6 +984,15 @@ def crear_venta_chip(
 
     verificar_modulo_no_congelado(db, current_user.modulo_id)
     fecha_actual = datetime.now(zona_horaria)
+
+    # El asesor captura solo el dia, sin hora: se guarda a las 00:00. Si viene
+    # la fecha, el tramite ya se hizo y la venta nace marcada como realizada.
+    fecha_porta = None
+    realizada = False
+    if venta.fecha_portabilidad:
+        fecha_porta = datetime.combine(venta.fecha_portabilidad, time(0, 0))
+        realizada = True
+
     nueva_venta = models.VentaChip(
         empleado_id=current_user.id,
         tipo_chip=venta.tipo_chip,
@@ -996,6 +1005,8 @@ def crear_venta_chip(
         iccid=venta.iccid,
         curp=venta.curp,
         nip=venta.nip,
+        fecha_portabilidad=fecha_porta,
+        portabilidad_realizada=realizada,
         cambio_chip=venta.cambio_chip,
     )
 

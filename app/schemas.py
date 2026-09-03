@@ -314,6 +314,7 @@ class VentaChipCreate(BaseModel):
     iccid: Optional[str] = None
     curp: Optional[str] = None
     nip: Optional[str] = None
+    fecha_portabilidad: Optional[date] = None
     cambio_chip: bool = False
   
 
