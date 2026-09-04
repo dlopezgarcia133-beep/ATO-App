@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,17 @@ Campos:
 }
 
 Reglas:
+- Los recuadros de abajo se leen SIEMPRE por posicion vertical.
+  El recuadro de ARRIBA es la ENTRADA. El recuadro de ABAJO es la SALIDA.
+  La posicion manda siempre. El color del icono es solo confirmacion.
+- La ENTRADA siempre ocurre antes que la SALIDA en la misma jornada.
+  Si al leerlas la salida te queda mas temprano que la entrada,
+  las leiste al reves: vuelve a mirar cual recuadro esta arriba.
+- Si hay UN SOLO recuadro con fecha y hora, esa hora SIEMPRE es la entrada
+  y los campos de salida quedan en null.
+- duracion_texto es el recuadro azul "Duracion de Jornada". Copialo tal cual.
+  Es un dato independiente: debe ser coherente con la diferencia entre
+  entrada y salida.
 - fecha_cruda son los digitos de la fecha copiados EXACTAMENTE como aparecen,
   sin reordenar y sin interpretar. Si se ve "01/09/26" escribe "01/09/26".
 - La app siempre usa dia/mes/anio. NO reordenes. "01/09/26" es 1 de septiembre.
@@ -43,10 +55,6 @@ Reglas:
   Que diga "Check Out" arriba no significa que la hora de abajo sea una salida.
 - Los unicos registros validos son los RECUADROS de abajo que tienen los
   encabezados "Fecha" y "Hora".
-- Si hay UN SOLO recuadro con fecha y hora, esa hora SIEMPRE es la entrada.
-  entrada_hora se llena con ella y los campos de salida quedan en null.
-- Si hay DOS recuadros, el primero (icono verde) es la entrada y el segundo
-  (icono rojo) es la salida.
 - Si la imagen no es de esta app o no se alcanza a leer, pon "legible": false
   y el resto en null.
 """
@@ -98,6 +106,21 @@ def _a_24h(hora: str, meridiano: str, formato: str = "12h"):
     return f"{h:02d}:{m:02d}"
 
 
+def _duracion_texto_a_minutos(texto):
+    """Convierte '6 Hrs. 7 Mins. 37 Segs.' o '10 hrs, 5 mins, 25 segs.'
+    a minutos. Devuelve None si no se puede parsear."""
+    if not texto:
+        return None
+    t = str(texto).lower()
+    h = re.search(r"(\d+)\s*h", t)
+    m = re.search(r"(\d+)\s*m", t)
+    if not h and not m:
+        return None
+    horas = int(h.group(1)) if h else 0
+    mins = int(m.group(1)) if m else 0
+    return horas * 60 + mins
+
+
 def _fecha_iso(cruda: str, respaldo: str):
     # La app de Telcel siempre muestra dd/mm/aa. Se arma aqui en vez de
     # confiar en la conversion del modelo, que con dias menores a 13
@@ -130,15 +153,22 @@ def _normalizar(datos: dict) -> dict:
 
     datos["hora_entrada"] = entrada
     datos["hora_salida"] = salida
-    datos["duracion_minutos"] = None
 
+    datos["duracion_texto_minutos"] = _duracion_texto_a_minutos(
+        datos.get("duracion_texto")
+    )
+
+    # Sin correccion por medianoche: una diferencia negativa es la senal de que
+    # la lectura vino invertida y debe llegar asi al router.
     if entrada and salida:
         he, me = map(int, entrada.split(":"))
         hs, ms = map(int, salida.split(":"))
-        minutos = (hs * 60 + ms) - (he * 60 + me)
-        if minutos < 0:
-            minutos += 1440
-        datos["duracion_minutos"] = minutos
+        datos["duracion_calculada"] = (hs * 60 + ms) - (he * 60 + me)
+    else:
+        datos["duracion_calculada"] = None
+
+    # La duracion final ya no se decide aqui, se resuelve en el router.
+    datos["duracion_minutos"] = None
 
     if not entrada:
         datos["legible"] = False

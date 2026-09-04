@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import traceback
 from datetime import datetime, date as _date, time as _time, timedelta
@@ -17,9 +18,12 @@ from app.lector_capturas import leer_captura
 
 router = APIRouter(prefix="/capturas-telcel", tags=["capturas-telcel"])
 
+log = logging.getLogger(__name__)
+
 ZONA = ZoneInfo("America/Mexico_City")
 ROLES_ADMIN = ("admin", "direccion")
 MODULO_CADENAS = 7
+TOPE_JORNADA_MIN = 16 * 60
 
 
 def _err(codigo: str, mensaje: str, status: int = 400):
@@ -55,7 +59,8 @@ def _decodificar_foto(foto_base64: str) -> bytes:
 
 
 def _espejo_registros(db, username: str, fecha, tipo: str,
-                      hora_entrada, hora_salida, duracion_minutos):
+                      hora_entrada, hora_salida, duracion_minutos,
+                      clave=None):
     """Refleja la captura BES en la tabla registros, que es de donde
     sale el bono. Formato identico al que escribe ZEliCheck."""
     fecha_str = fecha.isoformat()
@@ -75,15 +80,28 @@ def _espejo_registros(db, username: str, fecha, tipo: str,
         return
 
     # cierre: fila completa
-    # Si la IA no pudo leer la duracion, se reconstruye de las horas.
+    # Si la IA no pudo leer la duracion, se reconstruye de las horas. Sin
+    # correccion por medianoche: una resta negativa o desproporcionada
+    # significa lectura mala, y en ese caso no se escribe la fila espejo.
     if duracion_minutos is None and hora_entrada and hora_salida:
         he, me = map(int, hora_entrada.split(":"))
         hs, ms = map(int, hora_salida.split(":"))
-        duracion_minutos = (hs * 60 + ms) - (he * 60 + me)
-        if duracion_minutos < 0:
-            duracion_minutos += 1440
+        calculada = (hs * 60 + ms) - (he * 60 + me)
+        if 0 < calculada <= 960:
+            duracion_minutos = calculada
+        else:
+            log.warning(
+                "espejo_registros: duracion fuera de rango (%s min), no se "
+                "escribe fila. username=%s fecha=%s clave=%s entrada=%s salida=%s",
+                calculada, username, fecha_str, clave, hora_entrada, hora_salida,
+            )
+            return
 
     if duracion_minutos is None:
+        log.warning(
+            "espejo_registros: sin duracion, no se escribe fila. "
+            "username=%s fecha=%s clave=%s", username, fecha_str, clave,
+        )
         return
 
     horas = round(duracion_minutos / 60, 2)
@@ -261,6 +279,58 @@ def subir_captura(
     if t_entrada is None:
         _err("HORA_INVALIDA", "No se pudo interpretar la hora de la captura. Vuelve a tomarla.")
 
+    if body.tipo == "cierre":
+        # 1. Si la IA entrego la salida antes que la entrada, invirtio los
+        #    recuadros. Corregir ANTES de tocar nada mas: si se pisa primero
+        #    la entrada con la de la apertura, la salida real se pierde.
+        if t_salida is not None and t_entrada is not None and t_salida < t_entrada:
+            log.warning(
+                "captura cierre con recuadros invertidos por la IA, se corrige "
+                "por swap. username=%s fecha=%s clave=%s ia_entrada=%s ia_salida=%s",
+                destino.username, fecha_captura.isoformat(), clave_leida,
+                t_entrada.strftime("%H:%M"), t_salida.strftime("%H:%M"),
+            )
+            t_entrada, t_salida = t_salida, t_entrada
+
+        # 2. Ya con el orden corregido, la entrada la manda SIEMPRE la
+        #    apertura ya guardada. La IA no vuelve a opinar sobre la entrada.
+        if apertura.hora_entrada:
+            t_entrada = apertura.hora_entrada
+
+        # 3. Calcular duracion ya con las horas resueltas. Sin +=1440.
+        dur_calc = None
+        if t_entrada is not None and t_salida is not None:
+            dur_calc = (
+                (t_salida.hour * 60 + t_salida.minute)
+                - (t_entrada.hour * 60 + t_entrada.minute)
+            )
+
+        dur_texto = datos.get("duracion_texto_minutos")
+
+        # 4. duracion_texto es el testigo. Si existe y discrepa mas de 5 min
+        #    del calculo, no confiamos en la lectura: rechazar.
+        if dur_texto is not None and dur_calc is not None:
+            if abs(dur_texto - dur_calc) > 5:
+                _err(
+                    "LECTURA_INCONSISTENTE",
+                    "Las horas leidas no coinciden con la duracion que muestra "
+                    "la pantalla. Vuelve a tomar la captura completa."
+                )
+
+        # 5. Duracion final: manda el texto de la pantalla; la resta es respaldo.
+        duracion_final = dur_texto if dur_texto is not None else dur_calc
+
+        # 6. Cordura: negativa o mayor al tope = lectura mala, no se guarda.
+        if (duracion_final is None or duracion_final <= 0
+                or duracion_final > TOPE_JORNADA_MIN):
+            _err(
+                "DURACION_INVALIDA",
+                "No se pudo determinar una jornada valida en la captura. "
+                "Vuelve a tomarla."
+            )
+
+        datos["duracion_minutos"] = duracion_final
+
     registro = models.CapturaTelcel(
         usuario_id=destino.id,
         username=destino.username,
@@ -294,6 +364,7 @@ def subir_captura(
             hora_entrada=t_entrada.strftime("%H:%M") if t_entrada else None,
             hora_salida=t_salida.strftime("%H:%M") if t_salida else None,
             duracion_minutos=datos.get("duracion_minutos"),
+            clave=clave_leida,
         )
         db.commit()
     except Exception:
