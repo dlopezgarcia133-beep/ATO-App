@@ -106,3 +106,21 @@ def obtener_comisiones_por_empleado(db, inicio, fin):
 
     return {r.empleado_id: float(r.total_comisiones) for r in rows}
 
+
+
+def mismo_folio(folio_a, folio_b) -> bool:
+    """
+    Compara dos folios normalizando ambos lados (strip + upper), mismo criterio
+    que ya usa equipos_telcel.listar_equipos para cruzar equipos_telcel.folio_venta
+    contra ventas.folio.
+
+    Dos folios vacios NO cuentan como iguales: sin folio no hay forma de afirmar
+    que un equipo salio por esa venta, y devolver True ahi liberaria IMEIs que
+    nunca pertenecieron al movimiento que se esta revirtiendo.
+
+    Vive aqui, y no en un router, para que ventas.py y planes_tarifarios.py la
+    puedan importar sin crear un ciclo entre ellos.
+    """
+    a = (folio_a or "").strip().upper()
+    b = (folio_b or "").strip().upper()
+    return bool(a) and a == b

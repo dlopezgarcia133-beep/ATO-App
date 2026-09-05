@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app import models, schemas
 from app.database import get_db
 from app.routers.usuarios import get_current_user
-from app.utilidades import calcular_comision_telefono, enviar_ticket, verificar_rol_requerido, verificar_modulo_no_congelado
+from app.utilidades import calcular_comision_telefono, enviar_ticket, mismo_folio, verificar_rol_requerido, verificar_modulo_no_congelado
 from datetime import date
 from app.routers.kardex import registrar_kardex
+from app.routers.planes_tarifarios import revertir_plan
 import os
 from supabase import create_client
 
@@ -448,6 +449,50 @@ def cancelar_venta(
         if current_user.rol != models.RolEnum.encargado or venta.modulo_id != current_user.modulo_id:
             raise HTTPException(status_code=403, detail="No tienes permisos para cancelar esta venta")
 
+    # ── Venta espejo de un plan tarifario ────────────────────────────────────
+    # crear_plan_tarifario crea la venta espejo con un producto que NO existe en
+    # inventario_modulo ("PAGO INICIAL - X" / "X - PLAN SIN ENGANCHE"), asi que el
+    # reintegro de mas abajo nunca encuentra la fila y el stock se pierde. Cuando
+    # la venta pertenece a un plan, la reversion la hace revertir_plan() usando
+    # plan.equipo, que si es el nombre real.
+    plan = (
+        db.query(models.PlanTarifario)
+        .filter(models.PlanTarifario.venta_pi_id == venta.id)
+        .first()
+    )
+    if plan is None and venta.tipo_venta == "plan" and venta.folio:
+        # Pago dividido: venta_pi_id apunta solo a la primera parte. Si estan
+        # cancelando la segunda, se llega al plan por el folio compartido.
+        ids_folio = [
+            row.id
+            for row in db.query(models.Venta.id).filter(
+                models.Venta.folio == venta.folio,
+                models.Venta.tipo_venta == "plan",
+            ).all()
+        ]
+        if ids_folio:
+            plan = (
+                db.query(models.PlanTarifario)
+                .filter(models.PlanTarifario.venta_pi_id.in_(ids_folio))
+                .first()
+            )
+
+    if plan is not None:
+        # Devuelve inventario con plan.equipo, escribe el kardex correcto, libera
+        # el IMEI, resta del CorteDia y borra el plan. Las ventas espejo quedan
+        # con cancelada=True (no se borran) para no romper el historial ni el
+        # response_model de este endpoint. Se sale antes del reintegro y del
+        # registrar_kardex de abajo: un solo movimiento por reversion.
+        revertir_plan(db, plan, current_user, borrar_ventas_espejo=False)
+
+        # Explicito, no de rebote: revertir_plan marca las ventas espejo, pero esta
+        # cancelacion no puede depender de que la venta actual caiga en esa lista.
+        venta.cancelada = True
+
+        db.commit()
+        db.refresh(venta)
+        return venta
+
     # Reintegrar inventario — lookup por clave para evitar duplicados por variación de nombre
     prod_general = (
         db.query(models.InventarioGeneral)
@@ -492,7 +537,7 @@ def cancelar_venta(
             .filter(models.EquiposTelcel.imei == imei_limpio)
             .first()
         )
-        if equipo and equipo.folio_venta == venta.folio:
+        if equipo and mismo_folio(equipo.folio_venta, venta.folio):
             equipo.estatus = "surtido"
             equipo.fecha_venta = None
             equipo.folio_venta = None
@@ -603,7 +648,7 @@ def devolver_venta(
             .filter(models.EquiposTelcel.imei == imei_limpio)
             .first()
         )
-        if equipo and equipo.folio_venta == venta.folio:
+        if equipo and mismo_folio(equipo.folio_venta, venta.folio):
             equipo.estatus = "surtido"
             equipo.fecha_venta = None
             equipo.folio_venta = None
