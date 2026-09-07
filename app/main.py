@@ -11,6 +11,7 @@ from app.routers import checkin
 from app.routers import gastos
 from app.routers import equipos_telcel
 from app.routers import capturas_telcel
+from app.routers import cadenas_ventas
 from fastapi.middleware.cors import CORSMiddleware
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -66,3 +67,4 @@ app.include_router(checkin.router, prefix="/checkin", tags=["Check In"])
 app.include_router(gastos.router, tags=["Gastos"])
 app.include_router(equipos_telcel.router, prefix="/equipos_telcel", tags=["Equipos Telcel"])
 app.include_router(capturas_telcel.router)
+app.include_router(cadenas_ventas.router, prefix="/ventas-cadenas", tags=["Ventas Cadenas"])
