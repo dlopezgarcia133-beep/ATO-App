@@ -60,6 +60,10 @@ class CumpleArlRequest(BaseModel):
     cumple_arl: bool
 
 
+class EditarChipCasadoRequest(BaseModel):
+    chip_casado: str
+
+
 @router.post("/upload/")
 def upload_equipos_telcel(
     archivo: UploadFile = File(...),
@@ -586,3 +590,34 @@ def set_cumple_arl(equipo_id: int, data: CumpleArlRequest, db: Session = Depends
     equipo.cumple_arl = data.cumple_arl
     db.commit()
     return {"status": "success", "id": equipo.id, "cumple_arl": equipo.cumple_arl}
+
+
+# Vive en el router de equipos pero escribe en ventas: chip_casado es la fuente
+# de la columna "Numero" que se muestra en la pantalla de equipos.
+@router.post("/editar-chip-casado/{equipo_id}")
+def editar_chip_casado(equipo_id: int, data: EditarChipCasadoRequest, db: Session = Depends(get_db)):
+    equipo = db.query(models.EquiposTelcel).filter(models.EquiposTelcel.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    nuevo = (data.chip_casado or "").strip()
+    if not nuevo.isdigit() or len(nuevo) != 10:
+        raise HTTPException(status_code=400, detail="El número debe tener exactamente 10 dígitos")
+    # Misma venta que resuelve el GET /: la mas reciente del IMEI, no cancelada,
+    # de telefono y con clasificacion que lleva chip casado.
+    venta = (
+        db.query(models.Venta)
+        .filter(models.Venta.imei == equipo.imei)
+        .filter(models.Venta.tipo_producto == "telefono")
+        .filter(models.Venta.cancelada == False)  # noqa: E712
+        .filter(models.Venta.clasificacion.in_(["linea_nueva", "boletin_63", "chip_ato", "chip_promo"]))
+        .order_by(models.Venta.id.desc())
+        .first()
+    )
+    if not venta:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No hay venta de teléfono activa para el IMEI {equipo.imei}",
+        )
+    venta.chip_casado = nuevo
+    db.commit()
+    return {"status": "success", "id": equipo.id, "imei": equipo.imei, "venta_id": venta.id, "chip_casado": venta.chip_casado}
