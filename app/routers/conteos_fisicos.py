@@ -536,7 +536,7 @@ def aplicar_conteo(
                 imei_eq = (eq.imei or "").strip()
                 if not imei_eq or imei_eq not in imeis_faltantes:
                     continue
-                eq.estatus = "vendido"
+                eq.estatus = "ajuste"
                 eq.fecha_venta = now_mx
                 eq.folio_venta = f"AJUSTE-{conteo.folio}"
                 faltantes_dados_de_baja += 1
@@ -1028,9 +1028,9 @@ def validar_imei(
         if modulo:
             modulo_sistema_nombre = modulo.nombre
 
-    if equipo.estatus == "vendido":
+    if equipo.estatus in ("vendido", "ajuste"):
         resultado = "vendido_presente"
-        mensaje = "OJO: este equipo figura como VENDIDO pero esta fisicamente."
+        mensaje = "OJO: este equipo figura como VENDIDO o dado de baja por AJUSTE pero esta fisicamente."
     elif equipo.modulo_id != request.modulo_id:
         resultado = "reasignado"
         nombre_ref = modulo_sistema_nombre or "otro modulo"

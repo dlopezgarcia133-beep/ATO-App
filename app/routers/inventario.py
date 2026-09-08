@@ -629,14 +629,15 @@ def eliminar_entrada_mercancia(
             .filter(models.EquiposTelcel.folio == folio_entrada)
             .all()
         )
-        vendidos = [e for e in equipos_entrada if e.estatus == "vendido"]
-        if vendidos:
-            imeis_vendidos = ", ".join(sorted(e.imei for e in vendidos if e.imei))
+        bloqueados = [e for e in equipos_entrada if e.estatus in ("vendido", "ajuste")]
+        if bloqueados:
+            imeis_vendidos = ", ".join(sorted(e.imei for e in bloqueados if e.imei))
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"No se puede eliminar la entrada: {len(vendidos)} equipo(s) "
-                    f"de este folio ya están vendidos: {imeis_vendidos}"
+                    f"No se puede eliminar la entrada: {len(bloqueados)} equipo(s) "
+                    f"de este folio están vendidos o dados de baja por ajuste: "
+                    f"{imeis_vendidos}"
                 ),
             )
 
